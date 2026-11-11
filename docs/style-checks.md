@@ -70,7 +70,7 @@ is a commented example, though it raises the complexity limits above their defau
 | `side_effects.min_lines` | 10 | Functions with fewer code lines skip the density rule |
 | `side_effects.transitive_depth` | 3 | Call hops an effect travels up; 0 means direct effects only |
 | `side_effects.weights.*` | see below | Weight of each effect kind |
-| `side_effects.paths.*` | see below | Callee path prefixes that count as each effect kind |
+| `side_effects.paths.*` | see below | Callee path prefixes that count as each effect kind, or as none |
 | `ignored_result.min_used_percent` | 90 | How much of a callee's calls must use its result, from 1 to 100. See [`ignored_result`](defects.md#ignored_result) |
 | `ignored_result.min_calls` | 5 | Fewest calls of a callee that say anything. At 90%, one drop already takes 10 |
 | `deviant_argument.min_methods` | 4 | Fewest sibling methods, counting the one that differs, that make the call; at least 3. See [`deviant_argument`](defects.md#deviant_argument) |
@@ -89,6 +89,21 @@ The default weights are `mutation = 1`, `io = 3`, `network = 3`, `global = 2`, `
 [side_effects.paths]
 network = ["std::net::", "reqwest::"]
 ```
+
+`none` lists calls you know have no effect, such as a library's reads, so they count as classified
+and add nothing. It's empty by default. A longer prefix in another list still wins, and so does
+another list naming the same prefix. A prefix matches the callee's name as its language spells it,
+without the `py::` the merge risk report puts in front of a Python one:
+
+```toml
+[side_effects.paths]
+none = ["mypy.nodes.", "mypy.types."]   # mypy's API only reads its own nodes
+io = ["mypy.build.build"]               # but this runs a build
+```
+
+`none` vouches for what you list, and a prefix that's too wide hides real effects. It never makes a
+call whose target can't be known pure, since that could run anything, and a function of your own
+that it names still passes its own effects to its callers.
 
 A frontend can also ship a table of its language's library calls, keyed by operation.
 [Go's](../crates/rstyle-core/src/cpg/contracts/effects/go.toml) knows that `os.WriteFile` is

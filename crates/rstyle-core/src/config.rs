@@ -1,4 +1,4 @@
-use crate::facts::EffectKind;
+use crate::facts::{EffectKind, LibraryClass};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use toml::{Table, Value};
@@ -566,10 +566,15 @@ impl Weights {
     }
 }
 
-/// Callee path prefixes per effect kind. The longest matching prefix wins.
+/// Callee path prefixes per effect kind, and of calls with no effect. The longest matching prefix
+/// wins.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, serde::Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct EffectPaths {
+    /// Calls the project says have no effect, such as a third-party library's reads. None by default,
+    /// and left out of what a baseline compares while there are none.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub none: Vec<String>,
     pub io: Vec<String>,
     pub network: Vec<String>,
     pub time: Vec<String>,
@@ -603,6 +608,7 @@ const DEFAULT_IO: &[&str] = &[
 impl Default for EffectPaths {
     fn default() -> Self {
         Self {
+            none: Vec::new(),
             io: strings(DEFAULT_IO),
             network: strings(&[
                 "std::net::TcpStream::",
@@ -620,21 +626,33 @@ impl Default for EffectPaths {
 }
 
 impl EffectPaths {
-    /// Classifies a resolved callee path; the longest matching prefix wins.
+    /// The effect of a resolved callee path, when the longest matching prefix names one.
     pub fn classify(&self, callee: &str) -> Option<EffectKind> {
+        match self.class_of(callee)? {
+            LibraryClass::Effect(kind) => Some(kind),
+            LibraryClass::Pure => None,
+        }
+    }
+
+    /// What a resolved callee path does: the longest matching prefix wins, and an effect wins over
+    /// `none` for the same prefix.
+    pub fn class_of(&self, callee: &str) -> Option<LibraryClass> {
+        let effect = |kind| LibraryClass::Effect(kind);
         let tables = [
-            (EffectKind::Io, &self.io),
-            (EffectKind::Network, &self.network),
-            (EffectKind::Time, &self.time),
-            (EffectKind::Random, &self.random),
-            (EffectKind::Panic, &self.panic),
+            (LibraryClass::Pure, &self.none),
+            (effect(EffectKind::Io), &self.io),
+            (effect(EffectKind::Network), &self.network),
+            (effect(EffectKind::Time), &self.time),
+            (effect(EffectKind::Random), &self.random),
+            (effect(EffectKind::Panic), &self.panic),
         ];
+        // The last of equally long prefixes is the one kept, so an effect's.
         tables
             .iter()
-            .flat_map(|(kind, prefixes)| prefixes.iter().map(move |p| (*kind, p)))
+            .flat_map(|(class, prefixes)| prefixes.iter().map(move |p| (*class, p)))
             .filter(|(_, prefix)| callee.starts_with(prefix.as_str()))
             .max_by_key(|(_, prefix)| prefix.len())
-            .map(|(kind, _)| kind)
+            .map(|(class, _)| class)
     }
 }
 
@@ -897,6 +915,38 @@ mod tests {
             Some(EffectKind::Network)
         );
         assert_eq!(paths.classify("alloc::vec::Vec::len"), None);
+    }
+
+    #[test]
+    fn a_path_the_config_says_has_no_effect_is_pure_unless_a_longer_effect_names_it() {
+        let config = Config::parse(
+            "[side_effects.paths]\nnone = [\"mypy.nodes.\", \"mypy.build.\"]\nio = [\"mypy.build.\", \"mypy.nodes.Node.write\"]",
+        )
+        .unwrap();
+        let paths = &config.side_effects.paths;
+        assert_eq!(
+            paths.class_of("mypy.nodes.TypeInfo.get"),
+            Some(LibraryClass::Pure)
+        );
+        assert_eq!(paths.classify("mypy.nodes.TypeInfo.get"), None);
+        assert_eq!(
+            paths.class_of("mypy.nodes.Node.write"),
+            Some(LibraryClass::Effect(EffectKind::Io))
+        );
+        // Named in both, so the effect.
+        assert_eq!(paths.classify("mypy.build.build"), Some(EffectKind::Io));
+        assert_eq!(paths.class_of("mypy.types.get_proper_type"), None);
+        let policy = |input: &str| serde_json::to_value(Config::parse(input).unwrap()).unwrap();
+        assert!(policy("")["side_effects"]["paths"].get("none").is_none());
+        assert_eq!(
+            policy("[side_effects.paths]\nnone = [\"a.\"]")["side_effects"]["paths"]["none"][0],
+            "a."
+        );
+        // A list it doesn't set keeps its default.
+        assert_eq!(
+            paths.classify("std::net::TcpStream::connect"),
+            Some(EffectKind::Network)
+        );
     }
 
     #[test]

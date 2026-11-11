@@ -235,13 +235,18 @@ pub fn effects_from_events(events: EffectEvents<'_>, cfg: &Config) -> Vec<Effect
     mutations.chain(calls).chain(intrinsic).collect()
 }
 
-/// A call's effect: the config's say first, as the user's own, then the library contract's.
-/// A call neither classifies is an unknown effect only when its target is unknown.
+/// What a call does: the config's say first, as the user's own, then the library contract's. The
+/// config can't make a call whose target is unknown pure, since what runs could be anything.
+fn call_class(call: &CallEvent, cfg: &Config) -> Option<LibraryClass> {
+    let configured = cfg.side_effects.paths.class_of(&call.callee);
+    configured
+        .filter(|class| !call.dynamic || *class != LibraryClass::Pure)
+        .or(call.library)
+}
+
+/// A call's effect. A call nothing classifies is an unknown effect only when its target is unknown.
 fn call_effect(call: &CallEvent, cfg: &Config) -> Option<EffectKind> {
-    if let Some(kind) = cfg.side_effects.paths.classify(&call.callee) {
-        return Some(kind);
-    }
-    match call.library {
+    match call_class(call, cfg) {
         Some(LibraryClass::Pure) => None,
         Some(LibraryClass::Effect(kind)) => Some(kind),
         None => call.dynamic.then_some(EffectKind::Unknown),
@@ -253,10 +258,8 @@ fn call_effect(call: &CallEvent, cfg: &Config) -> Option<EffectKind> {
 /// A comparison can't call it clean, though. A call with an unknown target is its own matter.
 pub fn unclassified_callee<'c>(call: &'c CallEvent, cfg: &Config) -> Option<&'c str> {
     let callee = call.library_callee.as_deref().filter(|_| !call.dynamic)?;
-    let classified = match call_effect(call, cfg) {
-        Some(kind) => kind != EffectKind::Unknown,
-        None => call.library.is_some(),
-    };
+    let classified = call_class(call, cfg)
+        .is_some_and(|class| class != LibraryClass::Effect(EffectKind::Unknown));
     (!classified).then_some(callee)
 }
 
@@ -565,6 +568,34 @@ mod tests {
 
         cfg.side_effects.paths.io.push("tokio::fs::".into());
         assert_eq!(unclassified_callee(&write, &cfg), None);
+    }
+
+    #[test]
+    fn a_call_the_config_says_has_no_effect_is_classified_and_counts_nothing() {
+        let mut config = Config::default();
+        let read = CallEvent {
+            library_callee: Some("py::mypy.types.get_proper_type".into()),
+            ..call("mypy.types.get_proper_type")
+        };
+        let mut f = sample("f");
+        f.calls = vec![read.clone()];
+        assert_eq!(
+            unclassified_callee(&read, &config),
+            Some("py::mypy.types.get_proper_type")
+        );
+
+        config.side_effects.paths.none = vec!["mypy.types.".into()];
+        assert_eq!(unclassified_callee(&read, &config), None);
+        assert!(effects_of(&f, &config).is_empty());
+
+        // A call whose target is unknown could run anything, whatever its name.
+        f.calls = vec![CallEvent {
+            dynamic: true,
+            ..read
+        }];
+        let effects = effects_of(&f, &config);
+        assert_eq!(effects.len(), 1);
+        assert_eq!(effects[0].kind, EffectKind::Unknown);
     }
 
     fn call(callee: &str) -> CallEvent {
