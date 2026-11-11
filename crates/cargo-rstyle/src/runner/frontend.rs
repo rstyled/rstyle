@@ -202,6 +202,7 @@ impl Frontend {
         })
     }
 
+    // rstyle-allow(side_effect_density): capture IO boundary receives records, stages documents and reaps the frontend
     fn receive_stream(
         &self,
         (child, reader): (Child, std::io::PipeReader),
@@ -226,6 +227,7 @@ impl Frontend {
             .map(|records| Streamed { records, documents })
     }
 
+    // rstyle-allow(side_effect_density): subprocess IO boundary configures inherited capture and piped diagnostics
     fn spawn_stream(&self, source: &Path, writer: &PipeWriter) -> Result<Child, String> {
         let mut command = self.command(&["cpg".as_ref(), "--source".as_ref(), source.as_os_str()]);
         let number = pipe::inherit(&mut command, writer)?;

@@ -48,7 +48,6 @@ pub(crate) fn stderr_tail(mut reader: impl Read) -> io::Result<String> {
     const LIMIT: usize = 16 * 1024;
     let mut tail = Vec::new();
     let mut buffer = [0; 8192];
-    let mut truncated = false;
     loop {
         let count = reader.read(&mut buffer)?;
         if count == 0 {
@@ -56,13 +55,13 @@ pub(crate) fn stderr_tail(mut reader: impl Read) -> io::Result<String> {
         }
         emit(&buffer[..count]);
         tail.extend_from_slice(&buffer[..count]);
-        if tail.len() > LIMIT {
-            tail.drain(..tail.len() - LIMIT);
-            truncated = true;
+        // One extra byte records whether any truncation occurred without separate mutable state.
+        if tail.len() > LIMIT + 1 {
+            tail.drain(..tail.len() - LIMIT - 1);
         }
     }
-    let text = String::from_utf8_lossy(&tail);
-    Ok(match truncated {
+    let text = String::from_utf8_lossy(&tail[tail.len().saturating_sub(LIMIT)..]);
+    Ok(match tail.len() > LIMIT {
         true => format!("[frontend stderr truncated]\n{text}"),
         false => text.into_owned(),
     })
