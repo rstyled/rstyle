@@ -12,7 +12,6 @@ pub struct Config {
     pub exclude: Excludes,
     pub fn_length: FnLengthConfig,
     pub fn_params: FnParamsConfig,
-    pub fn_spacing: FnSpacingConfig,
     pub complexity: ComplexityConfig,
     pub mutation_budget: MutationBudgetConfig,
     pub side_effects: SideEffectsConfig,
@@ -46,6 +45,8 @@ pub struct Config {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct StrictStyleConfig {
+    #[serde(skip_serializing_if = "FnSpacingConfig::is_off")]
+    pub fn_spacing: FnSpacingConfig,
     #[serde(skip_serializing_if = "GuardClauseConfig::is_off")]
     pub guard_clause: GuardClauseConfig,
     #[serde(skip_serializing_if = "PrimitiveObsessionConfig::is_off")]
@@ -56,9 +57,35 @@ pub struct StrictStyleConfig {
 
 impl StrictStyleConfig {
     fn all_off(&self) -> bool {
-        !self.guard_clause.enabled
+        !self.fn_spacing.enabled
+            && !self.guard_clause.enabled
             && !self.primitive_obsession.enabled
             && !self.value_object.enabled
+    }
+}
+
+/// A body of many statements with no blank line between its phases.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct FnSpacingConfig {
+    pub enabled: bool,
+    /// Top-level statements (tail expression included) at which the rule starts to
+    /// apply. Counted in statements, not lines, so long initializers don't trigger it.
+    pub min_statements: usize,
+}
+
+impl FnSpacingConfig {
+    fn is_off(&self) -> bool {
+        !self.enabled
+    }
+}
+
+impl Default for FnSpacingConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            min_statements: 5,
+        }
     }
 }
 
@@ -357,7 +384,6 @@ impl Default for FnLengthConfig {
     }
 }
 
-/// Bodies with at least `min_statements` top-level statements need a blank line between phases.
 /// Where a project's own input is dangerous.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -383,21 +409,6 @@ pub struct TaintConfig {
     /// Calls that are no end of a flow here, whatever a frontend's models say: a command-line tool
     /// is meant to read its own environment. A model's sanitizer named here cleans nothing.
     pub ignored: Vec<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct FnSpacingConfig {
-    /// Top-level statements (tail expression included) at which the rule starts to
-    /// apply. Counted in statements, not lines, so long initializers don't trigger it.
-    /// 0 disables the rule.
-    pub min_statements: usize,
-}
-
-impl Default for FnSpacingConfig {
-    fn default() -> Self {
-        Self { min_statements: 5 }
-    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -626,9 +637,18 @@ impl Default for GroupingConfig {
     }
 }
 
+/// Where `[fn_spacing]` went, for a config written before it became a strict style rule: the
+/// unknown-key error alone wouldn't say.
+const FN_SPACING_MOVED: &str =
+    "`fn_spacing` is now `strict_style.fn_spacing`, and off unless `enabled = true`";
+
 impl Config {
     pub fn parse(input: &str) -> Result<Self, toml::de::Error> {
         let mut base: Table = toml::from_str(input)?;
+        if base.contains_key("fn_spacing") {
+            return Err(serde::de::Error::custom(FN_SPACING_MOVED));
+        }
+
         let config = Self::deserialize(Value::Table(base.clone()))?;
         base.remove("overrides");
         Ok(Self { base, ..config })
@@ -673,8 +693,29 @@ mod tests {
         let config = Config::parse("").unwrap();
         assert_eq!(config.fn_length.max_lines, 50);
         assert_eq!(config.fn_params.max_params, 4);
-        assert_eq!(config.fn_spacing.min_statements, 5);
         assert_eq!(config.side_effects.weights.io, 3);
+    }
+
+    #[test]
+    fn fn_spacing_is_a_strict_style_rule_and_off_unless_asked_for() {
+        let default = Config::parse("").unwrap().strict_style.fn_spacing;
+        assert!(!default.enabled);
+        assert_eq!(default.min_statements, 5);
+
+        let on = Config::parse("[strict_style.fn_spacing]\nenabled = true\nmin_statements = 3")
+            .unwrap()
+            .strict_style
+            .fn_spacing;
+        assert!(on.enabled);
+        assert_eq!(on.min_statements, 3);
+
+        for old in [
+            "[fn_spacing]\nmin_statements = 5",
+            "[[overrides]]\npaths = ['a']\nfn_spacing = { min_statements = 3 }",
+        ] {
+            let error = Config::parse(old).unwrap_err().to_string();
+            assert!(error.contains("strict_style.fn_spacing"), "{old}: {error}");
+        }
     }
 
     #[test]
@@ -708,6 +749,14 @@ mod tests {
         let rule = &on["strict_style"]["guard_clause"];
         assert_eq!(rule["enabled"], true, "{on}");
         assert_eq!(rule["min_nested_statements"], 2, "{on}");
+
+        let spacing = policy("[strict_style.fn_spacing]\nenabled = true");
+        assert_eq!(
+            spacing["strict_style"]["fn_spacing"]["min_statements"], 5,
+            "{spacing}"
+        );
+        let tuned = "[strict_style.fn_spacing]\nmin_statements = 3";
+        assert_eq!(policy(tuned), policy(""), "fn_spacing off has no limits");
     }
 
     #[test]

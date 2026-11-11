@@ -10,9 +10,6 @@ max_lines = 50            # code lines: blank, `//` and `/* */` lines are not co
 max_params = 4
 count_self = false        # `self` is the object, not an argument
 
-[fn_spacing]
-min_statements = 5
-
 # What `taint_flow` reads, on top of the sources and sinks each frontend's models name. Each callee
 # is an operation, a name or an identity, and an argument's position counts a receiver as 0.
 # [taint]
@@ -89,6 +86,10 @@ caller_hops = 1
 
 # Strict style: opinions about how code could be shaped rather than limits it passed, so each rule
 # is off unless you turn it on. One that's on reports and fails a run like any other rule here.
+
+[strict_style.fn_spacing]
+enabled = true              # a body of many statements with no blank line between its phases. On for this repo
+min_statements = 5          # top-level statements, not lines, at which a body needs a blank line somewhere
 
 [strict_style.guard_clause]
 enabled = false             # an `if` whose `else` only returns, around a body that could stop being nested

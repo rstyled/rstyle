@@ -70,16 +70,15 @@ cargo rstyle
 
 ```text
 src/lib.rs:5:1: fn_params: function `total` has too many parameters (actual 5, limit 4) [diagnostic 0] [compiler unit 0]
-src/lib.rs:9:1: fn_spacing: function `checkout` has no blank line between its phases (actual 5, limit 4) [diagnostic 1] [compiler unit 0]
-src/lib.rs:9:1: mutation_per_target: function `checkout` mutates one target too many times (actual 4, limit 3) [diagnostic 2] [compiler unit 0]
+src/lib.rs:9:1: mutation_per_target: function `checkout` mutates one target too many times (actual 4, limit 3) [diagnostic 1] [compiler unit 0]
 fix groups: 1 (1 stacked, 0 independent)
   group 1 (2 functions; land together or stack in this order):
     src/lib.rs:5 total [fn_params]
-    src/lib.rs:9 checkout [fn_spacing, mutation_per_target]
+    src/lib.rs:9 checkout [mutation_per_target]
       1. signature total (src/lib.rs:5; 1 incoming, 0 outgoing sites)
       2. call sites checkout (src/lib.rs:9; 0 incoming, 1 outgoing sites)
 ...
-rstyle: 3 functions, 3 violations, mean density 66, max density 200, complexity 3 measured, 0 unavailable
+rstyle: 3 functions, 2 violations, mean density 66, max density 200, complexity 3 measured, 0 unavailable
 ```
 
 Fix one group at a time, callees first, then run it again, since fixes change the call graph.
@@ -153,7 +152,6 @@ instead. A file that doesn't parse ends the run, and `--exclude` or `exclude` na
 | --- | --- | --- | --- |
 | `fn_length` | Code lines in a function, not counting blanks and comments | `fn_length.max_lines` | 50 |
 | `fn_params` | Parameters, not counting `self` | `fn_params.max_params` | 4 |
-| `fn_spacing` | A body of this many statements with no blank line | `fn_spacing.min_statements` | 5 |
 | `cyclomatic_complexity` | Cyclomatic score | `complexity.max_cyclomatic` | 12 |
 | `cognitive_complexity` | Cognitive score, which also charges nesting | `complexity.max_cognitive` | 12 |
 | `mutation_per_target` | Writes or `&mut` borrows of one root | `mutation_budget.max_mutations_per_target` | 3 |
@@ -161,7 +159,7 @@ instead. A file that doesn't parse ends the run, and `--exclude` or `exclude` na
 | `side_effect_density` | Weighted effects per statement, times 1000 | `side_effects.max_density_milli` | 500 |
 
 [Style checks](docs/style-checks.md) describes each rule and every setting. It also covers
-[strict style](docs/style-checks.md#strict-style) rules, which are off until `rstyle.toml` turns them on.
+[strict style](docs/style-checks.md#strict-style) rules, such as `fn_spacing`, which are off until `rstyle.toml` turns them on.
 
 ## Configuration
 
@@ -204,8 +202,8 @@ A plain name in `paths` is a module anywhere in the tree: `adapters` matches
 ending in `.rs` matches that file anywhere. Anything with `*`, `?`, `[` or `{` is
 a glob over the source paths shown in reports, used as is. Every matching override
 is deep-merged onto the base config in order, so later ones win key by key. An
-override may set `fn_length`, `fn_params`, `fn_spacing`, `complexity`,
-`mutation_budget` and `side_effects`. Keys read once for the whole run are errors:
+override may set `fn_length`, `fn_params`, `complexity`, `mutation_budget`,
+`side_effects` and `strict_style.fn_spacing`. Keys read once for the whole run are errors:
 `exclude`, `grouping`, `side_effects.transitive_depth` and `side_effects.paths`,
 since effects are classified before any path's policy applies. Bad globs and
 unknown keys are errors too.

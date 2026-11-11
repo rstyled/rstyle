@@ -10,6 +10,23 @@ use crate::facts::FnFacts;
 use crate::report::{Detail, Diagnostic};
 use crate::rules::{Measure, diagnostic};
 
+/// Flags fns with `min_statements`+ top-level statements and no blank line anywhere.
+/// Statements, not lines: a long initializer is still one thing to read. Reported as
+/// `actual > limit` with `limit = min_statements - 1`, like the other threshold rules.
+pub fn fn_spacing(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
+    let rule = &cfg.strict_style.fn_spacing;
+    let min = rule.min_statements;
+    let actual = f.top_statements;
+    let limit = min.saturating_sub(1);
+    let message = format!("function `{}` has no blank line between its phases", f.name);
+    let flagged = rule.enabled && crate::spacing::is_finding(&f.source, actual, min);
+
+    flagged
+        .then(|| diagnostic(f, "fn_spacing", message, Measure { actual, limit }))
+        .into_iter()
+        .collect()
+}
+
 pub fn guard_clause(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
     let rule = &cfg.strict_style.guard_clause;
     let lines: Vec<usize> = f

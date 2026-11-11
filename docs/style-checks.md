@@ -19,14 +19,13 @@ analyzed function.
 | --- | --- |
 | `fn_length` | Functions with too many code lines. Blank and comment lines don't count. |
 | `fn_params` | Functions with too many parameters. `self` doesn't count unless `fn_params.count_self` is set. |
-| `fn_spacing` | Bodies with at least `fn_spacing.min_statements` top-level statements and no blank line anywhere. |
 | `cyclomatic_complexity` | Functions whose cyclomatic score, which counts source decisions, is above the limit. |
 | `cognitive_complexity` | Functions whose cognitive score, which also charges nesting, is above the limit. |
 | `mutation_per_target` | Too many writes or `&mut` borrows of one root: a local, parameter or `self`. |
 | `mutated_targets` | Too many distinct roots mutated in one function. |
 | `side_effect_density` | Too many effects for the number of statements. See below. |
 | `invalid_suppression` | An `rstyle-allow` comment with no reason or an unknown rule id. |
-| `guard_clause`, `primitive_obsession`, `value_object` | Off by default. See [strict style](#strict-style). |
+| `fn_spacing`, `guard_clause`, `primitive_obsession`, `value_object` | Off by default. See [strict style](#strict-style). |
 
 A missing complexity score is reported as unavailable, never as zero, and makes the run exit 2.
 Closures count toward the function that owns them. Compiler lowering and a macro's own code add no
@@ -61,7 +60,6 @@ is a commented example, though it raises the complexity limits above their defau
 | `fn_length.max_lines` | 50 | Code lines per function |
 | `fn_params.max_params` | 4 | Parameters per function |
 | `fn_params.count_self` | `false` | Count `self` as a parameter |
-| `fn_spacing.min_statements` | 5 | Bodies with this many top-level statements need a blank line somewhere; 0 disables the rule |
 | `complexity.max_cyclomatic` | 12 | Report cyclomatic scores above this |
 | `complexity.max_cognitive` | 12 | Report cognitive scores above this |
 | `mutation_budget.max_mutations_per_target` | 3 | Writes or `&mut` borrows of one root |
@@ -129,6 +127,20 @@ min_nested_statements = 3
 A rule that's on behaves like any other here: it reports through `check`, fails the run, shows up in `check.sarif` and
 baselines, and `rstyle-allow` silences it for a function. Every language gets them from the same facts. A rule that's off
 is left out of what a baseline compares, whatever its other settings hold.
+
+### `fn_spacing`
+
+A body with many top-level statements and no blank line anywhere, so nothing marks where it moves from setting up, to
+working, to giving a result. It counts statements, not lines, so a long initializer is still one thing to read, and a
+blank line in the signature counts too.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | |
+| `min_statements` | 5 | Bodies with this many top-level statements, the tail expression included, need a blank line somewhere |
+
+Unlike the other strict style rules, an [override](../README.md#per-path-overrides) can set it for some paths, as
+`strict_style.fn_spacing = { enabled = false }`.
 
 ### `guard_clause`
 

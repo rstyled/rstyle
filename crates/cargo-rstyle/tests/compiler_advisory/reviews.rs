@@ -1,7 +1,7 @@
 use super::*;
 
 const SOURCE: &str = "pub fn mixed(a:u128,b:u128)->u128 {\nlet mut x=a;\nlet mut y=b;\nx+=1;\nx+=2;\ny+=3;\nstd::fs::write(\"/unused\",b\"x\").ok();\nx+y\n}";
-const CONFIG: &str = "[fn_length]\nmax_lines=2\n[fn_params]\nmax_params=1\n[fn_spacing]\nmin_statements=2\n[mutation_budget]\nmax_mutations_per_target=1\nmax_mutated_targets=1\n[side_effects]\nmax_density_milli=1\nmin_statements=0\nmin_lines=0\n";
+const CONFIG: &str = "[fn_length]\nmax_lines=2\n[fn_params]\nmax_params=1\n[mutation_budget]\nmax_mutations_per_target=1\nmax_mutated_targets=1\n[side_effects]\nmax_density_milli=1\nmin_statements=0\nmin_lines=0\n[strict_style.fn_spacing]\nenabled=true\nmin_statements=2\n";
 
 fn configured() -> (TempDir, Value) {
     let (directory, _output, original) = capture(SOURCE, &[]);

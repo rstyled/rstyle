@@ -62,3 +62,52 @@ fn a_project_says_how_much_nesting_is_a_main_path() {
     assert_eq!(reported(0), Some(vec![3, 9]), "0 reads as 1");
     assert_eq!(reported(4), None);
 }
+
+fn spacing(on: bool) -> Config {
+    let mut config = Config::default();
+    config.strict_style.fn_spacing.enabled = on;
+    config
+}
+
+#[test]
+fn fn_spacing_is_off_unless_asked_for() {
+    let mut f = sample("f");
+    f.top_statements = 20;
+    assert!(fn_spacing(&f, &spacing(false)).is_empty());
+    assert_eq!(fn_spacing(&f, &spacing(true)).len(), 1);
+}
+
+#[test]
+fn spacing_boundary_and_blank_line() {
+    let mut f = sample("f");
+    let cfg = spacing(true);
+    f.top_statements = 4;
+    assert!(fn_spacing(&f, &cfg).is_empty());
+    f.top_statements = 5;
+    let out = fn_spacing(&f, &cfg);
+    assert_eq!(out[0].rule_id, "fn_spacing");
+    assert_eq!((out[0].actual, out[0].limit), (5, 4));
+    f.source = "fn f() {\nx();\n\nx();\n}".into();
+    assert!(fn_spacing(&f, &cfg).is_empty());
+}
+
+#[test]
+fn long_initializers_do_not_count() {
+    let mut f = sample("f");
+    f.source = format!("fn f() {{\n{}}}", "x();\n".repeat(40));
+    f.top_statements = 3;
+    assert!(fn_spacing(&f, &spacing(true)).is_empty());
+    f.top_statements = 0; // facts from older runs
+    assert!(fn_spacing(&f, &spacing(true)).is_empty());
+}
+
+#[test]
+fn a_project_says_how_many_statements_need_a_blank_line() {
+    let mut f = sample("f");
+    f.top_statements = 8;
+    let mut cfg = spacing(true);
+    cfg.strict_style.fn_spacing.min_statements = 10;
+    assert!(fn_spacing(&f, &cfg).is_empty());
+    cfg.strict_style.fn_spacing.min_statements = 8;
+    assert_eq!(fn_spacing(&f, &cfg).len(), 1);
+}
