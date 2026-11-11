@@ -8,6 +8,7 @@ use super::rating::{
     UNRESOLVED_CALLS,
 };
 use super::{ChangeKind, ChangeReport, EffectChange, FunctionChange};
+use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The rating's rules, in the order a reader should meet them, with the name each check goes by.
@@ -32,11 +33,12 @@ const KINDS: [ChangeKind; 5] = [
 ];
 
 impl ChangeReport {
-    /// `source_url` is what a file's path is joined to for a link, such as
-    /// `https://github.com/OWNER/REPO/blob/HEAD`. Without it, paths aren't links. A removed
-    /// function is never one, since the head doesn't hold it.
-    pub fn markdown(&self, source_url: Option<&str>) -> String {
-        let links = Links(source_url.map(|url| url.trim_end_matches('/')));
+    /// `pull_request_url` names the GitHub PR whose diff the report links to, such as
+    /// `https://github.com/OWNER/REPO/pull/123`. Removed functions link to the base side;
+    /// other functions link to the head side. Without a URL, paths and names stay plain text.
+    pub fn markdown(&self, pull_request_url: Option<&str>) -> String {
+        let links =
+            Links(pull_request_url.map(|url| url.trim_end_matches('/').trim_end_matches("/files")));
         let risk = self.rating.risk;
         let headline = format!("### {} Merge risk: {}", icon(risk), risk.name());
 
@@ -432,14 +434,15 @@ fn effect_kinds(
     kinds.into_iter().collect()
 }
 
-/// A function's name, linked to its line in the head unless it's removed, since the head doesn't
-/// hold it then.
+/// A function's name, linked to its line on the appropriate side of the PR diff.
 fn place(change: &FunctionChange, links: &Links) -> String {
     let named = cell(&code(&name(&change.name)));
-    match change.kind {
-        ChangeKind::Removed => named,
-        _ => links.to(named, &change.path, Some(change.line)),
-    }
+    let side = match change.kind {
+        ChangeKind::Removed => 'L',
+        _ => 'R',
+    };
+    let line = (change.line > 0).then_some((side, change.line));
+    links.to(named, &change.path, line)
 }
 
 /// How many functions of each kind, kinds with none left out.
@@ -530,12 +533,16 @@ struct Links<'a>(Option<&'a str>);
 
 impl Links<'_> {
     /// `text` as a link to a line of a file, or as it is.
-    fn to(&self, text: String, path: &str, line: Option<usize>) -> String {
+    fn to(&self, text: String, path: &str, line: Option<(char, usize)>) -> String {
         let Some(root) = self.0 else {
             return text;
         };
-        let anchor = line.map(|line| format!("#L{line}")).unwrap_or_default();
-        format!("[{text}]({root}/{}{anchor})", path.replace(' ', "%20"))
+        // GitHub diff anchors hash the exact repository-relative UTF-8 path, not a URL-encoded path.
+        let digest = Sha256::digest(path.as_bytes());
+        let anchor = line
+            .map(|(side, line)| format!("{side}{line}"))
+            .unwrap_or_default();
+        format!("[{text}]({root}/files#diff-{digest:x}{anchor})")
     }
 
     fn file(&self, path: &str) -> String {

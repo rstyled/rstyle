@@ -7,7 +7,7 @@ reaches it. It reads only the runs' documents, so it needs no compiler or fronte
 rstyle go --out base
 git checkout my-branch
 rstyle go --out head
-rstyle risk --base base --head head [--format json | --markdown [--source-url URL]]
+rstyle risk --base base --head head [--format json | --markdown [--pull-request-url URL]]
 ```
 
 ```text
@@ -102,8 +102,12 @@ found, and the callees it names. Each check is one of the rules above, so the ra
 file, with what changed in it and how many functions use it, directly and through others. Library calls nothing
 classifies are counted by callee, the most first, and files changed outside any function are listed last.
 
-`--source-url` is what each file's path is joined to for a link, such as `https://github.com/OWNER/REPO/blob/HEAD_SHA`;
-a removed function isn't linked, since the head doesn't hold it. Callees drop the directories of their import path, so
+`--pull-request-url` links files and functions to the PR's Changes tab, such as
+`https://github.com/OWNER/REPO/pull/123/files`. Pass the PR URL with or without `/files`.
+File links open that file's diff. Removed functions use the base (left) line; other functions
+use the head (right) line. Without this option, paths and names stay plain text.
+This replaces `--source-url`; update workflow invocations when updating the analyzer.
+Callees drop the directories of their import path, so
 `go::github.com/o/r/native.load` reads as `go::native.load`. The text and JSON keep the full identity a `[[risk.calls]]`
 rule names.
 
