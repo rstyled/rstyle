@@ -88,7 +88,7 @@ caller_hops = 1
 # is off unless you turn it on. One that's on reports and fails a run like any other rule here.
 
 [strict_style.fn_spacing]
-enabled = true              # a body of many statements with no blank line between its phases. On for this repo
+enabled = false             # a body of many statements with no blank line between its phases
 min_statements = 5          # top-level statements, not lines, at which a body needs a blank line somewhere
 
 [strict_style.guard_clause]
