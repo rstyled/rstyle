@@ -141,10 +141,7 @@ impl<'tcx> Unit<'tcx> {
         // A file is recorded as written: its original bytes, and offsets into them.
         if !self.files.contains_key(&id) {
             let content = super::source::recover(&lo.sf)?;
-            let digest: String = Sha256::digest(content.as_bytes())
-                .iter()
-                .map(|b| format!("{b:02x}"))
-                .collect();
+            let digest = sha256_hex(content.as_bytes());
             let mut record = json!({"id": id, "path": path, "digest": format!("sha256:{digest}"),
                                     "origin": "source", "content": content});
             if crate::paths::build_output(self.tcx, &lo.sf) {
@@ -1135,11 +1132,13 @@ fn compiler_facts(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> Vec<(&'stati
 }
 
 // rstyle-allow(mutation_per_target): builds one identity record key by key
-/// The compiler's own identity of a definition, as the frontend's facts print it:
-/// its `DefId`, `DefKind`, `DefPathHash`, crate name and, for another crate, its hash.
+/// The compiler's own identity of a definition, as the frontend's facts print it: its def
+/// path with its crate's disambiguator, `DefKind`, `DefPathHash`, crate name and, for another
+/// crate, its hash. The path is a `DefId` as the compiler prints it, without the crate number
+/// and index, which hold only within one compilation and move whenever an item is added.
 fn rust_identity(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> serde_json::Map<String, Value> {
     let mut identity = serde_json::Map::new();
-    identity.insert("def_id".into(), json!(format!("{def_id:?}")));
+    identity.insert("def_path".into(), json!(tcx.def_path_debug_str(def_id)));
     identity.insert("def_kind".into(), json!(format!("{kind:?}")));
     if let Some(name) = tcx.get_diagnostic_name(def_id) {
         identity.insert("diagnostic".into(), json!(name.as_str()));
@@ -1159,7 +1158,7 @@ fn rust_identity(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> serde_json::M
     if def_id.is_local()
         && let Some(parent) = tcx.opt_parent(def_id)
     {
-        identity.insert("parent".into(), json!(format!("{parent:?}")));
+        identity.insert("parent".into(), json!(tcx.def_path_debug_str(parent)));
     }
     if !def_id.is_local() {
         identity.insert(
@@ -1237,4 +1236,12 @@ fn variant_shapes(adt: ty::AdtDef<'_>) -> Vec<&'static str> {
         shapes.push("rust:unit-or-record-variant");
     }
     shapes
+}
+
+/// The sha256 of `bytes`, in lowercase hex.
+pub(super) fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
