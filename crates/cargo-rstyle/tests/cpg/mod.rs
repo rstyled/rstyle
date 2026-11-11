@@ -477,6 +477,7 @@ mod descriptor;
 mod effects;
 mod facts;
 mod flow;
+mod ids;
 #[cfg(unix)]
 mod runner;
 mod stdin;

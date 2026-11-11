@@ -141,10 +141,7 @@ impl<'tcx> Unit<'tcx> {
         // A file is recorded as written: its original bytes, and offsets into them.
         if !self.files.contains_key(&id) {
             let content = super::source::recover(&lo.sf)?;
-            let digest: String = Sha256::digest(content.as_bytes())
-                .iter()
-                .map(|b| format!("{b:02x}"))
-                .collect();
+            let digest = sha256_hex(content.as_bytes());
             let mut record = json!({"id": id, "path": path, "digest": format!("sha256:{digest}"),
                                     "origin": "source", "content": content});
             if crate::paths::build_output(self.tcx, &lo.sf) {
@@ -1237,4 +1234,12 @@ fn variant_shapes(adt: ty::AdtDef<'_>) -> Vec<&'static str> {
         shapes.push("rust:unit-or-record-variant");
     }
     shapes
+}
+
+/// The sha256 of `bytes`, in lowercase hex.
+pub(super) fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }

@@ -18,6 +18,7 @@ use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::LOCAL_CRATE;
 use serde_json::{Value, json};
+use std::collections::HashMap;
 use std::path::Path;
 
 /// Directory the documents are written to; setting it selects this mode.
@@ -56,14 +57,46 @@ pub fn documents_in<'tcx, 'r>(
     session: Option<Value>,
 ) -> impl Iterator<Item = (Value, Vec<(LocalDefId, String)>)> + use<'tcx, 'r> {
     let package = cargo_package(package);
-    batches(tcx)
-        .into_iter()
-        .enumerate()
-        .map(move |(index, batch)| {
-            let origin = (root, package.clone(), session.clone());
-            // The first document records every file of the unit.
-            batch_document(tcx, (origin, index == 0), &batch)
+    let batches = batches(tcx);
+    let prefixes = id_prefixes(tcx, root, batches.iter().flatten().copied());
+    batches.into_iter().enumerate().map(move |(index, batch)| {
+        let origin = (root, package.clone(), session.clone());
+        // The first document records every file of the unit.
+        batch_document(tcx, (origin, index == 0), &batch, &prefixes)
+    })
+}
+
+/// Each function's prefix for its node and symbol IDs: `f` and the first 8 hex digits of the
+/// sha256 of its stable identity, or all 64 where another function of the crate shares those
+/// 8. A function's IDs then stay the same as items are added and removed around it, which
+/// the compiler's index of it, its position among the crate's items, doesn't.
+fn id_prefixes(
+    tcx: TyCtxt<'_>,
+    root: &Path,
+    owners: impl Iterator<Item = LocalDefId>,
+) -> HashMap<LocalDefId, String> {
+    let mut unit = unit::Unit::new(tcx, root.to_path_buf());
+    let digests: Vec<(LocalDefId, String)> = owners
+        .map(|id| {
+            let identity = unit.stable_identity(id.to_def_id());
+            (id, unit::sha256_hex(identity.as_bytes()))
         })
+        .collect();
+    let mut sharing: HashMap<&str, usize> = HashMap::new();
+    for (_, digest) in &digests {
+        *sharing.entry(&digest[..8]).or_default() += 1;
+    }
+
+    digests
+        .iter()
+        .map(|(id, digest)| {
+            let digits = match sharing[&digest[..8]] {
+                1 => &digest[..8],
+                _ => digest.as_str(),
+            };
+            (*id, format!("f{digits}"))
+        })
+        .collect()
 }
 
 /// The package a unit belongs to, as Cargo names it: the selected package of a
@@ -113,6 +146,7 @@ fn batch_document(
     tcx: TyCtxt<'_>,
     ((root, package, session), whole): (Origin<'_>, bool),
     owners: &[LocalDefId],
+    prefixes: &HashMap<LocalDefId, String>,
 ) -> (Value, Vec<(LocalDefId, String)>) {
     let mut unit = unit::Unit::new(tcx, root.to_path_buf());
     // The first document records the whole unit: every file, namespace and import.
@@ -122,7 +156,7 @@ fn batch_document(
     let mut unrecorded = Vec::new();
     let mut recorded = Vec::new();
     for &id in owners {
-        match function(&mut unit, id) {
+        match function(&mut unit, id, &prefixes[&id]) {
             Ok(function) => recorded.push(function),
             Err(reason) => unrecorded.push((id, reason)),
         }
@@ -230,7 +264,7 @@ fn reflexive_conversion(unit: &mut unit::Unit<'_>) -> Option<Value> {
 }
 
 // rstyle-allow(mutated_targets, mutation_per_target): assembles one document from the builder that accumulates it
-fn function(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Result<Value, String> {
+fn function(unit: &mut unit::Unit<'_>, id: LocalDefId, prefix: &str) -> Result<Value, String> {
     let tcx = unit.tcx;
     let node = tcx.hir_node_by_def_id(id);
     let (sig, body) = match (node.fn_sig(), node.body_id()) {
@@ -249,7 +283,7 @@ fn function(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Result<Value, String> 
     let signature_span = located(sig.span)?;
     let has_self = sig.decl.implicit_self().has_implicit_self();
     let params = body.params.iter().map(|param| param.pat.hir_id).collect();
-    let mut builder = body::Builder::new(unit, id, params);
+    let mut builder = body::Builder::new(unit, id, params, prefix.to_owned());
     let mut signature = signature(&mut builder, id, (sig, body), has_self);
     signature["span"] = signature_span;
 

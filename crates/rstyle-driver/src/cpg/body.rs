@@ -55,14 +55,20 @@ fn shape(kind: &'static str, children: Vec<String>) -> Shape {
 }
 
 impl<'u, 'tcx> Builder<'u, 'tcx> {
-    pub fn new(unit: &'u mut Unit<'tcx>, owner: LocalDefId, params: HashSet<HirId>) -> Self {
+    /// A builder for `owner`'s body, whose node and symbol IDs begin with `prefix`.
+    pub fn new(
+        unit: &'u mut Unit<'tcx>,
+        owner: LocalDefId,
+        params: HashSet<HirId>,
+        prefix: String,
+    ) -> Self {
         let tcx = unit.tcx;
         Self {
             unit,
             tcx,
             typeck: tcx.typeck(owner),
             owner,
-            prefix: format!("f{}", owner.local_def_index.as_u32()),
+            prefix,
             params,
             claimed: HashSet::new(),
             lowering: None,
