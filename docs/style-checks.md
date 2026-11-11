@@ -100,8 +100,14 @@ panicking on a bad argument and formatting into a `String` count as no effect, a
 other library call unclassified, so density doesn't count it. A call is classified by the
 implementation it selects, when the frontend names one, and by the function it names otherwise: `?`
 on a `Result`, `String`'s `clone` and `to_string` are pure, but `Option`'s `clone`, which runs the
-element's, isn't listed. `[side_effects.paths]` wins for any callee it matches, so you can still
-name a third-party package there.
+element's, isn't listed. [Python's](../crates/rstyle-core/src/cpg/contracts/effects/py.toml) lists
+the standard library's effects, such as `open`, `subprocess.run`, `os.getenv` and `time.monotonic`,
+and leaves third-party calls unclassified, as Rust's does. Python runs a value's own methods almost
+everywhere, so its `none` list only holds what runs nothing it's handed, such as `id`, `typing.cast`
+and `list.append`. Builtins such as `len`, `isinstance` and `str`'s methods are in
+`none_without_callback`: pure where the frontend says the call calls nothing of the workspace's back,
+and unclassified elsewhere, since `len` of a class runs its `__len__`. `[side_effects.paths]` wins for
+any callee it matches, so you can still name a third-party package there.
 
 ## Suppressing a finding
 

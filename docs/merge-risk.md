@@ -88,7 +88,9 @@ no entry the `unknown` effect. Rust's only lists standard methods and functions 
 called with, such as `slice::iter` and `std::mem::swap`. A trait method's call is read by the implementation it selects, so
 `?` on a `Result` is classified, and `core::clone::Clone::clone` is when it runs `String`'s, but not when it runs `Option`'s,
 which runs the element's `clone`. That call, a function like `std::cmp::max`, which runs the caller's `Ord`, and any other
-crate's function count until [`side_effects.paths`](style-checks.md) or a rule here names them. The report names the
+crate's function count until [`side_effects.paths`](style-checks.md) or a rule here names them. Python's lists the
+standard library, and a builtin such as `len` only counts as pure where the frontend says the call runs none of the
+workspace's code, so `len` of a class that defines `__len__` still counts. The report names the
 method the call names, as the dependence graph does. A `[[risk.calls]]` rule for that
 callee, at any level, is you saying what it is. A comment edited inside a function also reads as `text only`, since core
 has no tokens to read around one.

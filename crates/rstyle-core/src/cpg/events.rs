@@ -289,7 +289,9 @@ impl<'a> Walk<'a> {
 
     /// What the namespace's contract says this library call does: the implementation it selects,
     /// when the document names a library's, since that's what runs, and its declared callee
-    /// otherwise. An implementation in the workspace is followed through the call edge instead.
+    /// otherwise. An implementation in the workspace is followed through the call edge instead. An
+    /// entry that only holds for a call that runs none of the workspace's code holds where the
+    /// call's reference says it calls nothing back.
     fn library_class(
         &self,
         node: &'a Node,
@@ -309,7 +311,12 @@ impl<'a> Walk<'a> {
         if self.writes_to_memory(node, operation)? {
             return Ok(Some(LibraryClass::Pure));
         }
-        Ok(self.classes.class(operation))
+        let calls_back = callee.reference.calls_back.as_ref();
+        Ok(if calls_back.is_some_and(|calls_back| !calls_back.value) {
+            self.classes.class_without_callback(operation)
+        } else {
+            self.classes.class(operation)
+        })
     }
 
     /// Whether the contract keeps this call's effect in a buffer, by an argument's type. The

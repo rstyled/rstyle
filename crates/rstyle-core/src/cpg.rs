@@ -128,6 +128,8 @@ mod flow_tests;
 #[cfg(test)]
 mod guard_clause_tests;
 #[cfg(test)]
+mod py_effect_tests;
+#[cfg(test)]
 mod shapes_tests;
 #[cfg(test)]
 mod tests;

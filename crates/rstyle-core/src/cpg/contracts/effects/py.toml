@@ -1,0 +1,303 @@
+# Effect classes of Python standard library calls, keyed by operation without its namespace.
+#
+# A key is the qualified name typeshed declares a function or method at, with `builtins.` left off:
+# `len`, `str.join`, `list.append`. Others keep their module, as typeshed spells it, which isn't always
+# where a caller imports it from: `os.path.join` is `posixpath.join`, `os.path.exists` is
+# `genericpath.exists`, a file's `write` is `_io._TextIOBase.write`, `warnings.warn` is `_warnings.warn`
+# and `asyncio.sleep` is `asyncio.tasks.sleep`. A method is keyed by the class that defines it, so a
+# subclass that doesn't override one shares its key, and one a project overrides is followed through
+# its call edge instead.
+#
+# Python runs a value's own methods almost everywhere: `len(x)` runs `x.__len__`, `str(x)` runs
+# `x.__str__`, `sorted(xs)` runs `__lt__` and `d[k]` runs `k.__hash__`. What a project's method does
+# counts where it's defined, but only if the call is seen to reach it, and here it isn't, since the
+# document names the library function. So `none` lists only what's pure whatever it's handed: it does
+# no IO, touches no globals, the environment, the clock or randomness, calls nothing it's given, and
+# runs no method of its arguments, as storing or returning one doesn't. `list.append` stores its
+# argument, `typing.cast` returns it, and `BaseException.__init__` keeps them as `args`.
+#
+# `none_without_callback` lists what has no effect of its own but runs what it's handed. It's pure
+# where the document says the call calls nothing of the workspace's back, which rstyle-py says when
+# every argument is of a type whose methods are the library's: `isinstance(x, str)`, or `str.join` of a
+# `list[str]`. Anywhere else the call stays unclassified, so `len` of a class that defines `__len__`
+# isn't taken as pure.
+#
+# Allocating memory is no effect, nor is raising an exception for a bad argument: `int("x")` raises
+# `ValueError`, as `Vec.remove` panics in Rust's table. A member that always exits is `panic`, as
+# `exit` is in C++'s table.
+#
+# Writing to a file, a stream or a log is io, wherever it ends up: a log record goes to whatever
+# handlers are configured, and a `StringIO`'s `write` shares the key of a file's. Setting up
+# what's shared by the whole process is global: the environment, the working directory, signal
+# handlers, warning filters and loggers, which `logging.getLogger` makes on first use. So is reading
+# them: `os.getenv` is global, as `getenv` is in C++'s table, and so is a context variable, which
+# a task carries.
+#
+# A string entry covers every member whose name it starts. Effects are listed by module where the
+# whole module is one, as `subprocess.` and `shutil.` are, with any member that differs listed
+# longer. Entries in `none` are exact, so a member a later Python adds isn't covered without being
+# checked.
+
+schema = "rstyle.effect-classes/1"
+namespace = "py"
+
+# There's no `unlisted`. A call with no entry is any other standard member, or a call into another
+# package, and stays unclassified: density doesn't count it, and a comparison reads it as unknown.
+
+io = [
+    "_io.",
+    "asyncio.streams.",
+    "breakpoint",
+    "genericpath.",
+    "glob.",
+    "input",
+    { exact = "json.dump" },
+    { exact = "json.load" },
+    "logging.FileHandler.",
+    "logging.Handler.",
+    "logging.Logger.",
+    "logging.LoggerAdapter.",
+    "logging.StreamHandler.",
+    "logging.critical",
+    "logging.debug",
+    "logging.error",
+    "logging.exception",
+    "logging.info",
+    "logging.log",
+    "logging.warning",
+    "open",
+    "os.",
+    "pathlib.Path.",
+    "posixpath.exists",
+    "posixpath.getatime",
+    "posixpath.getctime",
+    "posixpath.getmtime",
+    "posixpath.getsize",
+    "posixpath.isdir",
+    "posixpath.isfile",
+    "posixpath.islink",
+    "posixpath.ismount",
+    "posixpath.lexists",
+    "posixpath.realpath",
+    "posixpath.samefile",
+    "print",
+    "shutil.",
+    "subprocess.",
+    "tempfile.",
+    "traceback.print_exc",
+    "traceback.print_exception",
+    "traceback.print_stack",
+    "typing.IO.",
+    "typing.TextIO.",
+    "typing.BinaryIO.",
+    "webbrowser.",
+    "zipfile.",
+    "tarfile.",
+    "sqlite3.",
+    "zoneinfo.ZoneInfo.__new__",
+    "_warnings.warn",
+]
+
+network = [
+    "asyncio.streams.open_connection",
+    "asyncio.streams.start_server",
+    "ftplib.",
+    "http.client.",
+    "imaplib.",
+    "poplib.",
+    "smtplib.",
+    "socket.",
+    "socketserver.",
+    "ssl.",
+    "urllib.request.",
+    "xmlrpc.client.",
+]
+
+time = [
+    "asyncio.tasks.sleep",
+    "datetime.date.today",
+    "datetime.datetime.now",
+    "datetime.datetime.today",
+    "datetime.datetime.utcnow",
+    "time.ctime",
+    "time.localtime",
+    "time.gmtime",
+    "time.monotonic",
+    "time.perf_counter",
+    "time.process_time",
+    "time.sleep",
+    "time.thread_time",
+    "time.time",
+]
+
+random = [
+    "_random.",
+    "os.urandom",
+    "random.",
+    "secrets.",
+    "uuid.uuid1",
+    "uuid.uuid4",
+]
+
+global = [
+    "_contextvars.ContextVar.get",
+    "_contextvars.ContextVar.reset",
+    "_contextvars.ContextVar.set",
+    "_contextvars.copy_context",
+    "atexit.",
+    "locale.setlocale",
+    "logging.basicConfig",
+    "logging.config.",
+    "logging.disable",
+    "logging.getLogger",
+    "logging.Logger.addHandler",
+    "logging.Logger.removeHandler",
+    "logging.Logger.setLevel",
+    "os._Environ.",
+    "os.chdir",
+    "os.fchdir",
+    "os.getcwd",
+    "os.getenv",
+    "os.getpid",
+    "os.getppid",
+    "os.putenv",
+    "os.register_at_fork",
+    "os.umask",
+    "os.unsetenv",
+    "pathlib.Path.absolute",
+    "pathlib.Path.cwd",
+    "pathlib.Path.expanduser",
+    "pathlib.Path.home",
+    "posixpath.abspath",
+    "posixpath.expanduser",
+    "posixpath.expandvars",
+    "posixpath.relpath",
+    "signal.",
+    "sys.set_int_max_str_digits",
+    "sys.setrecursionlimit",
+    "sys.setprofile",
+    "sys.settrace",
+    "threading.current_thread",
+    "threading.get_ident",
+    "threading.main_thread",
+    "warnings.filterwarnings",
+    "warnings.resetwarnings",
+    "warnings.simplefilter",
+]
+
+panic = [
+    "exit",
+    "os._exit",
+    "os.abort",
+    "quit",
+    "sys.exit",
+]
+
+unsafe = [
+    "ctypes.",
+]
+
+# Each runs code that can't be seen from here: a string, a module's body or a pickle's.
+unknown = [
+    "__import__",
+    "_pickle.load",
+    "_pickle.loads",
+    "eval",
+    "exec",
+    "importlib.import_module",
+    "importlib.reload",
+    "pickle.load",
+    "pickle.loads",
+    "runpy.",
+]
+
+none = [
+    { exact = "BaseException.__init__" },
+    { exact = "_contextvars.ContextVar.__new__" },
+    { exact = "_io.BytesIO.__init__" },
+    { exact = "_io.BytesIO.getvalue" },
+    { exact = "_io.StringIO.__init__" },
+    { exact = "_io.StringIO.getvalue" },
+    { exact = "abc.abstractmethod" },
+    { exact = "callable" },
+    { exact = "collections.defaultdict.__init__" },
+    { exact = "contextlib.asynccontextmanager" },
+    { exact = "contextlib.contextmanager" },
+    { exact = "dataclasses.dataclass" },
+    { exact = "dataclasses.field" },
+    { exact = "dict.clear" },
+    { exact = "dict.copy" },
+    { exact = "dict.items" },
+    { exact = "dict.keys" },
+    { exact = "dict.values" },
+    { exact = "enum.Enum.name" },
+    { exact = "enum.Enum.value" },
+    { exact = "enum.auto.__new__" },
+    { exact = "functools.partial.__new__" },
+    { exact = "functools.wraps" },
+    { exact = "id" },
+    { exact = "list.append" },
+    { exact = "list.clear" },
+    { exact = "list.copy" },
+    { exact = "list.reverse" },
+    { exact = "object.__init__" },
+    { exact = "os.stat_result.st_ino" },
+    { exact = "os.stat_result.st_mode" },
+    { exact = "os.stat_result.st_mtime" },
+    { exact = "os.stat_result.st_size" },
+    { exact = "set.clear" },
+    { exact = "set.copy" },
+    { exact = "subprocess.CalledProcessError.__init__" },
+    { exact = "sys._version_info.major" },
+    { exact = "sys._version_info.micro" },
+    { exact = "sys._version_info.minor" },
+    { exact = "typing.ParamSpec.__new__" },
+    { exact = "typing.TypeVar.__new__" },
+    { exact = "typing.cast" },
+    { exact = "typing.overload" },
+    { exact = "uuid.UUID.__init__" },
+    { exact = "uuid.UUID.hex" },
+]
+
+# Pure where the call calls nothing of the workspace's back, and unclassified anywhere else.
+none_without_callback = [
+    "abs",
+    "all",
+    "any",
+    "bool.",
+    "bytes.",
+    "dict.",
+    "enumerate.__new__",
+    "float.",
+    "frozenset.",
+    "genericpath.commonprefix",
+    "getattr",
+    "hasattr",
+    "hash",
+    "int.",
+    "isinstance",
+    "issubclass",
+    "iter",
+    "len",
+    "list.",
+    "max",
+    "min",
+    "next",
+    "os.fspath",
+    "pathlib.PurePath.",
+    "posixpath.basename",
+    "posixpath.dirname",
+    "posixpath.join",
+    "posixpath.split",
+    "posixpath.splitext",
+    "range.__new__",
+    "repr",
+    "reversed.__new__",
+    "set.",
+    "sorted",
+    "str.",
+    "sum",
+    "super.__init__",
+    "tuple.",
+    "zip.__new__",
+]
