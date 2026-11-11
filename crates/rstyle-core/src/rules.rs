@@ -105,22 +105,6 @@ pub fn complexity(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
     .collect()
 }
 
-/// Flags fns with `min_statements`+ top-level statements and no blank line anywhere.
-/// Statements, not lines: a long initializer is still one thing to read. Reported as
-/// `actual > limit` with `limit = min_statements - 1`, like the other threshold rules.
-pub fn fn_spacing(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
-    let min = cfg.fn_spacing.min_statements;
-    let actual = f.top_statements;
-    let limit = min.saturating_sub(1);
-    let message = format!("function `{}` has no blank line between its phases", f.name);
-    let flagged = crate::spacing::is_finding(&f.source, actual, min);
-
-    flagged
-        .then(|| diagnostic(f, "fn_spacing", message, Measure { actual, limit }))
-        .into_iter()
-        .collect()
-}
-
 fn mutation_groups(f: &FnFacts, granularity: Granularity) -> BTreeMap<String, Vec<usize>> {
     let mut groups: BTreeMap<String, Vec<usize>> = BTreeMap::new();
     for event in &f.mutations {
@@ -445,40 +429,6 @@ mod tests {
         assert!(fn_length(&f, &Config::default()).is_empty());
         f.source = body_of(49);
         assert_eq!(fn_length(&f, &Config::default())[0].actual, 51);
-    }
-
-    #[test]
-    fn spacing_boundary_and_blank_line() {
-        let mut f = sample("f");
-        let cfg = Config::default();
-        f.top_statements = 4;
-        assert!(fn_spacing(&f, &cfg).is_empty());
-        f.top_statements = 5;
-        let out = fn_spacing(&f, &cfg);
-        assert_eq!((out[0].actual, out[0].limit), (5, 4));
-        f.source = "fn f() {\nx();\n\nx();\n}".into();
-        assert!(fn_spacing(&f, &cfg).is_empty());
-    }
-
-    #[test]
-    fn long_initializers_do_not_count() {
-        let mut f = sample("f");
-        f.source = body_of(40);
-        f.top_statements = 3;
-        assert!(fn_spacing(&f, &Config::default()).is_empty());
-        f.top_statements = 0; // facts from older runs
-        assert!(fn_spacing(&f, &Config::default()).is_empty());
-    }
-
-    #[test]
-    fn spacing_zero_disables() {
-        let mut f = sample("f");
-        f.top_statements = 20;
-        let mut cfg = Config::default();
-        cfg.fn_spacing.min_statements = 0;
-        assert!(fn_spacing(&f, &cfg).is_empty());
-        cfg.fn_spacing.min_statements = 10;
-        assert_eq!(fn_spacing(&f, &cfg).len(), 1);
     }
 
     #[test]

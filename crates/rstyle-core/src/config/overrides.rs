@@ -8,11 +8,15 @@ use super::Config;
 const PER_FUNCTION: &[&str] = &[
     "fn_length",
     "fn_params",
-    "fn_spacing",
     "complexity",
     "mutation_budget",
     "side_effects",
+    "strict_style",
 ];
+
+/// The `strict_style` rules an override may change. The others judge the whole run at once, under
+/// the base policy.
+const PER_FUNCTION_STRICT_STYLE: &[&str] = &["fn_spacing"];
 
 /// `side_effects` keys read once for the whole run: effects are classified and propagated
 /// through the call graph before any function's policy applies.
@@ -53,6 +57,9 @@ impl TryFrom<Table> for Override {
         let patterns = rules.remove("paths").ok_or("an override needs `paths`")?;
         let patterns = Vec::<String>::deserialize(patterns).map_err(|e| e.to_string())?;
         let paths = glob_set(&patterns)?;
+        if rules.contains_key("fn_spacing") {
+            return Err(super::FN_SPACING_MOVED.into());
+        }
         if let Some(key) = rules
             .keys()
             .find(|key| !PER_FUNCTION.contains(&key.as_str()))
@@ -65,6 +72,17 @@ impl TryFrom<Table> for Override {
                 .is_some_and(|s| s.get(**key).is_some())
         }) {
             return Err(format!("`side_effects.{key}` cannot be overridden by path"));
+        }
+        if let Some(key) = rules
+            .get("strict_style")
+            .and_then(Value::as_table)
+            .and_then(|rules| {
+                rules
+                    .keys()
+                    .find(|key| !PER_FUNCTION_STRICT_STYLE.contains(&key.as_str()))
+            })
+        {
+            return Err(format!("`strict_style.{key}` cannot be overridden by path"));
         }
         Config::deserialize(Value::Table(rules.clone())).map_err(|e| e.to_string())?;
 

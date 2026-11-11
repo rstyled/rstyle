@@ -50,6 +50,8 @@ fn invalid_overrides_are_rejected() {
         "[[overrides]]\npaths = ['src/**']\ngrouping = { caller_hops = 2 }",
         "[[overrides]]\npaths = ['src/**']\nside_effects = { transitive_depth = 0 }",
         "[[overrides]]\npaths = ['src/**']\nside_effects.paths = { io = ['x::'] }",
+        "[[overrides]]\npaths = ['src/**']\nstrict_style.value_object = { enabled = true }",
+        "[[overrides]]\npaths = ['src/**']\nstrict_style.fn_spacing = { min = 3 }",
     ] {
         assert!(Config::parse(input).is_err(), "accepted {input}");
     }
@@ -93,4 +95,19 @@ fn overrides_serialize_back_to_their_table_and_only_when_present() {
     let policy = round_trip.for_path("src/adapters/critical/store.rs");
     assert_eq!(policy.side_effects.weights.io, 6);
     assert_eq!(policy.fn_length.max_lines, 80);
+}
+
+#[test]
+fn fn_spacing_can_be_turned_on_or_off_by_path() {
+    let config = Config::parse(
+        "[strict_style.fn_spacing]\nenabled = true\n\n\
+         [[overrides]]\npaths = ['generated']\nstrict_style.fn_spacing = { enabled = false }\n\n\
+         [[overrides]]\npaths = ['domain']\nstrict_style.fn_spacing = { min_statements = 3 }",
+    )
+    .unwrap();
+    let spacing = |path| config.for_path(path).strict_style.fn_spacing.clone();
+    assert!(!spacing("src/generated/api.rs").enabled);
+    assert!(spacing("src/domain/order.rs").enabled);
+    assert_eq!(spacing("src/domain/order.rs").min_statements, 3);
+    assert_eq!(spacing("src/main.rs").min_statements, 5);
 }

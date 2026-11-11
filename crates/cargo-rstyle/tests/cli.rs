@@ -310,13 +310,13 @@ fn two_runs_are_byte_identical() {
 }
 
 #[test]
-fn fn_spacing_is_configurable() {
+fn fn_spacing_is_off_until_a_project_turns_it_on() {
     let dir = fixture("violations");
     let off = style_json(dir.path());
     assert!(!rules_for(&off, "noisy").contains(&"fn_spacing".to_string()));
     std::fs::write(
         dir.path().join("rstyle.toml"),
-        "[fn_spacing]\nmin_statements = 3\n",
+        "[strict_style.fn_spacing]\nenabled = true\nmin_statements = 3\n",
     )
     .unwrap();
     let on = style_json(dir.path());
@@ -556,7 +556,7 @@ fn effects_propagate_through_calls_and_stop_at_boundaries() {
     let off = dir.path().join("rstyle.toml");
     std::fs::write(
         &off,
-        "[fn_spacing]\nmin_statements = 0\n[side_effects]\nmin_lines = 0\nmin_statements = 1\ntransitive_depth = 0\n",
+        "[side_effects]\nmin_lines = 0\nmin_statements = 1\ntransitive_depth = 0\n",
     )
     .unwrap();
     let report = style_json(dir.path());

@@ -56,7 +56,7 @@ fn rule_diagnostics(f: &FnFacts, effects: &[rules::Effect], cfg: &Config) -> Vec
     [
         rules::fn_length_with_lines(f, cfg, source_lines),
         rules::fn_params(f, cfg),
-        rules::fn_spacing(f, cfg),
+        strict_style::fn_spacing(f, cfg),
         rules::complexity(f, cfg),
         rules::mutation_budget(f, &cfg.mutation_budget),
         rules::side_effect_density_with_lines(f, effects, cfg, || source_lines),

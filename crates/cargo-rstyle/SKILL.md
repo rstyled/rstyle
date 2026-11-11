@@ -111,7 +111,7 @@ a score. The same command returns 1 for findings or 2 for missing measurements.
 ## Fix hints per rule
 
 - `fn_length`: extract cohesive blocks into named helpers. Do not just compress lines.
-- `fn_spacing`: add a blank line where the body changes phase (setup, work, result).
+- `fn_spacing`, only when `[strict_style.fn_spacing]` turns it on: add a blank line where the body changes phase (setup, work, result).
 - `guard_clause`, only when `[strict_style.guard_clause]` turns it on: return early, so the main path stops being nested.
 - `primitive_obsession`, only when `[strict_style.primitive_obsession]` turns it on: give what the parameter holds a named type.
 - `value_object`, only when `[strict_style.value_object]` turns it on: gather the values into a small type, if the callers really pass them together.

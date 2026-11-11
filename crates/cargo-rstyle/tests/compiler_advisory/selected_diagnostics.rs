@@ -3,7 +3,7 @@ use super::*;
 
 const DERIVED: &str = "#[derive(Debug)] pub struct Generated(pub u32);\n";
 const SOURCE: &str = "pub fn mixed(a:u128,b:u128)->u128 {\nlet mut x=a;\nlet mut y=b;\nx+=1;\nx+=2;\ny+=3;\nif a>0 {if b>0 {x+=1;}}\nstd::fs::write(\"/unused\",b\"x\").ok();\nx+y\n}\n";
-const POLICY: &str = "[fn_length]\nmax_lines=2\n[fn_params]\nmax_params=1\n[fn_spacing]\nmin_statements=2\n[complexity]\nmax_cyclomatic=1\nmax_cognitive=0\n[mutation_budget]\nmax_mutations_per_target=1\nmax_mutated_targets=1\n[side_effects]\nmax_density_milli=1\nmin_statements=0\nmin_lines=0\n";
+const POLICY: &str = "[fn_length]\nmax_lines=2\n[fn_params]\nmax_params=1\n[complexity]\nmax_cyclomatic=1\nmax_cognitive=0\n[mutation_budget]\nmax_mutations_per_target=1\nmax_mutated_targets=1\n[side_effects]\nmax_density_milli=1\nmin_statements=0\nmin_lines=0\n[strict_style.fn_spacing]\nenabled=true\nmin_statements=2\n";
 const BASE: &[&str] = &[
     "--compiler-advisory",
     "--compiler-advisory-config",
