@@ -1,10 +1,14 @@
 //! What a run's reports read of each function of a document: where it is written, what
 //! it declares, its rule facts or, for a function a macro writes, its own events, and
-//! on demand its dependence graph and runtime-bound program.
+//! on demand its dependence graph and runtime-bound program. A body, the code a module or a
+//! type runs, is its author's but wasn't written as a function: it has facts and a graph,
+//! and no rule reads them.
 
 use super::defects::{self, Examined};
 use super::flow::Derived;
-use super::model::{Document, FileSpan, Function, Generic, Node, Origin, Type, TypeKind};
+use super::model::{
+    Document, FileSpan, Function, Generic, Node, Origin, Provenance, Type, TypeKind,
+};
 use super::source::Sources;
 use super::tree::{Tables, generated};
 use crate::advisory::generated_effects::{self, CONNECTED_KEY, Connections};
@@ -52,10 +56,26 @@ pub struct DeclaredSignature {
 #[derive(Clone, Debug)]
 pub enum Measured {
     Known(Box<FnFacts>),
+    /// Code its author wrote, but not as a function: what a module or a type runs when it's
+    /// loaded or defined. It's compared like a function, and its effects count, but nothing
+    /// that judges how a function is written reads it.
+    Body(Box<FnFacts>),
     /// A macro writes it: its own events, located at the macro's call site.
     Generated(Box<generated_effects::Observation>),
     /// Nothing could be measured, and why.
     Unavailable(String),
+}
+
+impl Measured {
+    /// The events of a function no rule reads, as its callers' effects read them: one a macro or
+    /// the build writes, or a body. None for one a rule reads, or one nothing was measured of.
+    pub fn observation(&self) -> Option<generated_effects::Observation> {
+        match self {
+            Self::Generated(observation) => Some((**observation).clone()),
+            Self::Body(facts) => Some(body_observation((**facts).clone())),
+            Self::Known(_) | Self::Unavailable(_) => None,
+        }
+    }
 }
 
 /// One function of a document, as the reports read it.
@@ -207,7 +227,60 @@ fn read(document: &Document, demand: Demand) -> Result<(Vec<Record>, Failed), St
             .map_err(|reason| format!("{}: {reason}", function.name))
         })
         .collect::<Result<Vec<_>, String>>()?;
+    let records = with_own_text(records, functions, &sources)?;
     Ok((records, failed))
+}
+
+/// Each body with only its own text: its span, less the functions written in it. Each of
+/// those is compared as itself, so a change to one isn't a change to the module that holds it.
+fn with_own_text(
+    mut records: Vec<Record>,
+    functions: &[Function],
+    sources: &Sources<'_>,
+) -> Result<Vec<Record>, String> {
+    let spans: Vec<&FileSpan> = functions.iter().map(located).collect();
+    for (at, record) in records.iter_mut().enumerate() {
+        let Measured::Body(facts) = &mut record.measured else {
+            continue;
+        };
+        let others = spans[..at].iter().chain(&spans[at + 1..]).copied();
+        let own = own_text(&record.located, others, sources)?;
+        facts.source.clone_from(&own);
+        record.source = own;
+    }
+    Ok(records)
+}
+
+/// The text of `span` with every span in `others` that lies within it left out.
+fn own_text<'s>(
+    span: &FileSpan,
+    others: impl Iterator<Item = &'s FileSpan>,
+    sources: &Sources<'_>,
+) -> Result<String, String> {
+    let mut inside: Vec<&FileSpan> = others
+        .filter(|other| other.file == span.file)
+        .filter(|other| span.start <= other.start && other.end <= span.end)
+        .collect();
+    inside.sort_by_key(|other| (other.start, std::cmp::Reverse(other.end)));
+
+    let piece = |start, end| FileSpan {
+        file: span.file.clone(),
+        start,
+        end,
+    };
+    let (mut text, mut from) = (String::new(), span.start);
+    for other in inside {
+        // It's within one already left out.
+        if other.start < from {
+            continue;
+        }
+        let kept = piece(from, other.start);
+        text.push_str(sources.between(&kept, &kept)?);
+        from = other.end;
+    }
+    let rest = piece(from, span.end);
+    text.push_str(sources.between(&rest, &rest)?);
+    Ok(text)
 }
 
 /// Each function's facts by identity, and why each one's that failed could not be derived.
@@ -268,7 +341,7 @@ fn record(
     let source = sources.between(at, at)?;
     let mut measured = measure(function, facts, sources)?;
     let graph = match &mut measured {
-        Measured::Known(facts) => facts.pdg.take(),
+        Measured::Known(facts) | Measured::Body(facts) => facts.pdg.take(),
         _ => None,
     };
 
@@ -311,6 +384,30 @@ pub fn written_by_macro(function: &Function) -> bool {
     macro_written_root(function).is_some()
 }
 
+/// The constructs a body is desugared from: what a module runs when it's loaded, and what a
+/// type's definition runs, as a Python module or class body does.
+const BODY_CONSTRUCTS: [&str; 2] = ["module", "type"];
+
+/// Whether the function is a body: its signature and its root are desugared from a module or a
+/// type, so the code is its author's but wasn't written as a function. A desugaring of anything
+/// else, such as an `async fn`'s, leaves the function what it was.
+pub fn is_body(function: &Function) -> bool {
+    let from_body = |provenance: &Provenance| {
+        provenance.origin == Origin::Desugaring
+            && provenance
+                .construct
+                .as_deref()
+                .is_some_and(|construct| BODY_CONSTRUCTS.contains(&construct))
+    };
+    let root = || function.nodes.iter().find(|node| node.id == function.root);
+    function
+        .signature
+        .provenance
+        .as_ref()
+        .is_some_and(from_body)
+        && root().is_some_and(|root| from_body(&root.provenance))
+}
+
 /// Where a function is located: where it is written, or for a function a macro
 /// generates, the macro's outermost call site.
 pub fn located(function: &Function) -> &FileSpan {
@@ -320,7 +417,8 @@ pub fn located(function: &Function) -> &FileSpan {
 }
 
 /// What can be measured of a function, given the facts derived for it: a function a
-/// macro or the build writes has no original source, so only its own events are read.
+/// macro or the build writes has no original source, so only its own events are read. A body
+/// keeps its facts, apart from those a function's.
 pub fn measure(
     function: &Function,
     facts: Option<FnFacts>,
@@ -330,28 +428,44 @@ pub fn measure(
     let generated_file = sources.marks(&function.span).generated;
     let generated = generated_file || written_by_macro(function);
     match facts {
-        Some(facts) if generated => {
-            let (line, column) = sources.location(at)?;
-            Ok(Measured::Generated(Box::new(
-                generated_effects::Observation {
-                    metrics: CONNECTED_KEY.into(),
-                    name: function.name.clone(),
-                    line,
-                    column,
-                    mutations: facts.mutations,
-                    calls: facts.calls,
-                    intrinsic_effects: facts.effects,
-                    connections: Some(Connections {
-                        id: facts.id,
-                        implements: facts.implements,
-                        edges: facts.edges,
-                    }),
-                    generated_file,
-                },
-            )))
-        }
+        Some(facts) if generated => Ok(Measured::Generated(Box::new(observed(
+            facts,
+            sources.location(at)?,
+            generated_file,
+        )))),
+        Some(facts) if is_body(function) => Ok(Measured::Body(Box::new(facts))),
         Some(facts) => Ok(Measured::Known(Box::new(facts))),
         None => Ok(Measured::Unavailable(UNMEASURED.to_owned())),
+    }
+}
+
+/// A body's own events, located where it's written.
+pub fn body_observation(facts: FnFacts) -> generated_effects::Observation {
+    let at = (facts.line, facts.column);
+    observed(facts, at, false)
+}
+
+/// A function's own events, located at `(line, column)`, as a function no rule reads reports
+/// them for its callers' effects: one a macro or the build writes, or a body.
+pub fn observed(
+    facts: FnFacts,
+    (line, column): (usize, usize),
+    generated_file: bool,
+) -> generated_effects::Observation {
+    generated_effects::Observation {
+        metrics: CONNECTED_KEY.into(),
+        name: facts.name,
+        line,
+        column,
+        mutations: facts.mutations,
+        calls: facts.calls,
+        intrinsic_effects: facts.effects,
+        connections: Some(Connections {
+            id: facts.id,
+            implements: facts.implements,
+            edges: facts.edges,
+        }),
+        generated_file,
     }
 }
 
@@ -557,5 +671,12 @@ mod tests {
         assert_eq!(observation.name, record.name);
         assert!(observation.connections.is_some());
         assert!(record.graph.is_none());
+        assert_eq!(
+            record
+                .measured
+                .observation()
+                .map(|observation| observation.line),
+            Some(observation.line)
+        );
     }
 }

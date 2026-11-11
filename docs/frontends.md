@@ -185,6 +185,16 @@ as generated even when they carry the span of one of its inputs, as `quote_spann
 A file the build writes has `origin: "generated"`, and its functions are treated the same way. The Rust
 frontend marks what a build script writes to `OUT_DIR`.
 
+### Bodies
+
+What a module runs when it's loaded, or a type when it's defined, is its author's code but wasn't written as a
+function, as a Python module or class body is. Record it as a function whose signature and root have `desugaring`
+provenance with the construct `module` or `type`, and the body as the call site. Core calls it a body. Like a function
+a macro writes, it gets no rule findings or pattern candidates and its effects reach its callers. Unlike one, merge
+risk compares it as a function, by its graph and by its own text: its span, less the functions written inside it.
+A change to a method is that method's, and a decorator's is the module's, since that's where it runs. A desugaring
+from any other construct, such as an `async fn`'s, leaves the function the author's.
+
 ### A language's words
 
 Core says its reasons, labels and proposals in neutral terms, such as a writable reference or a closure

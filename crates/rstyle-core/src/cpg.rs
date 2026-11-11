@@ -120,11 +120,15 @@ pub fn authored(record: records::Record) -> Option<FnFacts> {
 }
 
 #[cfg(test)]
+mod body_tests;
+#[cfg(test)]
 mod dependence_tests;
 #[cfg(test)]
 mod flow_tests;
 #[cfg(test)]
 mod guard_clause_tests;
+#[cfg(test)]
+mod py_effect_tests;
 #[cfg(test)]
 mod shapes_tests;
 #[cfg(test)]

@@ -14,6 +14,7 @@ const EMBEDDED: &[&str] = &[
     include_str!("contracts/effects/go.toml"),
     include_str!("contracts/effects/cxx.toml"),
     include_str!("contracts/effects/rust.toml"),
+    include_str!("contracts/effects/py.toml"),
 ];
 
 #[derive(Debug, Deserialize)]
@@ -40,6 +41,10 @@ struct File {
     unknown: Vec<Entry>,
     #[serde(default)]
     none: Vec<Entry>,
+    /// No effect of its own, but it can run what it's handed: `len` runs `__len__`. Pure only where
+    /// the document says the call calls nothing of the workspace's back.
+    #[serde(default)]
+    none_without_callback: Vec<Entry>,
     #[serde(default)]
     writes_to_memory: Vec<MemoryRule>,
 }
@@ -59,11 +64,13 @@ struct Exact {
     exact: String,
 }
 
-/// An entry's class, and whether it only covers the key it names.
+/// An entry's class, whether it only covers the key it names, and whether it only holds for a call
+/// that calls nothing back.
 #[derive(Debug)]
 struct Listed {
     class: LibraryClass,
     exact: bool,
+    without_callback: bool,
 }
 
 /// Operations that only write to a buffer when an argument has one of these types.
@@ -98,19 +105,34 @@ impl EffectClasses {
         CLASSES.of(namespace, (EMBEDDED, parse))
     }
 
-    /// The class of an operation key such as `go:os.WriteFile`: the longest entry that
-    /// starts it, where an exact entry only starts the key it names, else the file's class
-    /// for an unlisted call.
+    /// The class of an operation key such as `go:os.WriteFile`, for a call that may call back into
+    /// the workspace: the longest entry that starts it, where an exact entry only starts the key it
+    /// names, else the file's class for an unlisted call. An entry that needs the call to call
+    /// nothing back leaves it unclassified.
     pub fn class(&self, operation: &str) -> Option<LibraryClass> {
-        operation
+        self.classed(operation, true)
+    }
+
+    /// The class of an operation key for a call the document says calls nothing of the
+    /// workspace's back, which every entry holds for.
+    pub fn class_without_callback(&self, operation: &str) -> Option<LibraryClass> {
+        self.classed(operation, false)
+    }
+
+    fn classed(&self, operation: &str, calls_back: bool) -> Option<LibraryClass> {
+        let listed = operation
             .char_indices()
             .map(|(start, character)| start + character.len_utf8())
             .rev()
             .find_map(|end| {
                 let listed = self.entries.get(&operation[..end])?;
-                (!listed.exact || end == operation.len()).then_some(listed.class)
-            })
-            .or(self.unlisted)
+                (!listed.exact || end == operation.len()).then_some(listed)
+            });
+        match listed {
+            Some(listed) if listed.without_callback && calls_back => None,
+            Some(listed) => Some(listed.class),
+            None => self.unlisted,
+        }
     }
 
     /// The class of a library call with no operation key.
@@ -140,14 +162,23 @@ fn parse(text: &str) -> Result<(String, EffectClasses), String> {
         (&file.unknown, LibraryClass::Effect(EffectKind::Unknown)),
         (&file.none, LibraryClass::Pure),
     ];
+    let lists = lists
+        .into_iter()
+        .map(|(list, class)| (list, class, false))
+        .chain([(&file.none_without_callback, LibraryClass::Pure, true)]);
     let mut entries = BTreeMap::new();
-    for (list, class) in lists {
+    for (list, class, without_callback) in lists {
         for entry in list {
             let (name, exact) = match entry {
                 Entry::Prefix(name) => (name, false),
                 Entry::Exact(Exact { exact }) => (exact, true),
             };
-            if entries.insert(key(name), Listed { class, exact }).is_some() {
+            let listed = Listed {
+                class,
+                exact,
+                without_callback,
+            };
+            if entries.insert(key(name), listed).is_some() {
                 return Err(format!("{name} has more than one effect class"));
             }
         }
@@ -301,6 +332,31 @@ mod tests {
     }
 
     #[test]
+    fn python_classes_a_call_by_its_operation() {
+        let py = EffectClasses::of("py");
+        let effect = |kind| Some(LibraryClass::Effect(kind));
+        assert_eq!(py.class("py:open"), Some(IO));
+        assert_eq!(py.class("py:subprocess.run"), Some(IO));
+        assert_eq!(py.class("py:os.getenv"), effect(EffectKind::Global));
+        assert_eq!(py.class("py:os.urandom"), effect(EffectKind::Random));
+        assert_eq!(py.class("py:time.monotonic_ns"), effect(EffectKind::Time));
+        assert_eq!(py.class("py:sys.exit"), effect(EffectKind::Panic));
+        assert_eq!(py.class("py:eval"), Some(UNKNOWN));
+        assert_eq!(py.class("py:list.append"), Some(LibraryClass::Pure));
+        // `json.dump` writes a file, and `json.dumps` runs a value's own methods.
+        assert_eq!(py.class("py:json.dump"), Some(IO));
+        assert_eq!(py.class("py:json.dumps"), None);
+        // `len` runs `__len__`, so it's pure only for a call that calls nothing back.
+        assert_eq!(py.class("py:len"), None);
+        assert_eq!(
+            py.class_without_callback("py:len"),
+            Some(LibraryClass::Pure)
+        );
+        assert_eq!(py.class("py:requests.get"), None);
+        assert_eq!(py.unlisted(), None);
+    }
+
+    #[test]
     fn a_namespace_without_a_file_classifies_nothing() {
         let none = EffectClasses::of("nowhere");
         assert_eq!(none.class("nowhere:Vec.len"), None);
@@ -332,6 +388,21 @@ mod tests {
         assert_eq!(classes.class("x:pkg.Is"), Some(LibraryClass::Pure));
         assert_eq!(classes.class("x:pkg.IsAnd"), Some(IO));
         assert_eq!(classes.class("x:pkg.PureToo"), Some(LibraryClass::Pure));
+    }
+
+    #[test]
+    fn an_entry_without_callback_holds_only_for_a_call_that_calls_nothing_back() {
+        let classes = parsed("io = [\"pkg.\"]\nnone_without_callback = [\"pkg.len\"]").unwrap();
+        assert_eq!(
+            classes.class_without_callback("x:pkg.len"),
+            Some(LibraryClass::Pure)
+        );
+        // What it calls back could do anything, and the shorter entry doesn't say what.
+        assert_eq!(classes.class("x:pkg.len"), None);
+        // Every other entry holds either way.
+        assert_eq!(classes.class_without_callback("x:pkg.Write"), Some(IO));
+        let error = parsed("none = [\"pkg.A\"]\nnone_without_callback = [\"pkg.A\"]").unwrap_err();
+        assert!(error.contains("pkg.A"), "{error}");
     }
 
     #[test]

@@ -31,7 +31,7 @@ impl DocumentFunction {
     /// The identity of the function's measured facts, or of its generated events.
     pub fn compiled_id(&self) -> Option<&str> {
         match &self.record.measured {
-            Measured::Known(facts) => Some(&facts.id),
+            Measured::Known(facts) | Measured::Body(facts) => Some(&facts.id),
             Measured::Generated(observation) => observation
                 .connections
                 .as_ref()
@@ -85,7 +85,8 @@ fn functions(document: &Document, demand: Demand) -> Result<Vec<DocumentFunction
             source_file: build::session_path(unit, &record.located.file).map(str::to_owned),
             generated: match record.measured {
                 Measured::Known(_) => false,
-                Measured::Generated(_) => true,
+                // Neither was written as a function, so neither is in an authored scope.
+                Measured::Generated(_) | Measured::Body(_) => true,
                 // Nothing was classified, so only the signature's own provenance is left to say.
                 Measured::Unavailable(_) => {
                     body.signature
