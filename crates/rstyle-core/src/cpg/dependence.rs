@@ -421,26 +421,23 @@ impl<'a> Graph<'_, 'a> {
     /// names none: an overloaded Python function, such as `subprocess.run`, has no one function
     /// type, but its call still names the definition it runs, as its events read it.
     fn statically_called(&self, reference: Option<&'a Ref>) -> Result<Option<&'a str>, String> {
-        let Some(reference) = reference.filter(|reference| {
-            reference.status == RefStatus::Resolved
-                && matches!(reference.dispatch, None | Some(Dispatch::Static))
-        }) else {
+        let id = reference
+            .filter(|reference| {
+                reference.status == RefStatus::Resolved
+                    && matches!(reference.dispatch, None | Some(Dispatch::Static))
+            })
+            .and_then(|reference| reference.target.as_ref())
+            .filter(|target| matches!(target.kind, TargetKind::Definition))
+            .and_then(|target| target.id.as_deref());
+        let Some(id) = id else {
             return Ok(None);
         };
-        let Some(RefTarget {
-            kind: TargetKind::Definition,
-            id: Some(id),
-            ..
-        }) = reference.target.as_ref()
-        else {
-            return Ok(None);
-        };
-        let definition = self.tables.definition(id.as_str())?;
+        let definition = self.tables.definition(id)?;
         Ok(matches!(
             definition.kind,
             DefinitionKind::Function | DefinitionKind::Method
         )
-        .then_some(id.as_str()))
+        .then_some(id))
     }
 
     /// The function a callee's type is the item type of, when it is one.
