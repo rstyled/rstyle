@@ -524,3 +524,30 @@ fn a_named_suite_field_does_not_make_a_production_type_a_test_suite() {
         3
     );
 }
+
+#[test]
+fn an_allowed_argument_difference_still_counts_its_siblings_and_counts_once() {
+    let document: Value =
+        serde_json::from_str(include_str!("../cpg/testdata/deviant-argument-go.cpg.json")).unwrap();
+    let mut records = records(vec![document]);
+    for record in &mut records {
+        let Measured::Known(facts) = &mut record.measured else {
+            panic!("not measured");
+        };
+        facts.preceding_line =
+            "// rstyle-allow(deviant_argument): deliberate protocol difference".into();
+    }
+    records.extend(records.clone());
+    let report = from_records(&mut records, &Config::default()).unwrap();
+    assert!(report.unknown.is_empty(), "{report:?}");
+    assert!(
+        report
+            .defects
+            .iter()
+            .all(|row| row.rule != "deviant_argument")
+    );
+    assert_eq!(
+        report.suppressed, 3,
+        "each of the three argument differences counts once"
+    );
+}
