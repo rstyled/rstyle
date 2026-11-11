@@ -247,6 +247,64 @@ fn a_name_drops_the_path_around_it_and_keeps_its_owner() {
     assert_eq!(name("(loadedFiles).addFailed"), "(loadedFiles).addFailed");
 }
 
+/// Identities rstyle-cxx emits, whose parameters, template arguments and return types hold `::`,
+/// and how the report names each.
+const CXX_NAMES: [(&str, &str); 12] = [
+    (
+        "cxx::llvm::sys::fs::remove(const llvm::Twine &, bool)",
+        "fs::remove",
+    ),
+    (
+        "cxx::std::filesystem::remove(const std::filesystem::path &)",
+        "filesystem::remove",
+    ),
+    (
+        "cxx::llvm::sys::ExecuteAndWait(llvm::StringRef, llvm::ArrayRef<llvm::StringRef>, \
+             std::optional<llvm::ArrayRef<llvm::StringRef>>, \
+             std::optional<llvm::sys::ProcessStatistics> *, llvm::BitVector *)",
+        "sys::ExecuteAndWait",
+    ),
+    ("cxx::clang::Decl::isImplicit() const", "Decl::isImplicit"),
+    (
+        "cxx::llvm::MemoryBuffer::getFile(const llvm::Twine &, bool, \
+             std::optional<llvm::Align>)",
+        "MemoryBuffer::getFile",
+    ),
+    (
+        "cxx::std::get_if<typename, typename...>(variant<type-parameter-0-1...> *) \
+             -> typename add_pointer<type-parameter-0-0>::type",
+        "std::get_if",
+    ),
+    (
+        "cxx::llvm::SmallVectorTemplateBase<type-parameter-0-0, true>::push_back(\
+             typename conditional<TakesParamByValue, type-parameter-0-0>::type)",
+        "SmallVectorTemplateBase::push_back",
+    ),
+    (
+        "cxx::llvm::ArrayRef::ArrayRef<T><typename>(const vector<type-parameter-0-0> &) \
+             -> void",
+        "ArrayRef::ArrayRef",
+    ),
+    (
+        "cxx::std::optional::operator bool() const -> bool",
+        "optional::operator bool",
+    ),
+    (
+        "cxx::src/database.cpp::rstylecxx::(anonymous namespace)::runFrom(llvm::StringRef, \
+             const std::vector<std::basic_string<char>> &)",
+        "runFrom",
+    ),
+    ("cxx::src/main.cpp::helper(int)", "helper"),
+    ("cxx::system(const char *)", "system"),
+];
+
+#[test]
+fn a_cxx_name_drops_its_signature_and_keeps_its_scope() {
+    for (identity, expected) in CXX_NAMES {
+        assert_eq!(name(identity), expected, "{identity}");
+    }
+}
+
 #[test]
 fn diff_links_hash_exact_paths_and_use_the_correct_side() {
     let cases = [
