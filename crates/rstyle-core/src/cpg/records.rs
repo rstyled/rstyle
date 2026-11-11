@@ -66,6 +66,18 @@ pub enum Measured {
     Unavailable(String),
 }
 
+impl Measured {
+    /// The events of a function no rule reads, as its callers' effects read them: one a macro or
+    /// the build writes, or a body. None for one a rule reads, or one nothing was measured of.
+    pub fn observation(&self) -> Option<generated_effects::Observation> {
+        match self {
+            Self::Generated(observation) => Some((**observation).clone()),
+            Self::Body(facts) => Some(body_observation((**facts).clone())),
+            Self::Known(_) | Self::Unavailable(_) => None,
+        }
+    }
+}
+
 /// One function of a document, as the reports read it.
 #[derive(Clone, Debug)]
 pub struct Record {
@@ -427,6 +439,12 @@ pub fn measure(
     }
 }
 
+/// A body's own events, located where it's written.
+pub fn body_observation(facts: FnFacts) -> generated_effects::Observation {
+    let at = (facts.line, facts.column);
+    observed(facts, at, false)
+}
+
 /// A function's own events, located at `(line, column)`, as a function no rule reads reports
 /// them for its callers' effects: one a macro or the build writes, or a body.
 pub fn observed(
@@ -653,5 +671,12 @@ mod tests {
         assert_eq!(observation.name, record.name);
         assert!(observation.connections.is_some());
         assert!(record.graph.is_none());
+        assert_eq!(
+            record
+                .measured
+                .observation()
+                .map(|observation| observation.line),
+            Some(observation.line)
+        );
     }
 }

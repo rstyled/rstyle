@@ -94,6 +94,42 @@ fn a_module_or_class_body_is_a_body_and_its_functions_are_the_author_s() {
 }
 
 #[test]
+fn a_body_reports_its_own_events_where_it_s_written() {
+    let records = records(document(BASE));
+    let module = record(&records, "<module>");
+    let Measured::Body(facts) = &module.measured else {
+        panic!("<module> is not a body");
+    };
+
+    let observation = module.measured.observation().unwrap();
+    assert_eq!(observation.name, "<module>");
+    assert_eq!((observation.line, observation.column), (1, 1));
+    assert!(!observation.generated_file);
+    // What it calls, such as `logging.getLogger`, is what its effects are read from.
+    assert_eq!(observation.calls.len(), facts.calls.len());
+    assert_eq!(
+        observation.connections.map(|connections| connections.id),
+        Some(facts.id.clone())
+    );
+    // A function a rule reads has its own facts, not an observation.
+    assert!(record(&records, "load").measured.observation().is_none());
+}
+
+#[test]
+fn a_run_reads_a_body_s_effects_but_no_rule_reads_the_body() {
+    let inputs = super::run::run_inputs(records(document(BASE)), &Config::default()).unwrap();
+
+    let mut authored: Vec<_> = inputs
+        .facts
+        .iter()
+        .map(|facts| facts.name.as_str())
+        .collect();
+    authored.sort_unstable();
+    assert_eq!(authored, ["Store.put", "load"]);
+    assert_eq!(inputs.effects.len(), 2);
+}
+
+#[test]
 fn a_body_s_text_leaves_out_the_functions_written_in_it() {
     let records = records(document(BASE));
     let own = |name| {
