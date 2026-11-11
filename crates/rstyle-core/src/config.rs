@@ -23,6 +23,9 @@ pub struct Config {
     /// shouldn't read as a change in their policy.
     #[serde(skip_serializing)]
     pub ignored_result: IgnoredResultConfig,
+    /// Left out of what a baseline compares, since compiler diagnostics don't read it either.
+    #[serde(skip_serializing)]
+    pub deviant_argument: DeviantArgumentConfig,
     /// Left out of what a baseline compares for the same reason: only `rstyle risk` reads it.
     #[serde(skip_serializing)]
     pub risk: RiskConfig,
@@ -314,6 +317,44 @@ impl Default for IgnoredResultConfig {
         Self {
             min_calls: 5,
             min_used_percent: Percent(90),
+        }
+    }
+}
+
+/// How many methods, and how alike, it takes for their calls to say what an argument should be.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct DeviantArgumentConfig {
+    /// Fewest sibling methods, counting the one that differs, that must make the call.
+    pub min_methods: MethodCount,
+    /// How much of their callees two methods must share to be siblings.
+    pub min_shared_callees_percent: Percent,
+}
+
+impl Default for DeviantArgumentConfig {
+    fn default() -> Self {
+        Self {
+            min_methods: MethodCount(4),
+            min_shared_callees_percent: Percent(50),
+        }
+    }
+}
+
+/// A count of sibling methods of at least 3, checked on load: with two, each would differ from
+/// the other, and neither could be told apart as the slip.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(try_from = "usize")]
+pub struct MethodCount(pub usize);
+
+impl TryFrom<usize> for MethodCount {
+    type Error = String;
+
+    fn try_from(count: usize) -> Result<Self, String> {
+        match count {
+            3.. => Ok(Self(count)),
+            _ => Err(format!(
+                "{count} methods can't say which differs; it takes at least 3"
+            )),
         }
     }
 }
@@ -854,6 +895,36 @@ mod tests {
             let input = format!("[ignored_result]\n{wrong}");
             assert!(Config::parse(&input).is_err(), "{wrong}");
         }
+    }
+
+    #[test]
+    fn deviant_argument_has_defaults_a_project_can_change_within_reason() {
+        let default = Config::parse("").unwrap().deviant_argument;
+        assert_eq!(default.min_methods, MethodCount(4));
+        assert_eq!(default.min_shared_callees_percent, Percent(50));
+
+        let set =
+            Config::parse("[deviant_argument]\nmin_methods = 6\nmin_shared_callees_percent = 75")
+                .unwrap();
+        assert_eq!(set.deviant_argument.min_methods, MethodCount(6));
+        assert_eq!(set.deviant_argument.min_shared_callees_percent, Percent(75));
+
+        for wrong in [
+            "min_methods = 2",
+            "min_shared_callees_percent = 0",
+            "min_shared_callees_percent = 101",
+            "min_method = 4",
+        ] {
+            let input = format!("[deviant_argument]\n{wrong}");
+            assert!(Config::parse(&input).is_err(), "{wrong}");
+        }
+    }
+
+    #[test]
+    fn a_baseline_compares_nothing_of_deviant_argument() {
+        let config = Config::parse("[deviant_argument]\nmin_methods = 6").unwrap();
+        let policy = serde_json::to_value(&config).unwrap();
+        assert!(policy.get("deviant_argument").is_none(), "{policy}");
     }
 
     #[test]

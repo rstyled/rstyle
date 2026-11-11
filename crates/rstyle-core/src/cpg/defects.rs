@@ -3,10 +3,12 @@
 //! A function whose facts fall short of a rule's needs stays unknown, and is never read as clean.
 
 mod dead_store;
+pub mod deviant_argument;
 pub mod ignored_result;
 pub mod taint;
 pub mod value_flow;
 
+use self::deviant_argument::Arguments;
 use self::ignored_result::ResultUse;
 use self::value_flow::ValueFlows;
 use super::flow::{self, Flow, Reaching, Vertex};
@@ -33,6 +35,8 @@ pub enum Examined {
         results: Vec<ResultUse>,
         /// Where its values go, which a project's models say the meaning of.
         flows: ValueFlows,
+        /// What its calls pass, which only its sibling methods can judge.
+        arguments: Box<Arguments>,
     },
     /// The function's facts can't answer, and why.
     Unknown(String),
@@ -44,6 +48,8 @@ struct Reading<'a> {
     flow: Flow<'a>,
     body: Body<'a>,
     parents: HashMap<&'a str, &'a Node>,
+    /// Which writes reach each vertex.
+    reaching: Reaching<'a>,
     /// Each write with each read it reaches: where it's written, where it's read, what.
     dependence: Vec<(Vertex, Vertex, &'a str)>,
     tables: &'a Tables<'a>,
@@ -59,10 +65,12 @@ pub fn examine(
     sources: &Sources<'_>,
 ) -> Examined {
     let read = flow::with_accesses(coverage, function).and_then(|flow| {
-        let dependence = Reaching::of(function, &flow).data_dependence();
+        let reaching = Reaching::of(function, &flow);
+        let dependence = reaching.data_dependence();
         let reading = Reading {
             function,
             flow,
+            reaching,
             dependence,
             body: Body::new(function)?,
             parents: parents(function),
@@ -73,6 +81,7 @@ pub fn examine(
             defects: dead_store::find(&reading)?,
             results: ignored_result::uses(&reading)?,
             flows: value_flow::of(&reading, namespace)?,
+            arguments: Box::new(deviant_argument::of(&reading)?),
         })
     });
     read.unwrap_or_else(Examined::Unknown)

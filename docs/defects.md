@@ -107,6 +107,58 @@ test file or an excluded path neither count nor get reported, so only the code y
 
 A result may be dropped on purpose, such as calling a function for what it caches. Suppress those with a reason.
 
+## `deviant_argument`
+
+A call that passes one variable where the same call in its sibling methods all pass another. Methods of one type
+written as near copies of each other, such as a store's `Create`, `Get`, `Update` and `Delete`, agree on what they
+pass, so the copy that doesn't stands out. It's "Bugs as Deviant Behavior" one level down from `ignored_result`:
+the calls decide what an argument should be.
+
+```text
+pkg/apiserver/rest/dualwriter_mode3.go:106: deviant_argument: `recordStorageDuration` is passed `name` here, where 6 of its 7 calls in sibling methods pass `options.Kind`
+```
+
+Siblings are methods of the same type that share at least half their callees. A call is compared with the calls of
+the same callee at the same argument in at least 4 of them, counting its own, and every other call must agree. Both
+numbers are defaults `rstyle.toml` can change:
+
+```toml
+[deviant_argument]
+min_methods = 4                  # at least 3: with two, each would differ from the other
+min_shared_callees_percent = 50  # 1 to 100
+```
+
+Raising `min_methods` misses types with only a few parallel methods, a common shape for a store's `Create`, `Get`,
+`Update` and `Delete`. Lowering `min_shared_callees_percent` compares methods that are less likely to be copies.
+
+A difference is reported only when nothing but a slip explains it:
+
+A call inside a branch stays quiet when its own method also passes the siblings' value to that
+callee and argument. A parser can deliberately convert a different token on another branch.
+This conservative check can miss a wrong argument in such a branch. Methods on types that embed
+`github.com/stretchr/testify/suite.Suite` are test code even in a shared, non-`_test.go` file;
+they do not supply sibling patterns. Other defect rules still examine these methods.
+
+| Case | Why it stays quiet |
+| --- | --- |
+| A literal or a constant, such as `http.StatusNoContent` where siblings pass `http.StatusOK` | A different value is a choice; a slip reads the wrong variable |
+| A call that differs in another argument too, such as `log.Infof("denied: %v", err)` | It's another call, not the same call with one thing wrong |
+| A variable of another type than the siblings pass, such as decoding into `respDTO` where siblings decode into their `result` | It's another value, not the same one misnamed |
+| A variable that holds nothing yet at the call, such as `membs := convert(members)` | The siblings' variable couldn't have been passed there |
+| A field the variable's type here doesn't have, such as `r.User` where siblings pass `r.Name` of other request types | The siblings' value couldn't be written here |
+| A variable computed from the siblings' one, in any number of steps, such as `body := read(resp.Body)` then `decode(wrap(body))` | Deriving one from the other is deliberate |
+| A builtin, such as `len` or `append` | What it's asked varies by design |
+| A function that isn't a method, or a callee nothing resolves | There are no siblings to weigh it against |
+
+A call inside a closure, such as a goroutine's, is judged where the closure is made, with what the closure binds
+before the call. Calls a test file holds, or an excluded path, neither count nor get reported.
+
+A difference can still be deliberate, such as a method that reads its old value where its siblings read the new one.
+A field counts as there when the variable's type lists it, or embeds a type that does, as a `*DeleteOptions` gets
+`Kind` from its embedded `TypeMeta`. For a type its frontend doesn't list fields for, a field counts when something in
+the run reads it from a value of that type, and is taken as absent otherwise, which can miss a slip but never reports
+one that couldn't compile. Suppress deliberate differences with a reason.
+
 ## `taint_flow`
 
 Input reaching where it's dangerous: a value from a source, through what your functions do with it, to an argument a sink

@@ -75,6 +75,8 @@ is a commented example, though it raises the complexity limits above their defau
 | `side_effects.paths.*` | see below | Callee path prefixes that count as each effect kind |
 | `ignored_result.min_used_percent` | 90 | How much of a callee's calls must use its result, from 1 to 100. See [`ignored_result`](defects.md#ignored_result) |
 | `ignored_result.min_calls` | 5 | Fewest calls of a callee that say anything. At 90%, one drop already takes 10 |
+| `deviant_argument.min_methods` | 4 | Fewest sibling methods, counting the one that differs, that make the call; at least 3. See [`deviant_argument`](defects.md#deviant_argument) |
+| `deviant_argument.min_shared_callees_percent` | 50 | How much of their callees two methods of a type share to be siblings, from 1 to 100 |
 | `grouping.caller_rules` | `["fn_params"]` | Rules whose fix also edits the function's callers |
 | `grouping.caller_hops` | 1 | How many caller hops those fixes reach |
 | `strict_style.*` | off | See [strict style](#strict-style) |

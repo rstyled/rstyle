@@ -16,6 +16,7 @@ pub const RULE_IDS: &[&str] = &[
     "abstraction",
     "dead_store",
     "ignored_result",
+    "deviant_argument",
     "taint_flow",
     "guard_clause",
     "primitive_obsession",

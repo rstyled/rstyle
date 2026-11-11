@@ -470,3 +470,125 @@ fn a_function_compiled_twice_reports_its_flow_once() {
     let twice = from_records(&mut compiled_twice, &Config::default()).unwrap();
     assert_eq!(once.defects, twice.defects);
 }
+
+#[test]
+fn an_argument_its_sibling_methods_disagree_with_is_found_in_what_a_go_frontend_writes() {
+    let document: Value =
+        serde_json::from_str(include_str!("../cpg/testdata/deviant-argument-go.cpg.json")).unwrap();
+    let report = report_of(vec![document], &Config::default());
+    assert!(report.unknown.is_empty(), "{:?}", report.unknown);
+
+    let found: Vec<(usize, &str)> = report
+        .defects
+        .iter()
+        .filter(|row| row.rule == "deviant_argument")
+        .map(|row| (row.line, row.message.as_str()))
+        .collect();
+    assert_eq!(
+        found,
+        [
+            (
+                64,
+                "`NewContext` is passed `w.Log` here, where 5 of its 6 calls in sibling methods \
+                 pass `log`"
+            ),
+            (
+                66,
+                "`(*Writer).record` is passed `name` here, where 6 of its 7 calls in sibling \
+                 methods pass `options.Kind`"
+            ),
+            (
+                79,
+                "`(*Writer).record` is passed `startLegacy` here, where 6 of its 7 calls in \
+                 sibling methods pass `startStorage`"
+            ),
+        ],
+        "Store's and Auth's differences are deliberate; `options.Kind` holds for a `DeleteOptions` only through its embedded `TypeMeta`"
+    );
+}
+
+#[test]
+fn shared_testify_suites_in_regular_go_files_do_not_supply_argument_patterns() {
+    let mut document: Value =
+        serde_json::from_str(include_str!("../cpg/testdata/deviant-argument-go.cpg.json")).unwrap();
+    let types = document["unit"]["types"].as_array_mut().unwrap();
+    let writer = types.iter_mut().find(|ty| ty["id"] == "t36").unwrap();
+    writer["fields"].as_array_mut().unwrap().push(json!({
+        "name": "Suite", "type": "type:test-suite", "embedded": true
+    }));
+    types.push(json!({"id": "type:test-suite", "kind": "record",
+        "spelling": "github.com/stretchr/testify/suite.Suite", "fields": []}));
+    let report = report_of(vec![document], &Config::default());
+    assert!(report.unknown.is_empty(), "{:?}", report.unknown);
+    assert!(
+        report
+            .defects
+            .iter()
+            .all(|row| row.rule != "deviant_argument")
+    );
+}
+
+#[test]
+fn a_parser_branch_can_deliberately_use_a_different_tokens_literal() {
+    let document: Value = serde_json::from_str(include_str!(
+        "../cpg/testdata/deviant-argument-branches.cpg.json"
+    ))
+    .unwrap();
+    let report = report_of(vec![document], &Config::default());
+    assert!(report.unknown.is_empty(), "{:?}", report.unknown);
+    assert!(
+        report
+            .defects
+            .iter()
+            .all(|row| row.rule != "deviant_argument")
+    );
+}
+
+#[test]
+fn a_named_suite_field_does_not_make_a_production_type_a_test_suite() {
+    let mut document: Value =
+        serde_json::from_str(include_str!("../cpg/testdata/deviant-argument-go.cpg.json")).unwrap();
+    let types = document["unit"]["types"].as_array_mut().unwrap();
+    let writer = types.iter_mut().find(|ty| ty["id"] == "t36").unwrap();
+    writer["fields"].as_array_mut().unwrap().push(json!({
+        "name": "Suite", "type": "type:test-suite"
+    }));
+    types.push(json!({"id": "type:test-suite", "kind": "record",
+        "spelling": "github.com/stretchr/testify/suite.Suite", "fields": []}));
+    let report = report_of(vec![document], &Config::default());
+    assert_eq!(
+        report
+            .defects
+            .iter()
+            .filter(|row| row.rule == "deviant_argument")
+            .count(),
+        3
+    );
+}
+
+#[test]
+fn an_allowed_argument_difference_still_counts_its_siblings_and_counts_once() {
+    let document: Value =
+        serde_json::from_str(include_str!("../cpg/testdata/deviant-argument-go.cpg.json")).unwrap();
+    let mut records = records(vec![document]);
+    for record in &mut records {
+        let Measured::Known(facts) = &mut record.measured else {
+            panic!("not measured");
+        };
+        facts.preceding_line =
+            "// rstyle-allow(deviant_argument): deliberate protocol difference".into();
+    }
+    records.extend(records.clone());
+    let report = from_records(&mut records, &Config::default()).unwrap();
+    assert!(report.unknown.is_empty(), "{report:?}");
+    assert!(
+        report
+            .defects
+            .iter()
+            .all(|row| row.rule != "deviant_argument")
+    );
+    assert_eq!(
+        report.suppressed, 3,
+        "each of the three argument differences counts once"
+    );
+}
