@@ -218,6 +218,32 @@ mod tests {
     }
 
     #[test]
+    fn cxx_classes_clang_and_llvm_calls_by_their_namespaces() {
+        let cxx = EffectClasses::of("cxx");
+        let pure = Some(LibraryClass::Pure);
+        assert_eq!(cxx.class("cxx:clang::Decl.isImplicit"), pure);
+        assert_eq!(cxx.class("cxx:llvm::SmallVector.SmallVector<T,_N>"), pure);
+        assert_eq!(cxx.class("cxx:llvm::sys::fs::remove"), Some(IO));
+        assert_eq!(cxx.class("cxx:llvm::sys::ExecuteAndWait"), Some(IO));
+        assert_eq!(cxx.class("cxx:llvm::raw_fd_ostream.write"), Some(IO));
+        // A hook runs what overrides it, and a stream the caller passes does what it does.
+        assert_eq!(
+            cxx.class("cxx:clang::ASTConsumer.HandleTranslationUnit"),
+            Some(UNKNOWN)
+        );
+        assert_eq!(cxx.class("cxx:llvm::raw_ostream.flush"), Some(UNKNOWN));
+        // `getName` is exact, so it doesn't cover `getNameForDiagnostic`, which prints to a stream.
+        assert_eq!(cxx.class("cxx:clang::NamedDecl.getName"), pure);
+        assert_eq!(
+            cxx.class("cxx:clang::NamedDecl.getNameForDiagnostic"),
+            Some(UNKNOWN)
+        );
+        // Another library's function in no namespace isn't the standard `count`.
+        assert_eq!(cxx.class("cxx:count"), pure);
+        assert_eq!(cxx.class("cxx:::count"), Some(UNKNOWN));
+    }
+
+    #[test]
     fn rust_classes_only_what_is_pure_for_every_type() {
         let rust = EffectClasses::of("rust");
         assert_eq!(rust.class("rust:slice.iter"), Some(LibraryClass::Pure));
