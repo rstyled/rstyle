@@ -2,11 +2,12 @@
 
 use super::*;
 use crate::cpg::defects::{Reading, parents};
-use crate::cpg::flow::{self, Reaching};
+use crate::cpg::flow::{self, Reaching, Vertex};
 use crate::cpg::layout::bundle;
 use crate::cpg::source::Sources;
 use crate::cpg::tree::{Body, Tables};
 use serde_json::{Value, json};
+use std::rc::Rc;
 
 fn document() -> Value {
     serde_json::from_str(include_str!("../../testdata/deviant-argument-go.cpg.json")).unwrap()
@@ -73,7 +74,7 @@ fn a_call_without_a_span_supplies_no_arguments() {
         let mut call = reading.body.node("f19.n30").unwrap().clone();
         call.span = None;
         assert!(
-            arguments_of(reading, &call, ("record", "record"))
+            arguments_of(&mut Lineage::new(reading), &call, ("record", "record"))
                 .unwrap()
                 .is_empty()
         );
@@ -86,7 +87,7 @@ fn a_call_outside_the_flow_and_any_closure_supplies_no_arguments() {
         let mut call = reading.body.node("f19.n30").unwrap().clone();
         call.id = "detached".into();
         assert!(
-            arguments_of(reading, &call, ("record", "record"))
+            arguments_of(&mut Lineage::new(reading), &call, ("record", "record"))
                 .unwrap()
                 .is_empty()
         );
@@ -100,7 +101,8 @@ fn an_argument_with_an_invalid_source_span_returns_an_error() {
     document["unit"]["functions"][19]["nodes"][24]["span"]["file"] = json!("missing");
     with_reading(document, 19, |reading| {
         let call = reading.body.node("f19.n30").unwrap();
-        let error = arguments_of(reading, call, ("record", "record")).unwrap_err();
+        let error =
+            arguments_of(&mut Lineage::new(reading), call, ("record", "record")).unwrap_err();
         assert!(error.contains("missing"), "{error}");
     });
 }
@@ -112,7 +114,7 @@ fn an_argument_with_an_unknown_type_returns_an_error() {
     with_reading(document, 19, |reading| {
         let call = reading.body.node("f19.n30").unwrap();
         assert_eq!(
-            arguments_of(reading, call, ("record", "record")).unwrap_err(),
+            arguments_of(&mut Lineage::new(reading), call, ("record", "record")).unwrap_err(),
             "Unknown type missing"
         );
     });
@@ -169,7 +171,8 @@ fn closure_local_sources_include_reads_in_their_declaration() {
     }));
     with_reading(document, 24, |reading| {
         let call = reading.body.node("f24.n43").unwrap();
-        let arguments = arguments_of(reading, call, ("record", "record")).unwrap();
+        let arguments =
+            arguments_of(&mut Lineage::new(reading), call, ("record", "record")).unwrap();
         assert!(
             arguments[3].sources.contains("startStorage"),
             "{arguments:?}"
@@ -181,10 +184,62 @@ fn closure_local_sources_include_reads_in_their_declaration() {
 fn repeated_dependency_paths_are_visited_once() {
     with_reading(document(), 19, |reading| {
         let vertex = reading.flow.vertex("f19.n30").unwrap();
-        let once = derived(reading, vec![("f19.s4", vertex)]).unwrap();
+        let once = derived(&mut Lineage::new(reading), &[("f19.s4", vertex)]).unwrap();
         assert!(!once.is_empty());
-        assert_eq!(derived(reading, vec![("f19.s4", vertex); 2]).unwrap(), once);
+        let twice = derived(&mut Lineage::new(reading), &[("f19.s4", vertex); 2]).unwrap();
+        assert_eq!(twice, once);
     });
+}
+
+#[test]
+fn sources_worked_out_after_others_match_those_worked_out_alone() {
+    with_reading(document(), 19, |reading| {
+        let seeds: Vec<(&str, Vertex)> = reading
+            .reaching
+            .definitions
+            .iter()
+            .map(|definition| (definition.symbol, definition.vertex))
+            .collect();
+        let mut shared = Lineage::new(reading);
+        for seed in &seeds {
+            let alone = derived(&mut Lineage::new(reading), &[*seed]).unwrap();
+            assert_eq!(derived(&mut shared, &[*seed]).unwrap(), alone, "{seed:?}");
+        }
+    });
+}
+
+#[test]
+fn a_value_a_loop_rewrites_is_made_of_itself() {
+    let document = serde_json::from_str(include_str!("../../testdata/example.cpg.json")).unwrap();
+    // `total += 1` in a loop: each write of `total` reads the one before, through the back edge.
+    with_reading(document, 2, |reading| {
+        let tail = reading.flow.vertex("count.tail").unwrap();
+        let made = derived(&mut Lineage::new(reading), &[("count.total", tail)]).unwrap();
+        assert_eq!(made, BTreeSet::from(["total".to_owned()]));
+    });
+}
+
+#[test]
+fn a_loop_of_values_closes_as_one_component_after_what_it_reaches() {
+    // 0 is made of 1, 1 of 2, and 2 of 0 and 3: 3 is finished first, then the loop as one.
+    let steps: Vec<Rc<[Step]>> = vec![
+        Rc::from([(0, 1)]),
+        Rc::from([(0, 2)]),
+        Rc::from([(0, 0), (0, 3)]),
+        Rc::from([]),
+    ];
+    let mut search = Search::from(0, Rc::clone(&steps[0]));
+    let mut closed = Vec::new();
+    while let Some(next) = search.next(|_| false) {
+        match next {
+            Next::Enter(value) => search.enter(value, Rc::clone(&steps[value])),
+            Next::Close(mut members) => {
+                members.sort_unstable();
+                closed.push(members);
+            }
+        }
+    }
+    assert_eq!(closed, [vec![3], vec![0, 1, 2]]);
 }
 
 #[test]
