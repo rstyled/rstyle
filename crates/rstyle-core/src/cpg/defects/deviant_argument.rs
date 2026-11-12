@@ -23,7 +23,8 @@ use super::super::model::{
 use super::ignored_result::{declared_callee, pointed_at};
 use super::{Defect, Reading};
 use crate::config::DeviantArgumentConfig;
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::rc::Rc;
 
 pub const RULE: &str = "deviant_argument";
 
@@ -87,6 +88,7 @@ pub(super) fn of(reading: &Reading<'_>) -> Result<Arguments, String> {
         ..Arguments::default()
     };
 
+    let mut lineage = Lineage::new(reading);
     for node in reading
         .function
         .nodes
@@ -98,7 +100,9 @@ pub(super) fn of(reading: &Reading<'_>) -> Result<Arguments, String> {
         };
         found.callees.insert(callee.stable_identity.clone());
         let callee = (callee.stable_identity.as_str(), callee.name.as_str());
-        found.arguments.extend(arguments_of(reading, node, callee)?);
+        found
+            .arguments
+            .extend(arguments_of(&mut lineage, node, callee)?);
     }
     Ok(found)
 }
@@ -197,10 +201,11 @@ fn compared(reading: &Reading<'_>, node: &Node) -> bool {
 
 /// What a call passes. A call's first child is what it calls or calls it on; the rest are passed.
 fn arguments_of(
-    reading: &Reading<'_>,
+    lineage: &mut Lineage<'_, '_>,
     call: &Node,
     (callee, name): (&str, &str),
 ) -> Result<Vec<Argument>, String> {
+    let reading = lineage.reading;
     let Some(span) = call.span.as_ref() else {
         return Ok(Vec::new());
     };
@@ -219,7 +224,7 @@ fn arguments_of(
     for (position, argument) in passed.iter().enumerate() {
         let (variable, field) = variable_of(reading, argument)?;
         let sources = match &variable {
-            Some((symbol, _)) => sources(reading, symbol, &point)?,
+            Some((symbol, _)) => sources(lineage, symbol, &point)?,
             None => BTreeSet::new(),
         };
         found.push(Argument {
@@ -381,11 +386,12 @@ fn available(reading: &Reading<'_>, point: &Point<'_>) -> Result<Variables, Stri
 /// What a variable's value at the point was made of. Inside a closure the flow doesn't enter,
 /// that's what the statement declaring it reads.
 fn sources(
-    reading: &Reading<'_>,
+    lineage: &mut Lineage<'_, '_>,
     symbol: &str,
     point: &Point<'_>,
 ) -> Result<BTreeSet<String>, String> {
-    let mut found = sources_of(reading, symbol, point.vertex)?;
+    let reading = lineage.reading;
+    let mut found = sources_of(lineage, symbol, point.vertex)?;
     let Some((closure, _)) = point.closure else {
         return Ok(found);
     };
@@ -402,9 +408,10 @@ fn sources(
         .and_then(|node| statement_of(reading, node));
 
     if let Some(statement) = statement {
-        let reads = reads_within(reading, statement)?;
-        let pending = reads.iter().map(|read| (*read, point.vertex)).collect();
-        found.extend(derived(reading, pending)?);
+        let reads = lineage.reads_within(statement)?;
+        let reads: Vec<&str> = reads.iter().map(|&read| lineage.symbols[read]).collect();
+        let pending: Vec<_> = reads.iter().map(|&read| (read, point.vertex)).collect();
+        found.extend(derived(lineage, &pending)?);
         for read in reads {
             found.insert(name_of(reading, read)?);
         }
@@ -437,50 +444,324 @@ fn type_of(reading: &Reading<'_>, symbol: &str) -> Result<Option<String>, String
 }
 
 /// What the writes of a symbol that reach the vertex read: the variables its value was made of.
+/// A symbol nothing writes was made of nothing here.
 fn sources_of(
-    reading: &Reading<'_>,
+    lineage: &mut Lineage<'_, '_>,
     symbol: &str,
     vertex: Vertex,
 ) -> Result<BTreeSet<String>, String> {
-    derived(reading, vec![(symbol, vertex)])
+    let Some((&symbol, _)) = lineage.definitions.get_key_value(symbol) else {
+        return Ok(BTreeSet::new());
+    };
+    derived(lineage, &[(symbol, vertex)])
 }
 
 /// Every variable the pending values were computed from, through each write before them:
 /// `body := read(resp.Body)` then `rdr := wrap(body)` makes `rdr` of `resp` too.
 fn derived<'r>(
-    reading: &Reading<'r>,
-    mut pending: Vec<(&'r str, Vertex)>,
+    lineage: &mut Lineage<'_, 'r>,
+    pending: &[(&'r str, Vertex)],
 ) -> Result<BTreeSet<String>, String> {
-    let (mut seen, mut found) = (HashSet::new(), BTreeSet::new());
-    while let Some(value) = pending.pop() {
-        if !seen.insert(value) {
-            continue;
-        }
-        for (read, at) in made_of(reading, value)? {
-            found.insert(name_of(reading, read)?);
-            pending.push((read, at));
-        }
+    let mut behind = Vec::new();
+    for &value in pending {
+        let value = lineage.value(value);
+        union(&mut behind, &lineage.behind(value)?);
     }
-    Ok(found)
+    let reading = lineage.reading;
+    members(&behind)
+        .map(|symbol| name_of(reading, lineage.symbols[symbol]))
+        .collect()
 }
 
-/// What the writes of a symbol that reach a vertex read, and where each write is.
-fn made_of<'r>(
-    reading: &Reading<'r>,
-    (symbol, vertex): (&str, Vertex),
-) -> Result<Vec<(&'r str, Vertex)>, String> {
-    let mut found = Vec::new();
-    for (index, definition) in reading.reaching.definitions.iter().enumerate() {
-        if definition.symbol != symbol || !reading.reaching.reaches(index, vertex) {
-            continue;
+/// A symbol a write reads, and that symbol's value at the write, both by number.
+type Step = (usize, usize);
+
+/// A symbol's value at a vertex, and what it was made of once that's worked out.
+struct Value<'r> {
+    symbol: &'r str,
+    vertex: Vertex,
+    /// What the writes behind it read.
+    steps: Option<Rc<[Step]>>,
+    /// Every symbol behind it, once its strongly connected component is worked out.
+    behind: Option<Rc<[u64]>>,
+}
+
+/// What a function's values were made of, worked out once for the whole function. Every argument
+/// of every call asks after the same writes, and a long function has thousands of both, so each
+/// value's sources are found once rather than walked again for each argument.
+struct Lineage<'l, 'r> {
+    reading: &'l Reading<'r>,
+    /// Each symbol's definitions, by index, in the order the reaching definitions list them.
+    definitions: HashMap<&'r str, Vec<usize>>,
+    /// Each symbol a statement reads, numbered for the sets of them.
+    symbols: Vec<&'r str>,
+    numbers: HashMap<&'r str, usize>,
+    /// What each declaration or assignment reads, by its node.
+    reads: HashMap<&'r str, Rc<[usize]>>,
+    /// Each value asked after, numbered.
+    values: Vec<Value<'r>>,
+    numbered: HashMap<(&'r str, Vertex), usize>,
+}
+
+impl<'l, 'r> Lineage<'l, 'r> {
+    fn new(reading: &'l Reading<'r>) -> Self {
+        let mut definitions: HashMap<&'r str, Vec<usize>> = HashMap::new();
+        for (index, definition) in reading.reaching.definitions.iter().enumerate() {
+            definitions
+                .entry(definition.symbol)
+                .or_default()
+                .push(index);
         }
-        let Some(statement) = statement_of(reading, reading.flow.id(definition.vertex)) else {
-            continue;
-        };
-        let reads = reads_within(reading, statement)?;
-        found.extend(reads.into_iter().map(|read| (read, definition.vertex)));
+        Self {
+            reading,
+            definitions,
+            symbols: Vec::new(),
+            numbers: HashMap::new(),
+            reads: HashMap::new(),
+            values: Vec::new(),
+            numbered: HashMap::new(),
+        }
     }
-    Ok(found)
+
+    fn number(&mut self, symbol: &'r str) -> usize {
+        let next = self.symbols.len();
+        let number = *self.numbers.entry(symbol).or_insert(next);
+        if number == next {
+            self.symbols.push(symbol);
+        }
+        number
+    }
+
+    fn value(&mut self, (symbol, vertex): (&'r str, Vertex)) -> usize {
+        let next = self.values.len();
+        let number = *self.numbered.entry((symbol, vertex)).or_insert(next);
+        if number == next {
+            self.values.push(Value {
+                symbol,
+                vertex,
+                steps: None,
+                behind: None,
+            });
+        }
+        number
+    }
+
+    fn reads_within(&mut self, statement: &'r Node) -> Result<Rc<[usize]>, String> {
+        if let Some(found) = self.reads.get(statement.id.as_str()) {
+            return Ok(Rc::clone(found));
+        }
+        let reads = reads_within(self.reading, statement)?;
+        let found: Rc<[usize]> = reads.into_iter().map(|read| self.number(read)).collect();
+        self.reads.insert(statement.id.as_str(), Rc::clone(&found));
+        Ok(found)
+    }
+
+    /// What the writes of a value's symbol that reach its vertex read, and where each write is.
+    fn steps(&mut self, value: usize) -> Result<Rc<[Step]>, String> {
+        if let Some(found) = &self.values[value].steps {
+            return Ok(Rc::clone(found));
+        }
+        let reading = self.reading;
+        let (symbol, vertex) = (self.values[value].symbol, self.values[value].vertex);
+        let mut found = Vec::new();
+        let indices = self.definitions.get(symbol).cloned().unwrap_or_default();
+        for index in indices {
+            if !reading.reaching.reaches(index, vertex) {
+                continue;
+            }
+            let written = reading.reaching.definitions[index].vertex;
+            let Some(statement) = statement_of(reading, reading.flow.id(written)) else {
+                continue;
+            };
+            for &read in self.reads_within(statement)?.iter() {
+                let at = self.value((self.symbols[read], written));
+                found.push((read, at));
+            }
+        }
+        let found: Rc<[Step]> = found.into();
+        self.values[value].steps = Some(Rc::clone(&found));
+        Ok(found)
+    }
+
+    /// Every symbol a value was made of, by Tarjan's strongly connected components over the values
+    /// it reaches that no earlier search finished. A loop's writes make each other, so every value
+    /// in one component was made of the same symbols.
+    fn behind(&mut self, root: usize) -> Result<Rc<[u64]>, String> {
+        if let Some(done) = &self.values[root].behind {
+            return Ok(Rc::clone(done));
+        }
+        let mut search = Search::from(root, self.steps(root)?);
+        while let Some(next) = search.next(|at| self.values[at].behind.is_some()) {
+            match next {
+                Next::Enter(value) => search.enter(value, self.steps(value)?),
+                Next::Close(members) => self.finish(&members)?,
+            }
+        }
+        self.values[root]
+            .behind
+            .clone()
+            .ok_or_else(|| "a value's search ended unfinished".to_owned())
+    }
+
+    /// Every symbol a component's values were made of: what its writes read, and everything
+    /// behind each value outside it that they read.
+    fn finish(&mut self, members: &[usize]) -> Result<(), String> {
+        let inside: HashSet<usize> = members.iter().copied().collect();
+        let mut behind = vec![0; self.symbols.len().div_ceil(64)];
+        for &value in members {
+            for &(symbol, at) in self.steps(value)?.iter() {
+                behind[symbol / 64] |= 1 << (symbol % 64);
+                if !inside.contains(&at) {
+                    let outside = self.values[at].behind.as_deref();
+                    union(&mut behind, outside.unwrap_or_default());
+                }
+            }
+        }
+        let behind: Rc<[u64]> = behind.into();
+        for &value in members {
+            self.values[value].behind = Some(Rc::clone(&behind));
+        }
+        Ok(())
+    }
+}
+
+/// What a search asks of the lineage next: a value's steps, or a finished component's symbols.
+enum Next {
+    Enter(usize),
+    Close(Vec<usize>),
+}
+
+/// A value the search is in, and which of its steps it takes next.
+struct Frame {
+    value: usize,
+    steps: Rc<[Step]>,
+    next: usize,
+}
+
+impl Frame {
+    fn at(value: usize, steps: Rc<[Step]>) -> Self {
+        Self {
+            value,
+            steps,
+            next: 0,
+        }
+    }
+}
+
+/// When a search first met a value, the earliest open value it reaches, and whether it's still
+/// open: not yet in a finished component.
+#[derive(Clone, Copy)]
+struct Mark {
+    order: usize,
+    low: usize,
+    open: bool,
+}
+
+impl Mark {
+    /// A value met as the search's `order`th, open and reaching nothing earlier yet.
+    fn first(order: usize) -> Self {
+        Self {
+            order,
+            low: order,
+            open: true,
+        }
+    }
+}
+
+/// One search for strongly connected components, without recursion, since a function's values
+/// can chain deeper than a thread's stack: the path it's on, the values it's met, and those open.
+struct Search {
+    path: Vec<Frame>,
+    met: HashMap<usize, Mark>,
+    open: Vec<usize>,
+}
+
+impl Search {
+    fn from(root: usize, steps: Rc<[Step]>) -> Self {
+        let mut search = Self {
+            path: Vec::new(),
+            met: HashMap::new(),
+            open: Vec::new(),
+        };
+        search.enter(root, steps);
+        search
+    }
+
+    fn enter(&mut self, value: usize, steps: Rc<[Step]>) {
+        self.met.insert(value, Mark::first(self.met.len()));
+        self.open.push(value);
+        self.path.push(Frame::at(value, steps));
+    }
+
+    /// The next value to enter or component to close, passing over values an earlier search
+    /// finished.
+    fn next(&mut self, finished: impl Fn(usize) -> bool) -> Option<Next> {
+        loop {
+            let frame = self.path.last_mut()?;
+            let (value, step) = (frame.value, frame.steps.get(frame.next).copied());
+            frame.next += 1;
+            let Some((_, at)) = step else {
+                match self.leave(value) {
+                    Some(members) => return Some(Next::Close(members)),
+                    None => continue,
+                }
+            };
+            match self.met.get(&at).copied() {
+                _ if finished(at) => {}
+                None => return Some(Next::Enter(at)),
+                Some(mark) if mark.open => self.lower(value, mark.order),
+                Some(_) => {}
+            }
+        }
+    }
+
+    /// Leaves a value whose steps are all taken, with the component it roots if it roots one.
+    fn leave(&mut self, value: usize) -> Option<Vec<usize>> {
+        self.path.pop();
+        let mark = *self.met.get(&value)?;
+        if let Some(parent) = self.path.last().map(|frame| frame.value) {
+            self.lower(parent, mark.low);
+        }
+        (mark.low == mark.order).then(|| self.close(value))
+    }
+
+    fn lower(&mut self, value: usize, to: usize) {
+        if let Some(mark) = self.met.get_mut(&value) {
+            mark.low = mark.low.min(to);
+        }
+    }
+
+    /// The component a value roots: it and every value opened after it that's still open.
+    fn close(&mut self, root: usize) -> Vec<usize> {
+        let mut members = Vec::new();
+        while let Some(value) = self.open.pop() {
+            if let Some(mark) = self.met.get_mut(&value) {
+                mark.open = false;
+            }
+            members.push(value);
+            if value == root {
+                break;
+            }
+        }
+        members
+    }
+}
+
+fn union(into: &mut Vec<u64>, from: &[u64]) {
+    if into.len() < from.len() {
+        into.resize(from.len(), 0);
+    }
+    for (word, more) in into.iter_mut().zip(from) {
+        *word |= more;
+    }
+}
+
+fn members(bits: &[u64]) -> impl Iterator<Item = usize> + '_ {
+    bits.iter().enumerate().flat_map(|(word, &bits)| {
+        (0..64)
+            .filter(move |bit| bits & (1 << bit) != 0)
+            .map(move |bit| word * 64 + bit)
+    })
 }
 
 /// The declaration or assignment a write belongs to.
