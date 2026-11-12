@@ -295,15 +295,11 @@ fn invalid_python_keeps_parser_details_in_the_capture_failure() {
         failure_details.contains("invalid.py:1: invalid decimal literal"),
         "{failure_details}"
     );
-    assert!(
-        failure_details.contains("--exclude GLOB"),
-        "{failure_details}"
+    assert_eq!(
+        failure_details.trim(),
+        "invalid.py:1: invalid decimal literal"
     );
-    assert!(failure_details.starts_with("[frontend stderr truncated]\n"));
-    assert!(
-        failure_details.len() < 17 * 1024,
-        "diagnostics must be bounded"
-    );
+    assert!(failure_details.trim().len() <= 512);
     assert!(output.stdout.is_empty(), "no clean report: {output:?}");
     assert!(
         project.run_folders().is_empty(),

@@ -190,7 +190,7 @@ impl Frontend {
         let mut diagnostics = Ok(String::new());
         let result = std::thread::scope(|scope| {
             // Scope joins the reader before diagnostics is used; stderr drains while capture runs.
-            scope.spawn(|| diagnostics = crate::diagnostic_process::stderr_tail(stderr));
+            scope.spawn(|| diagnostics = crate::diagnostic_process::stderr_diagnostic(stderr));
             self.receive_stream((child, reader), demand, saving)
         });
         let diagnostics =
