@@ -8,6 +8,7 @@
 //! The JSON report stays the complete one: runtime bounds and signature groups aren't here.
 
 use crate::candidates::Candidate;
+use crate::cpg::bounds::report::{DocumentReport, Superlinear};
 use crate::defects_report::{DefectRow, DefectsReport};
 use crate::patterns_report::PatternsReport;
 use crate::report::{Detail, Diagnostic, FixGroup, Report};
@@ -28,6 +29,9 @@ const CHECK_FINGERPRINT: &str = "rstyle/check/v1";
 pub const CHECK: &str = "rstyle/check/";
 pub const PATTERNS: &str = "rstyle/patterns/";
 pub const DEFECTS: &str = "rstyle/defects/";
+/// A bounds finding's identity across commits: its function's name and path.
+const BOUNDS_FINGERPRINT: &str = "rstyle/bounds/v1";
+const BOUNDS_RULE: &str = "superlinear_loops";
 
 #[derive(Debug, Serialize)]
 pub struct Log {
@@ -146,19 +150,20 @@ struct ContextRegion {
 
 /// One warning per diagnostic, with its rule id and message. `root` is what relative paths
 /// resolve against. Columns are left out: SARIF counts them in other units than a frontend.
-pub fn check(report: &Report, root: &Path) -> Result<Log, String> {
-    let findings = report
-        .diagnostics
-        .iter()
-        .map(|d| {
-            let mut finding = diagnostic(d, group_of(d, &report.fix_groups));
-            if let Some(name) = function_of(d, report) {
-                finding
-                    .partial_fingerprints
-                    .insert(CHECK_FINGERPRINT, format!("{}:{name}", d.rule_id));
-            }
+/// `bounds`, when that analysis ran, adds a result per superlinear function.
+pub fn check(report: &Report, bounds: Option<&DocumentReport>, root: &Path) -> Result<Log, String> {
+    let findings = report.diagnostics.iter().map(|d| {
+        let mut finding = diagnostic(d, group_of(d, &report.fix_groups));
+        if let Some(name) = function_of(d, report) {
             finding
-        })
+                .partial_fingerprints
+                .insert(CHECK_FINGERPRINT, format!("{}:{name}", d.rule_id));
+        }
+        finding
+    });
+    let superlinear = bounds.into_iter().flat_map(DocumentReport::superlinear);
+    let findings = findings
+        .chain(superlinear.map(superlinear_finding))
         .collect();
     let mut log = log(findings, CHECK, root)?;
     log.runs[0].properties = (!report.fix_groups.is_empty()).then(|| RunProperties {
@@ -204,6 +209,36 @@ pub fn patterns(report: &PatternsReport, root: &Path) -> Result<Log, String> {
 /// One warning per defect, with its rule as the rule id.
 pub fn defects(report: &DefectsReport, root: &Path) -> Result<Log, String> {
     log(report.defects.iter().map(defect).collect(), DEFECTS, root)
+}
+
+/// One result per function whose proven loop bound is superlinear: an error when it squares
+/// one input, as nested scans of one collection do, and a warning when it multiplies different
+/// inputs, which is often what the work is.
+fn superlinear_finding(found: Superlinear) -> Finding {
+    let upper = "This is a proven upper bound on loop-body entries, not proof that every \
+                 iteration runs.";
+    let (level, text) = match &found.repeated {
+        Some(input) => (
+            "error",
+            format!(
+                "`{}` enters its loops up to {} times, quadratic or worse in `{input}`. {upper}",
+                found.name, found.bound
+            ),
+        ),
+        None => (
+            "warning",
+            format!(
+                "`{}` enters its loops up to {} times, polynomial in several inputs. {upper}",
+                found.name, found.bound
+            ),
+        ),
+    };
+    let mut finding = at_one_place(BOUNDS_RULE, &text, (found.path, found.line));
+    finding.level = level;
+    finding
+        .partial_fingerprints
+        .insert(BOUNDS_FINGERPRINT, format!("{}:{}", found.path, found.name));
+    finding
 }
 
 /// Whether a frontend's file is a log a report can later hold: right version, and every run

@@ -10,7 +10,7 @@ use crate::{
     },
 };
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 #[derive(Serialize)]
 pub struct Evidence {
@@ -107,6 +107,91 @@ impl DocumentReport {
             "Runtime upper bounds (loop-body entries and modeled call-site invocations; input complete={}):{rows}\nUpper bounds do not establish tightness or repeated scans.\n",
             self.input_complete
         )
+    }
+}
+
+/// A function whose proven loop bound grows faster than linearly, as SARIF reports it.
+/// `repeated` names an input the bound multiplies by itself, as nested scans of one
+/// collection do. The bound is an upper bound: it doesn't say every iteration runs.
+pub struct Superlinear<'a> {
+    pub name: &'a str,
+    pub path: &'a str,
+    /// The outermost loop's line, or 0 when no loop has a source.
+    pub line: usize,
+    pub bound: String,
+    pub repeated: Option<String>,
+}
+
+impl DocumentReport {
+    /// Proven bounds only: a partial bound's opaque factors could be anything.
+    pub fn superlinear(&self) -> impl Iterator<Item = Superlinear<'_>> {
+        self.rows.iter().filter_map(DocumentRow::superlinear)
+    }
+}
+
+impl DocumentRow {
+    fn superlinear(&self) -> Option<Superlinear<'_>> {
+        let Some(Outcome::Proven(assessment)) = &self.evidence.result else {
+            return None;
+        };
+        let bound = &assessment.loop_body_entries;
+        if bound.order().polynomial < 2 {
+            return None;
+        }
+        let lines = assessment
+            .loops
+            .iter()
+            .filter_map(|item| item.source.as_ref());
+        Some(Superlinear {
+            name: &self.name,
+            path: &self.path,
+            line: lines.map(|source| source.line).min().unwrap_or(0),
+            bound: readable(&expression(bound)),
+            repeated: repeated_input(bound).map(|input| readable(&input)),
+        })
+    }
+}
+
+/// Drops the `#0` suffixes frontends add to tell inputs apart, so `len(items)#0` reads
+/// `len(items)`.
+fn readable(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        let numbered = c == '#' && chars.peek().is_some_and(char::is_ascii_digit);
+        if !numbered {
+            out.push(c);
+            continue;
+        }
+        while chars.next_if(char::is_ascii_digit).is_some() {}
+    }
+    out
+}
+
+/// An input that a product multiplies by itself, such as `n` in `n * (n + 1)`.
+fn repeated_input(bound: &runtime_bounds::Bound) -> Option<String> {
+    use runtime_bounds::Bound::*;
+    match bound {
+        Mul(items) => {
+            let mut seen = BTreeSet::new();
+            let squared = items
+                .iter()
+                .flat_map(|item| polynomial_inputs(item).into_iter())
+                .find(|name| !seen.insert(name.clone()));
+            squared.or_else(|| items.iter().find_map(repeated_input))
+        }
+        Add(items) | Max(items) => items.iter().find_map(repeated_input),
+        Const(_) | Input(_) | Opaque(_) | Log(_) => None,
+    }
+}
+
+/// The inputs a factor grows with at least linearly. A logarithm grows slower, so it's left out.
+fn polynomial_inputs(bound: &runtime_bounds::Bound) -> BTreeSet<String> {
+    use runtime_bounds::Bound::*;
+    match bound {
+        Input(name) => BTreeSet::from([name.clone()]),
+        Add(items) | Max(items) | Mul(items) => items.iter().flat_map(polynomial_inputs).collect(),
+        Const(_) | Opaque(_) | Log(_) => BTreeSet::new(),
     }
 }
 
@@ -271,6 +356,98 @@ fn expression(bound: &runtime_bounds::Bound) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn row(outcome: Outcome) -> DocumentRow {
+        DocumentRow {
+            name: "dedupe".into(),
+            path: "src/lib.rs".into(),
+            evidence: Evidence {
+                capture_status: "captured",
+                inputs: None,
+                result: Some(outcome),
+                composed: None,
+                missing: None,
+            },
+        }
+    }
+
+    fn assessment(bound: runtime_bounds::Bound, lines: &[usize]) -> runtime_bounds::Assessment {
+        let loop_at = |line: &usize| runtime_bounds::LoopBound {
+            header: 0,
+            source: Some(runtime_bounds::Source {
+                file: "src/lib.rs".into(),
+                line: *line,
+                column: 5,
+                evidence: "test".into(),
+            }),
+            body_entries: bound.clone(),
+            opaque: None,
+        };
+        runtime_bounds::Assessment {
+            cost_scope: "test".into(),
+            loop_body_entries: bound.clone(),
+            loops: lines.iter().map(loop_at).collect(),
+            calls: Vec::new(),
+            whole_runtime: "unknown".into(),
+        }
+    }
+
+    #[test]
+    fn readable_drops_input_numbers() {
+        assert_eq!(
+            readable("len(items)#0 + len(items)#0 * len(items)#12"),
+            "len(items) + len(items) * len(items)"
+        );
+        assert_eq!(readable("a#b"), "a#b");
+    }
+
+    #[test]
+    fn only_proven_superlinear_bounds_are_reported_at_the_outer_loop() {
+        use runtime_bounds::Bound::*;
+        let squared = Mul(vec![Input("n".into()), Input("n".into())]);
+        let report = |rows| DocumentReport {
+            schema: "test",
+            input_complete: true,
+            limitations: LIMITATIONS,
+            rows,
+        };
+        let proven = report(vec![row(Outcome::Proven(assessment(
+            squared.clone(),
+            &[9, 7],
+        )))]);
+        let found: Vec<_> = proven.superlinear().collect();
+        assert_eq!(found.len(), 1);
+        assert_eq!((found[0].line, found[0].bound.as_str()), (7, "n * n"));
+        assert_eq!(found[0].repeated.as_deref(), Some("n"));
+
+        let partial = report(vec![row(Outcome::Partial(assessment(squared, &[7])))]);
+        let linear = report(vec![row(Outcome::Proven(assessment(
+            Input("n".into()),
+            &[7],
+        )))]);
+        assert_eq!(partial.superlinear().count(), 0);
+        assert_eq!(linear.superlinear().count(), 0);
+    }
+
+    #[test]
+    fn a_product_that_squares_one_input_names_it() {
+        use runtime_bounds::Bound::*;
+        let n = || Input("n".into());
+        let m = || Input("m".into());
+        let squared = |items| repeated_input(&Mul(items));
+        assert_eq!(squared(vec![n(), n()]), Some("n".into()));
+        assert_eq!(
+            squared(vec![n(), Add(vec![n(), Const(1)])]),
+            Some("n".into())
+        );
+        assert_eq!(squared(vec![m(), Mul(vec![n(), n()])]), Some("n".into()));
+        assert_eq!(squared(vec![n(), m()]), None);
+        assert_eq!(squared(vec![n(), Log(Box::new(n()))]), None);
+        assert_eq!(
+            repeated_input(&Add(vec![Mul(vec![n(), n()]), m()])),
+            Some("n".into())
+        );
+    }
 
     #[test]
     fn multivariate_expressions_preserve_sum_grouping() {

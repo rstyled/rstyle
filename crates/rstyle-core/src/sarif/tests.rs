@@ -77,7 +77,14 @@ fn value(log: Log) -> Value {
 
 #[test]
 fn a_diagnostic_is_one_warning_located_by_its_line() {
-    let log = value(check(&report(vec![violation("src/a.rs", 3)]), Path::new(ROOT)).unwrap());
+    let log = value(
+        check(
+            &report(vec![violation("src/a.rs", 3)]),
+            None,
+            Path::new(ROOT),
+        )
+        .unwrap(),
+    );
     assert_eq!(log["version"], "2.1.0");
     assert_eq!(log["$schema"], SCHEMA);
     let run = &log["runs"][0];
@@ -122,6 +129,7 @@ fn an_empty_report_has_an_empty_results_array() {
     let log = value(
         check(
             &report(Vec::new()),
+            None,
             Path::new(if cfg!(windows) { r"C:\w\" } else { "/w/" }),
         )
         .unwrap(),
@@ -135,11 +143,11 @@ fn an_empty_report_has_an_empty_results_array() {
 
 #[test]
 fn an_unknown_line_or_path_is_left_out_not_invented() {
-    let log = value(check(&report(vec![violation("a.rs", 0)]), Path::new(ROOT)).unwrap());
+    let log = value(check(&report(vec![violation("a.rs", 0)]), None, Path::new(ROOT)).unwrap());
     let located = &log["runs"][0]["results"][0]["locations"][0]["physicalLocation"];
     assert!(located.get("region").is_none());
 
-    let log = value(check(&report(vec![violation("", 4)]), Path::new(ROOT)).unwrap());
+    let log = value(check(&report(vec![violation("", 4)]), None, Path::new(ROOT)).unwrap());
     assert!(log["runs"][0]["results"][0].get("locations").is_none());
 }
 
@@ -148,6 +156,7 @@ fn paths_are_escaped_and_an_absolute_one_needs_no_base() {
     let log = value(
         check(
             &report(vec![violation("a b/#é:c.rs", 1)]),
+            None,
             Path::new(if cfg!(windows) { r"C:\w x" } else { "/w x" }),
         )
         .unwrap(),
@@ -171,7 +180,7 @@ fn paths_are_escaped_and_an_absolute_one_needs_no_base() {
     } else {
         ("/x/a.rs", "file:///x/a.rs")
     };
-    let log = value(check(&report(vec![violation(absolute, 1)]), Path::new(ROOT)).unwrap());
+    let log = value(check(&report(vec![violation(absolute, 1)]), None, Path::new(ROOT)).unwrap());
     assert_eq!(
         log["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["artifactLocation"],
         json!({"uri": uri})
@@ -180,7 +189,7 @@ fn paths_are_escaped_and_an_absolute_one_needs_no_base() {
 
 #[test]
 fn a_relative_source_root_is_refused() {
-    let error = check(&report(Vec::new()), Path::new("relative")).unwrap_err();
+    let error = check(&report(Vec::new()), None, Path::new("relative")).unwrap_err();
     assert!(error.contains("must be absolute"), "{error}");
 }
 
@@ -212,7 +221,7 @@ fn a_frontend_log_needs_the_version_a_run_and_a_named_tool() {
 #[cfg(windows)]
 #[test]
 fn a_canonical_windows_root_is_a_plain_file_uri() {
-    let log = value(check(&report(Vec::new()), Path::new(r"\\?\C:\w x")).unwrap());
+    let log = value(check(&report(Vec::new()), None, Path::new(r"\\?\C:\w x")).unwrap());
     assert_eq!(
         log["runs"][0]["originalUriBaseIds"]["%SRCROOT%"]["uri"],
         "file:///C%3A/w%20x/"
@@ -247,7 +256,7 @@ fn several_runs_of_one_frontend_analysis_stay_distinguishable() {
 
 #[test]
 fn a_combined_log_is_valid_and_keeps_every_run_in_order() {
-    let core = value(check(&report(Vec::new()), Path::new(ROOT)).unwrap());
+    let core = value(check(&report(Vec::new()), None, Path::new(ROOT)).unwrap());
     let frontend = json!({"tool": {"driver": {"name": "x"}}});
     let log = combined(vec![core["runs"][0].clone(), frontend]);
     validate(&log).unwrap();
@@ -286,7 +295,7 @@ fn a_check_finding_says_what_raised_it_and_by_how_much() {
         detail("Branch (nesting 1)", 2, vec![5]),
         detail("io: std::fs::read", 2, vec![7, 9]),
     ];
-    let log = value(check(&report(vec![raised]), Path::new(ROOT)).unwrap());
+    let log = value(check(&report(vec![raised]), None, Path::new(ROOT)).unwrap());
     let result = &log["runs"][0]["results"][0];
 
     let points: Vec<(u64, &str)> = result["relatedLocations"]
@@ -320,7 +329,7 @@ fn a_check_run_carries_its_fix_groups_and_each_finding_names_its_own() {
         group(1, "src/a.rs", 3, &["fn_length"]),
         group(2, "src/b.rs", 4, &["other_rule"]),
     ];
-    let log = value(check(&fixed, Path::new(ROOT)).unwrap());
+    let log = value(check(&fixed, None, Path::new(ROOT)).unwrap());
     let run = &log["runs"][0];
 
     assert_eq!(run["results"][0]["properties"]["fix_group"], 1);
@@ -335,7 +344,14 @@ fn a_check_run_carries_its_fix_groups_and_each_finding_names_its_own() {
 
 #[test]
 fn a_check_without_fix_groups_has_no_run_properties() {
-    let log = value(check(&report(vec![violation("src/a.rs", 3)]), Path::new(ROOT)).unwrap());
+    let log = value(
+        check(
+            &report(vec![violation("src/a.rs", 3)]),
+            None,
+            Path::new(ROOT),
+        )
+        .unwrap(),
+    );
     assert!(log["runs"][0].get("properties").is_none());
 }
 
@@ -350,7 +366,7 @@ fn a_check_finding_is_fingerprinted_by_its_rule_and_function() {
         column: 7,
         complexity: None,
     }];
-    let log = value(check(&named, Path::new(ROOT)).unwrap());
+    let log = value(check(&named, None, Path::new(ROOT)).unwrap());
     let results = &log["runs"][0]["results"];
 
     assert_eq!(
@@ -370,6 +386,7 @@ fn a_check_finding_carries_its_function_source_as_the_context_region() {
     let log = value(
         check(
             &report(vec![with_source, violation("src/b.rs", 9)]),
+            None,
             Path::new(ROOT),
         )
         .unwrap(),
@@ -406,4 +423,37 @@ fn each_candidate_site_carries_its_function_source() {
         result["relatedLocations"][0]["physicalLocation"]["contextRegion"],
         json!({"startLine": 2, "endLine": 2, "snippet": {"text": "fn b() {}"}})
     );
+}
+
+#[test]
+fn a_squared_input_is_an_error_and_several_inputs_a_warning() {
+    use crate::cpg::bounds::report::Superlinear;
+    let found = |repeated: Option<&str>| {
+        let finding = superlinear_finding(Superlinear {
+            name: "dedupe",
+            path: "src/lib.rs",
+            line: 7,
+            bound: "n * n".into(),
+            repeated: repeated.map(str::to_owned),
+        });
+        serde_json::to_value(finding).unwrap()
+    };
+    let squared = found(Some("n"));
+    assert_eq!(squared["level"], "error");
+    assert_eq!(squared["ruleId"], "superlinear_loops");
+    assert_eq!(
+        squared["locations"][0]["physicalLocation"]["region"]["startLine"],
+        7
+    );
+    assert_eq!(
+        squared["partialFingerprints"]["rstyle/bounds/v1"],
+        "src/lib.rs:dedupe"
+    );
+    assert!(
+        squared["message"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("not proof")
+    );
+    assert_eq!(found(None)["level"], "warning");
 }

@@ -161,10 +161,10 @@ impl Analyses {
     /// One log per analysis that makes SARIF, with its file name. `root` is what their relative
     /// paths resolve against.
     pub fn sarif(&self, root: &Path) -> Result<Vec<(&'static str, sarif::Log)>, String> {
-        let check = self
-            .check
-            .as_ref()
-            .map(|report| Ok(("check.sarif", sarif::check(report, root)?)));
+        let check = self.check.as_ref().map(|report| {
+            let bounds = self.runtime_bounds.as_ref();
+            Ok(("check.sarif", sarif::check(report, bounds, root)?))
+        });
         let patterns = self
             .patterns
             .as_ref()
