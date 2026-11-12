@@ -209,6 +209,17 @@ fn sources_worked_out_after_others_match_those_worked_out_alone() {
 }
 
 #[test]
+fn a_value_a_loop_rewrites_is_made_of_itself() {
+    let document = serde_json::from_str(include_str!("../../testdata/example.cpg.json")).unwrap();
+    // `total += 1` in a loop: each write of `total` reads the one before, through the back edge.
+    with_reading(document, 2, |reading| {
+        let tail = reading.flow.vertex("count.tail").unwrap();
+        let made = derived(&mut Lineage::new(reading), &[("count.total", tail)]).unwrap();
+        assert_eq!(made, BTreeSet::from(["total".to_owned()]));
+    });
+}
+
+#[test]
 fn a_loop_of_values_closes_as_one_component_after_what_it_reaches() {
     // 0 is made of 1, 1 of 2, and 2 of 0 and 3: 3 is finished first, then the loop as one.
     let steps: Vec<Rc<[Step]>> = vec![

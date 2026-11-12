@@ -591,21 +591,20 @@ impl<'l, 'r> Lineage<'l, 'r> {
             return Ok(Rc::clone(done));
         }
         let mut search = Search::from(root, self.steps(root)?);
+        // The root is opened first, so its component is the last one closed.
+        let mut last: Rc<[u64]> = Rc::from([]);
         while let Some(next) = search.next(|at| self.values[at].behind.is_some()) {
             match next {
                 Next::Enter(value) => search.enter(value, self.steps(value)?),
-                Next::Close(members) => self.finish(&members)?,
+                Next::Close(members) => last = self.finish(&members)?,
             }
         }
-        self.values[root]
-            .behind
-            .clone()
-            .ok_or_else(|| "a value's search ended unfinished".to_owned())
+        Ok(last)
     }
 
     /// Every symbol a component's values were made of: what its writes read, and everything
     /// behind each value outside it that they read.
-    fn finish(&mut self, members: &[usize]) -> Result<(), String> {
+    fn finish(&mut self, members: &[usize]) -> Result<Rc<[u64]>, String> {
         let inside: HashSet<usize> = members.iter().copied().collect();
         let mut behind = vec![0; self.symbols.len().div_ceil(64)];
         for &value in members {
@@ -621,7 +620,7 @@ impl<'l, 'r> Lineage<'l, 'r> {
         for &value in members {
             self.values[value].behind = Some(Rc::clone(&behind));
         }
-        Ok(())
+        Ok(behind)
     }
 }
 
@@ -707,10 +706,10 @@ impl Search {
                 }
             };
             match self.met.get(&at).copied() {
-                _ if finished(at) => {}
-                None => return Some(Next::Enter(at)),
+                None if !finished(at) => return Some(Next::Enter(at)),
                 Some(mark) if mark.open => self.lower(value, mark.order),
-                Some(_) => {}
+                // Finished, by this search or an earlier one.
+                _ => {}
             }
         }
     }
@@ -726,18 +725,15 @@ impl Search {
     }
 
     fn lower(&mut self, value: usize, to: usize) {
-        if let Some(mark) = self.met.get_mut(&value) {
-            mark.low = mark.low.min(to);
-        }
+        let lowered = |mark: &mut Mark| mark.low = mark.low.min(to);
+        self.met.entry(value).and_modify(lowered);
     }
 
     /// The component a value roots: it and every value opened after it that's still open.
     fn close(&mut self, root: usize) -> Vec<usize> {
         let mut members = Vec::new();
         while let Some(value) = self.open.pop() {
-            if let Some(mark) = self.met.get_mut(&value) {
-                mark.open = false;
-            }
+            self.met.entry(value).and_modify(|mark| mark.open = false);
             members.push(value);
             if value == root {
                 break;
