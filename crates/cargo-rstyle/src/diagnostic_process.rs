@@ -44,6 +44,7 @@ fn streamed_output(command: &mut Command) -> io::Result<Output> {
 
 /// Retain one source diagnostic, at most 512 UTF-8 bytes; stream the rest to the log.
 /// Continue draining after selection so a verbose frontend cannot block capture.
+// rstyle-allow(side_effect_density): stderr IO boundary drains and tees the pipe while retaining one bounded diagnostic.
 pub(crate) fn stderr_diagnostic(mut reader: impl Read) -> io::Result<String> {
     let mut diagnostic = Diagnostic::default();
     let mut buffer = [0; 512];
