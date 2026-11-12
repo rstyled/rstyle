@@ -425,22 +425,23 @@ fn each_candidate_site_carries_its_function_source() {
     );
 }
 
+fn superlinear(repeated: Option<&str>, levels: &AlgorithmicComplexityConfig) -> Value {
+    let found = crate::cpg::bounds::report::Superlinear {
+        name: "dedupe",
+        path: "src/lib.rs",
+        line: 7,
+        bound: "n * n".into(),
+        repeated: repeated.map(str::to_owned),
+    };
+    serde_json::to_value(superlinear_finding(found, levels)).unwrap()
+}
+
 #[test]
 fn a_squared_input_is_an_error_and_several_inputs_a_warning() {
-    use crate::cpg::bounds::report::Superlinear;
-    let found = |repeated: Option<&str>| {
-        let finding = superlinear_finding(Superlinear {
-            name: "dedupe",
-            path: "src/lib.rs",
-            line: 7,
-            bound: "n * n".into(),
-            repeated: repeated.map(str::to_owned),
-        });
-        serde_json::to_value(finding).unwrap()
-    };
-    let squared = found(Some("n"));
+    let levels = AlgorithmicComplexityConfig::default();
+    let squared = superlinear(Some("n"), &levels);
     assert_eq!(squared["level"], "error");
-    assert_eq!(squared["ruleId"], "superlinear_loops");
+    assert_eq!(squared["ruleId"], "algorithmic_complexity");
     assert_eq!(
         squared["locations"][0]["physicalLocation"]["region"]["startLine"],
         7
@@ -455,5 +456,14 @@ fn a_squared_input_is_an_error_and_several_inputs_a_warning() {
             .unwrap()
             .contains("not proof")
     );
-    assert_eq!(found(None)["level"], "warning");
+    assert_eq!(superlinear(None, &levels)["level"], "warning");
+}
+
+#[test]
+fn a_squared_input_is_a_warning_once_configured_to_be() {
+    let levels = AlgorithmicComplexityConfig {
+        severity_level: crate::config::Level::Warning,
+    };
+    assert_eq!(superlinear(Some("n"), &levels)["level"], "warning");
+    assert_eq!(superlinear(None, &levels)["level"], "warning");
 }

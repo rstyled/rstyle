@@ -28,6 +28,9 @@ pub struct Config {
     /// Left out of what a baseline compares for the same reason: only `rstyle risk` reads it.
     #[serde(skip_serializing)]
     pub risk: RiskConfig,
+    /// Left out of what a baseline compares for the same reason: only the SARIF report reads it.
+    #[serde(skip_serializing)]
+    pub algorithmic_complexity: AlgorithmicComplexityConfig,
     pub grouping: GroupingConfig,
     /// Left out of what a baseline compares while nothing is on, so a project that hasn't asked for
     /// these rules sees no change in its policy. Turning one on is one.
@@ -309,6 +312,40 @@ impl TryFrom<UncheckedRisk> for RiskConfig {
             pdg_low_risk_max_functions: risk.pdg_low_risk_max_functions,
             calls: risk.calls,
         })
+    }
+}
+
+/// How loudly SARIF reports a finding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Level {
+    Warning,
+    Error,
+}
+
+impl Level {
+    pub fn sarif(self) -> &'static str {
+        match self {
+            Self::Warning => "warning",
+            Self::Error => "error",
+        }
+    }
+}
+
+/// How `algorithmic_complexity` reports a function whose proven loop bound is of degree two or more.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct AlgorithmicComplexityConfig {
+    /// The level of a bound that multiplies one input by itself, as nested scans of one
+    /// collection do. One that multiplies different inputs is a warning whatever this says.
+    pub severity_level: Level,
+}
+
+impl Default for AlgorithmicComplexityConfig {
+    fn default() -> Self {
+        Self {
+            severity_level: Level::Error,
+        }
     }
 }
 
@@ -1019,6 +1056,23 @@ mod tests {
         }
         assert!(error("[[risk.calls]]\ncallee = \"f\"").contains("level"));
         assert!(error("[[risk.calls]]\nlevel = \"low\"").contains("callee"));
+    }
+
+    #[test]
+    fn a_squared_loop_bound_can_be_lowered_to_a_warning() {
+        let policy = |input: &str| serde_json::to_value(Config::parse(input).unwrap()).unwrap();
+        let error = |input: &str| Config::parse(input).unwrap_err().to_string();
+        let lowered = "[algorithmic_complexity]\nseverity_level = \"warning\"";
+
+        assert_eq!(
+            Config::default().algorithmic_complexity.severity_level,
+            Level::Error
+        );
+        let set = Config::parse(lowered).unwrap().algorithmic_complexity;
+        assert_eq!(set.severity_level, Level::Warning);
+        assert!(error("[algorithmic_complexity]\nseverity_level = \"off\"").contains("off"));
+        assert!(error("[algorithmic_complexity]\nenabled = false").contains("enabled"));
+        assert_eq!(policy(lowered), policy(""));
     }
 
     #[test]

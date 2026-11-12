@@ -143,7 +143,7 @@ pub fn analyze(cli: &Cli, args: &CpgAnalyzeArgs) -> Result<(String, u8), String>
         &options,
     )?);
     if let Some(directory) = &args.sarif_dir {
-        write_sarif(&unified, directory)?;
+        write_sarif(&unified, directory, &config)?;
     }
 
     let output = match cli.format {
@@ -174,11 +174,15 @@ fn validate_analyze(filter: &Filter, args: &CpgAnalyzeArgs) -> Result<(), String
 }
 
 // rstyle-allow(side_effect_density): IO boundary: writes the SARIF files
-fn write_sarif(unified: &analyze::Unified, directory: &Path) -> Result<(), String> {
+fn write_sarif(
+    unified: &analyze::Unified,
+    directory: &Path,
+    config: &Config,
+) -> Result<(), String> {
     std::fs::create_dir_all(directory)
         .map_err(|error| format!("{}: {error}", directory.display()))?;
     let root = std::env::current_dir().map_err(|error| error.to_string())?;
-    unified.write_sarif(directory, &root)
+    unified.write_sarif(directory, &root, config)
 }
 
 fn mined(

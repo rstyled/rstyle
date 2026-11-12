@@ -159,10 +159,15 @@ impl Analyses {
     }
 
     /// One log per analysis that makes SARIF, with its file name. `root` is what their relative
-    /// paths resolve against.
-    pub fn sarif(&self, root: &Path) -> Result<Vec<(&'static str, sarif::Log)>, String> {
+    /// paths resolve against, and `config` says how loudly superlinear bounds are reported.
+    pub fn sarif(
+        &self,
+        root: &Path,
+        config: &Config,
+    ) -> Result<Vec<(&'static str, sarif::Log)>, String> {
         let check = self.check.as_ref().map(|report| {
             let bounds = self.runtime_bounds.as_ref();
+            let bounds = bounds.map(|bounds| (bounds, &config.algorithmic_complexity));
             Ok(("check.sarif", sarif::check(report, bounds, root)?))
         });
         let patterns = self
@@ -287,7 +292,7 @@ mod tests {
     fn sarif_comes_only_from_the_analyses_that_make_it() {
         let names = |analyses: &Analyses| -> Vec<&str> {
             let root = Path::new(if cfg!(windows) { r"C:\w" } else { "/w" });
-            let logs = analyses.sarif(root).unwrap();
+            let logs = analyses.sarif(root, &Config::default()).unwrap();
             logs.into_iter().map(|(name, _)| name).collect()
         };
         assert_eq!(

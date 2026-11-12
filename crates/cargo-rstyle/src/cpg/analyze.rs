@@ -1,5 +1,6 @@
 //! A run's report: what core's analyses reported, what its frontend ran itself, and the SARIF
 //! they make.
+use rstyle_core::config::Config;
 use rstyle_core::cpg::transport::{self, Encoding};
 use rstyle_core::filter::{Analysis, Filter};
 use rstyle_core::sarif;
@@ -104,10 +105,15 @@ impl Unified {
     /// One file per core analysis in `directory`, and `report.sarif` holding every analysis's
     /// runs. `root` is what relative paths resolve against.
     // rstyle-allow(side_effect_density): IO boundary: writes the SARIF files
-    pub(crate) fn write_sarif(&self, directory: &Path, root: &Path) -> Result<(), String> {
+    pub(crate) fn write_sarif(
+        &self,
+        directory: &Path,
+        root: &Path,
+        config: &Config,
+    ) -> Result<(), String> {
         let mut runs = Vec::new();
 
-        for (name, log) in self.analyses.sarif(root)? {
+        for (name, log) in self.analyses.sarif(root, config)? {
             transport::write_json(&directory.join(name), Encoding::Json, &log)?;
             let log = serde_json::to_value(&log).map_err(|error| error.to_string())?;
             runs.extend(log["runs"].as_array().into_iter().flatten().cloned());

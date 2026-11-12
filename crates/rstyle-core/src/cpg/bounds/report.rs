@@ -8,6 +8,7 @@ use crate::{
         self, Limits, Outcome,
         compose::{Analyzed, Composed, Composer},
     },
+    suppress,
 };
 use serde::Serialize;
 use std::collections::{BTreeSet, HashMap};
@@ -35,6 +36,9 @@ pub const LIMITATIONS: &[&str] = &[
     "An upper bound does not establish tightness; high polynomial degree alone is not repeated-scan evidence.",
 ];
 
+/// The rule a superlinear bound is reported under, and what `rstyle-allow` names to silence it.
+pub const RULE: &str = "algorithmic_complexity";
+
 /// A function's bounds, as a run over documents reports them.
 #[derive(Serialize)]
 struct DocumentRow {
@@ -42,6 +46,9 @@ struct DocumentRow {
     path: String,
     #[serde(flatten)]
     evidence: Evidence,
+    /// An `rstyle-allow` above the function names `RULE`. Its bound stays in this report.
+    #[serde(skip)]
+    allowed: bool,
 }
 
 /// Bounds of a run over documents, which names functions by path alone.
@@ -75,6 +82,7 @@ pub fn from_records(records: &[Record], top: Option<usize>) -> DocumentReport {
                 name: record.name.clone(),
                 path: facts.path.clone(),
                 evidence: record_evidence(record, &mut composer),
+                allowed: suppress::allows(&facts.preceding_line, RULE),
             })
         })
         .collect();
@@ -123,7 +131,8 @@ pub struct Superlinear<'a> {
 }
 
 impl DocumentReport {
-    /// Proven bounds only: a partial bound's opaque factors could be anything.
+    /// Proven bounds only: a partial bound's opaque factors could be anything. A function that
+    /// allows the rule is left out.
     pub fn superlinear(&self) -> impl Iterator<Item = Superlinear<'_>> {
         self.rows.iter().filter_map(DocumentRow::superlinear)
     }
@@ -131,6 +140,9 @@ impl DocumentReport {
 
 impl DocumentRow {
     fn superlinear(&self) -> Option<Superlinear<'_>> {
+        if self.allowed {
+            return None;
+        }
         let Some(Outcome::Proven(assessment)) = &self.evidence.result else {
             return None;
         };
@@ -368,6 +380,7 @@ mod tests {
                 composed: None,
                 missing: None,
             },
+            allowed: false,
         }
     }
 
@@ -427,6 +440,19 @@ mod tests {
         )))]);
         assert_eq!(partial.superlinear().count(), 0);
         assert_eq!(linear.superlinear().count(), 0);
+    }
+
+    #[test]
+    fn a_function_that_allows_the_rule_keeps_its_bound_and_reports_nothing() {
+        use runtime_bounds::Bound::*;
+        let squared = Mul(vec![Input("n".into()), Input("n".into())]);
+        let mut allowed = row(Outcome::Proven(assessment(squared, &[7])));
+        allowed.allowed =
+            suppress::allows("// rstyle-allow(algorithmic_complexity): small n", RULE);
+
+        assert!(allowed.allowed);
+        assert!(allowed.superlinear().is_none());
+        assert!(serde_json::to_value(&allowed).unwrap()["result"].is_object());
     }
 
     #[test]

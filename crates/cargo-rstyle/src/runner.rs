@@ -634,7 +634,7 @@ impl Plan<'_> {
     /// Writes the report and SARIF, then publishes the whole run. The report is compressed
     /// here and printed plain, so `--format json | jq` keeps working.
     fn save(&self, unified: &Unified, staged: Staged, documents: usize) -> Result<PathBuf, String> {
-        unified.write_sarif(staged.path(), &self.source)?;
+        unified.write_sarif(staged.path(), &self.source, &self.config)?;
         transport::write_json(&staged.path().join(REPORT_FILE), Encoding::Zstd, unified)?;
         let policy = crate::config_path(self.cli.config.clone(), &self.project);
         keep_policy(policy.as_deref(), staged.path())?;

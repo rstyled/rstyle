@@ -8,7 +8,8 @@
 //! The JSON report stays the complete one: runtime bounds and signature groups aren't here.
 
 use crate::candidates::Candidate;
-use crate::cpg::bounds::report::{DocumentReport, Superlinear};
+use crate::config::AlgorithmicComplexityConfig;
+use crate::cpg::bounds::report::{self as bounds_report, DocumentReport, Superlinear};
 use crate::defects_report::{DefectRow, DefectsReport};
 use crate::patterns_report::PatternsReport;
 use crate::report::{Detail, Diagnostic, FixGroup, Report};
@@ -31,7 +32,6 @@ pub const PATTERNS: &str = "rstyle/patterns/";
 pub const DEFECTS: &str = "rstyle/defects/";
 /// A bounds finding's identity across commits: its function's name and path.
 const BOUNDS_FINGERPRINT: &str = "rstyle/bounds/v1";
-const BOUNDS_RULE: &str = "superlinear_loops";
 
 #[derive(Debug, Serialize)]
 pub struct Log {
@@ -150,8 +150,13 @@ struct ContextRegion {
 
 /// One warning per diagnostic, with its rule id and message. `root` is what relative paths
 /// resolve against. Columns are left out: SARIF counts them in other units than a frontend.
-/// `bounds`, when that analysis ran, adds a result per superlinear function.
-pub fn check(report: &Report, bounds: Option<&DocumentReport>, root: &Path) -> Result<Log, String> {
+/// `bounds`, when that analysis ran, adds a result per superlinear function, at the level its
+/// config gives it.
+pub fn check(
+    report: &Report,
+    bounds: Option<(&DocumentReport, &AlgorithmicComplexityConfig)>,
+    root: &Path,
+) -> Result<Log, String> {
     let findings = report.diagnostics.iter().map(|d| {
         let mut finding = diagnostic(d, group_of(d, &report.fix_groups));
         if let Some(name) = function_of(d, report) {
@@ -161,10 +166,11 @@ pub fn check(report: &Report, bounds: Option<&DocumentReport>, root: &Path) -> R
         }
         finding
     });
-    let superlinear = bounds.into_iter().flat_map(DocumentReport::superlinear);
-    let findings = findings
-        .chain(superlinear.map(superlinear_finding))
-        .collect();
+    let superlinear = bounds.into_iter().flat_map(|(bounds, levels)| {
+        let finding = |found| superlinear_finding(found, levels);
+        bounds.superlinear().map(finding)
+    });
+    let findings = findings.chain(superlinear).collect();
     let mut log = log(findings, CHECK, root)?;
     log.runs[0].properties = (!report.fix_groups.is_empty()).then(|| RunProperties {
         fix_groups: report.fix_groups.clone(),
@@ -211,29 +217,23 @@ pub fn defects(report: &DefectsReport, root: &Path) -> Result<Log, String> {
     log(report.defects.iter().map(defect).collect(), DEFECTS, root)
 }
 
-/// One result per function whose proven loop bound is superlinear: an error when it squares
-/// one input, as nested scans of one collection do, and a warning when it multiplies different
-/// inputs, which is often what the work is.
-fn superlinear_finding(found: Superlinear) -> Finding {
-    let upper = "This is a proven upper bound on loop-body entries, not proof that every \
-                 iteration runs.";
-    let (level, text) = match &found.repeated {
+/// One result per function whose proven loop bound is superlinear. One that squares an input,
+/// as nested scans of one collection do, takes its configured level, an error by default. One
+/// that multiplies different inputs is a warning, since that's often what the work is.
+fn superlinear_finding(found: Superlinear, levels: &AlgorithmicComplexityConfig) -> Finding {
+    let (level, growth) = match &found.repeated {
         Some(input) => (
-            "error",
-            format!(
-                "`{}` enters its loops up to {} times, quadratic or worse in `{input}`. {upper}",
-                found.name, found.bound
-            ),
+            levels.severity_level.sarif(),
+            format!("quadratic or worse in `{input}`"),
         ),
-        None => (
-            "warning",
-            format!(
-                "`{}` enters its loops up to {} times, polynomial in several inputs. {upper}",
-                found.name, found.bound
-            ),
-        ),
+        None => ("warning", "polynomial in several inputs".to_owned()),
     };
-    let mut finding = at_one_place(BOUNDS_RULE, &text, (found.path, found.line));
+    let text = format!(
+        "`{}` enters its loops up to {} times, {growth}. This is a proven upper bound on \
+         loop-body entries, not proof that every iteration runs.",
+        found.name, found.bound
+    );
+    let mut finding = at_one_place(bounds_report::RULE, &text, (found.path, found.line));
     finding.level = level;
     finding
         .partial_fingerprints
