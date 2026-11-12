@@ -405,6 +405,15 @@ mod tests {
         }
     }
 
+    fn report(rows: Vec<DocumentRow>) -> DocumentReport {
+        DocumentReport {
+            schema: "test",
+            input_complete: true,
+            limitations: LIMITATIONS,
+            rows,
+        }
+    }
+
     #[test]
     fn readable_drops_input_numbers() {
         assert_eq!(
@@ -418,12 +427,6 @@ mod tests {
     fn only_proven_superlinear_bounds_are_reported_at_the_outer_loop() {
         use runtime_bounds::Bound::*;
         let squared = Mul(vec![Input("n".into()), Input("n".into())]);
-        let report = |rows| DocumentReport {
-            schema: "test",
-            input_complete: true,
-            limitations: LIMITATIONS,
-            rows,
-        };
         let proven = report(vec![row(Outcome::Proven(assessment(
             squared.clone(),
             &[9, 7],
@@ -440,6 +443,27 @@ mod tests {
         )))]);
         assert_eq!(partial.superlinear().count(), 0);
         assert_eq!(linear.superlinear().count(), 0);
+    }
+
+    #[test]
+    fn a_superlinear_bound_is_a_result_of_the_check_log() {
+        use runtime_bounds::Bound::*;
+        let squared = Mul(vec![Input("n".into()), Input("n".into())]);
+        let bounds = report(vec![row(Outcome::Proven(assessment(squared, &[7])))]);
+        let root = std::path::Path::new(if cfg!(windows) { r"C:\w" } else { "/w" });
+        let log = |levels: &str| {
+            let config = crate::config::Config::parse(levels).unwrap();
+            let bounds = Some((&bounds, &config.algorithmic_complexity));
+            let log = crate::sarif::check(&Default::default(), bounds, root).unwrap();
+            serde_json::to_value(log).unwrap()
+        };
+
+        let results = &log("")["runs"][0]["results"];
+        assert_eq!(results.as_array().unwrap().len(), 1);
+        assert_eq!(results[0]["ruleId"], RULE);
+        assert_eq!(results[0]["level"], "error");
+        let lowered = log("[algorithmic_complexity]\nseverity_level = \"warning\"");
+        assert_eq!(lowered["runs"][0]["results"][0]["level"], "warning");
     }
 
     #[test]
