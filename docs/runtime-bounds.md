@@ -24,6 +24,27 @@ Rows rank by polynomial degree, then logarithmic factors. That's a search heuris
 of runtimes across independent input sizes. `--top` selects rows independently of abstraction scores,
 and JSON keeps the full roster and the selected row indices.
 
+## In the check run
+
+When bounds run alongside `check`, each function with a proven bound of degree two or more is a
+`algorithmic_complexity` result in `check.sarif` and `report.sarif`, at its outermost loop. Linear bounds and
+partial bounds report nothing.
+
+A bound that multiplies one input by itself, as nested scans of one collection do, is an error. One that
+multiplies different inputs is a warning, since that's often the work itself. `rstyle.toml` can lower the
+error to a warning:
+
+```toml
+[algorithmic_complexity]
+severity_level = "warning"   # "error" by default
+```
+
+To silence one function, put an `rstyle-allow` above it. Its bound stays in the JSON report:
+
+```rust
+// rstyle-allow(algorithmic_complexity): at most a dozen items
+```
+
 ## What's modeled
 
 **Counters and traversals.** The model supports:

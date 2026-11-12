@@ -81,6 +81,11 @@ min_calls = 5             # fewer calls than this say too little. At 90%, one dr
 min_methods = 4                  # 3 or more sibling methods, counting the one that differs, must make the call
 min_shared_callees_percent = 50  # 1 to 100. How much of their callees two methods of a type share to be siblings
 
+# A loop bound that multiplies one input by itself, as nested scans of one collection do, is a SARIF
+# error. This lowers it to a warning, as one that multiplies different inputs already is.
+# [algorithmic_complexity]
+# severity_level = "warning"
+
 [grouping]
 # Which violations must be fixed together. A fix's footprint is the function itself plus,
 # for these rules, its callers (a signature change edits every call site). Violations with
