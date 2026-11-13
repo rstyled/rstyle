@@ -19,6 +19,12 @@ use rstyle_core::{cluster, patterns_report};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+/// glibc's allocator keeps freed memory in per-thread arenas, so a large run's analysis held about
+/// 1.5x its live heap and spent a large share of its CPU allocating and freeing.
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static ALLOCATOR: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
 #[derive(Parser)]
 #[command(name = "cargo-rstyle", bin_name = "cargo rstyle", version)]
 struct Cli {

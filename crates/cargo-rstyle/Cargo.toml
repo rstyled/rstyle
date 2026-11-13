@@ -17,6 +17,10 @@ toml = "0.9"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+# The analysis's allocator. MSVC builds keep the system allocator: jemalloc doesn't build there.
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemallocator = "0.6"
+
 # SHA-2 0.10 only enables its runtime-detected ARM SHA-256 backend with `asm`.
 # Preserve the software fallback and the original dev/test build profile.
 [target.'cfg(target_arch = "aarch64")'.dependencies]
