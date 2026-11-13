@@ -7,9 +7,13 @@ this code does, so it comes with a reason to look, not a number.
 Each rule reads the same `compat.cpg` documents for every language, so a new frontend gets it without any code here.
 
 ```text
-core/txpool/blobpool/conversion.go:192: dead_store: the value stored in `txTasks` here is never read: every path replaces it or leaves first
+core/txpool/blobpool/conversion.go:192: dead_store: warning: the value stored in `txTasks` here is never read: every path replaces it or leaves first
 Defects: 2 defects in 15784 functions, 0 suppressed, 229 unknown
 ```
+
+Defect findings include `severity` in JSON and the level in text output. SARIF uses the same level.
+Existing defect rules remain warnings. A note marks useful cleanup; it does not claim a behavior bug.
+Severity does not change command exit behavior or remove the finding from reports.
 
 ## No result doesn't mean nothing's wrong
 
@@ -84,7 +88,7 @@ func enableSqlExpressions(h *ExpressionQueryReader) bool {
 ```
 
 ```text
-pkg/expr/reader.go:196: identical_branches: the condition here changes nothing: the branch runs the same code as what follows it
+pkg/expr/reader.go:196: identical_branches: warning: the condition here changes nothing: the branch runs the same code as what follows it
 ```
 
 It reports two shapes:
@@ -103,14 +107,14 @@ thing. These stay quiet:
 | `if a { x } else if b { y } else { x }` | A condition still decides something |
 | Code a macro wrote | Two macros can expand to the same code and not mean the same |
 
-Two common harmless forms stay quiet:
+Two common harmless forms report at `note` severity as refactor opportunities:
 
 - A guard comparing a binding with Go's builtin `nil`, followed by identical plain returns that pass that binding
   through unchanged. This includes `if err != nil { return err }; return err` and result/error pairs.
 - A guard with no `else` whose only statement is a return, with a `// TODO` or `# TODO` comment between the guard
   and the repeated return. A TODO elsewhere in the function does not silence the rule.
 
-Other identical branches may still be intentional; use `rstyle-allow(identical_branches)` with a reason for those.
+Other identical branches report at `warning` severity. They may still be intentional; use `rstyle-allow(identical_branches)` with a reason for those.
 The rule still reports a constant return without an explicit placeholder, or a dropped error:
 
 ```go

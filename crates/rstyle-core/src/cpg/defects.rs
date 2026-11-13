@@ -23,6 +23,7 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Defect {
     pub rule: &'static str,
+    pub severity: crate::config::Level,
     pub line: usize,
     pub message: String,
 }

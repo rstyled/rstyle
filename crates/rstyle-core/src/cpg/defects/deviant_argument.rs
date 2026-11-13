@@ -914,6 +914,7 @@ fn deviations(
         found.push(Finding {
             method: deviant.method,
             defect: Defect {
+                severity: crate::config::Level::Warning,
                 rule: RULE,
                 line: passed.line,
                 message: message(passed, &majority.text, (total - 1, total)),

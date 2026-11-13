@@ -614,7 +614,11 @@ fn a_condition_that_runs_the_same_code_either_way_is_reported_where_it_is_writte
             (11, "identical_branches", true),
             (20, "identical_branches", false),
             (30, "identical_branches", true),
+            (41, "identical_branches", true),
             (102, "identical_branches", true),
+            (133, "identical_branches", true),
+            (141, "identical_branches", false),
+            (150, "identical_branches", true),
             (159, "identical_branches", true),
             (168, "identical_branches", true),
             (176, "identical_branches", true),
@@ -626,7 +630,7 @@ fn a_condition_that_runs_the_same_code_either_way_is_reported_where_it_is_writte
             (232, "identical_branches", true),
             (241, "identical_branches", true),
         ],
-        "the pass-through guards, TODO placeholder and distinct branches stay quiet"
+        "all redundant branches report; distinct branches stay quiet"
     );
 }
 
@@ -642,7 +646,7 @@ fn a_branch_a_macro_wrote_is_not_compared() {
     assert_eq!(
         lines,
         [
-            20, 30, 102, 159, 168, 176, 184, 195, 204, 214, 222, 232, 241
+            20, 30, 41, 102, 133, 141, 150, 159, 168, 176, 184, 195, 204, 214, 222, 232, 241
         ]
     );
 }
@@ -658,7 +662,7 @@ fn an_allow_comment_suppresses_a_condition_that_changes_nothing() {
     }
     let report = from_records(&mut records, &Config::default()).unwrap();
     assert!(report.defects.is_empty(), "{:?}", report.defects);
-    assert_eq!(report.suppressed, 14);
+    assert_eq!(report.suppressed, 18);
 }
 
 #[test]
@@ -687,7 +691,7 @@ fn incomplete_guard_resolution_does_not_silence_identical_branches() {
 }
 
 #[test]
-fn direct_returns_without_statement_wrappers_keep_their_guard_exclusion() {
+fn direct_returns_without_statement_wrappers_keep_note_severity() {
     let mut document = identical_branches();
     let function = &mut document["unit"]["functions"][4];
     for node in function["nodes"].as_array_mut().unwrap() {
@@ -706,7 +710,15 @@ fn direct_returns_without_statement_wrappers_keep_their_guard_exclusion() {
     *function = serde_json::from_str(&text).unwrap();
     let report = report_of(vec![document], &Config::default());
     assert!(report.unknown.is_empty(), "{:?}", report.unknown);
-    assert!(!found_at(&report).iter().any(|row| row.0 == 41));
+    assert_eq!(
+        report
+            .defects
+            .iter()
+            .find(|row| row.line == 41)
+            .unwrap()
+            .severity,
+        crate::config::Level::Note
+    );
 }
 
 #[test]
@@ -721,4 +733,35 @@ fn returns_without_spans_do_not_get_the_todo_exclusion() {
     }
     let report = report_of(vec![document], &Config::default());
     assert!(found_at(&report).contains(&(150, "identical_branches", true)));
+}
+
+#[test]
+fn routine_redundancies_are_notes_in_text_json_and_sarif() {
+    let report = report_of(vec![identical_branches()], &Config::default());
+    let notes: Vec<usize> = report
+        .defects
+        .iter()
+        .filter(|row| row.severity == crate::config::Level::Note)
+        .map(|row| row.line)
+        .collect();
+    assert_eq!(notes, [41, 133, 141, 150]);
+    assert!(report.text().contains(":41: identical_branches: note: "));
+    assert!(
+        report
+            .text()
+            .contains(":159: identical_branches: warning: ")
+    );
+    let json = serde_json::to_value(&report).unwrap();
+    let root = std::path::Path::new(if cfg!(windows) { r"C:\w" } else { "/w" });
+    let sarif = serde_json::to_value(sarif::defects(&report, root).unwrap()).unwrap();
+    let results = sarif["runs"][0]["results"].as_array().unwrap();
+    for (row, result) in json["defects"].as_array().unwrap().iter().zip(results) {
+        let expected = if notes.contains(&row["line"].as_u64().unwrap().try_into().unwrap()) {
+            "note"
+        } else {
+            "warning"
+        };
+        assert_eq!(row["severity"], expected);
+        assert_eq!(result["level"], expected);
+    }
 }

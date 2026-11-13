@@ -38,15 +38,18 @@ pub(super) fn find(reading: &Reading<'_>) -> Result<Vec<Defect>, String> {
         if taken.is_empty() || !Twins::new(reading, &index).same(&taken, &other)? {
             continue;
         }
-        if !guard_returns_input(reading, node, &taken)?
-            && !todo_placeholder(reading, node, &taken, &other)?
-        {
-            found.push(Defect {
-                rule: RULE,
-                line: tree::line(reading.sources, node)?,
-                message: message.into(),
-            });
-        }
+        let routine = guard_returns_input(reading, node, &taken)?
+            || todo_placeholder(reading, node, &taken, &other)?;
+        found.push(Defect {
+            rule: RULE,
+            severity: if routine {
+                crate::config::Level::Note
+            } else {
+                crate::config::Level::Warning
+            },
+            line: tree::line(reading.sources, node)?,
+            message: message.into(),
+        });
     }
     Ok(found)
 }

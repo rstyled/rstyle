@@ -35,7 +35,7 @@ func sameSteps(r *Reader, note func(string)) int {
 	return 1
 }
 
-// Quiet: the checked error is returned unchanged.
+// Note: the checked error is returned unchanged.
 func sameError(run func() error) error {
 	err := run()
 	if err != nil {
@@ -128,7 +128,7 @@ func elseIf(r *Reader, a, b int) int {
 	return b
 }
 
-// Quiet: a checked error can accompany a result.
+// Note: a checked error can accompany a result.
 func sameErrorPair(err error, result int) (int, error) {
 	if err != nil {
 		return result, err
@@ -136,7 +136,7 @@ func sameErrorPair(err error, result int) (int, error) {
 	return result, err
 }
 
-// Quiet: comparison order and equality do not change pass-through behavior.
+// Note: comparison order and equality do not change pass-through behavior.
 func sameErrorReversed(err error) error {
 	if nil == err {
 		return err
@@ -145,7 +145,7 @@ func sameErrorReversed(err error) error {
 	}
 }
 
-// Quiet: an explicit placeholder between a guard and the repeated return.
+// Note: an explicit placeholder between a guard and the repeated return.
 func todoGuard(r *Reader) error {
 	if r == nil {
 		return nil
