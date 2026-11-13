@@ -3,7 +3,7 @@ use super::super::rating::{Level, Rating, Reason};
 use super::super::{
     ChangeKind, ChangeReport, EffectChange, FunctionChange, GraphDelta, SignatureChange,
 };
-use super::name;
+use super::{distinct_names, name};
 use crate::cpg::failures::Source;
 
 const URL: &str = "https://github.com/o/r/pull/123";
@@ -540,6 +540,37 @@ const CXX_NAMES: [(&str, &str); 12] = [
     ("cxx::src/main.cpp::helper(int)", "helper"),
     ("cxx::system(const char *)", "system"),
 ];
+
+#[test]
+fn names_that_shorten_to_one_keep_as_much_path_as_tells_them_apart() {
+    let hash = "std::collections::hash::map::{impl#4}::get";
+    let btree = "alloc::collections::btree::map::{impl#20}::get";
+    let alone = "core::option::{impl#0}::unwrap_or_default";
+    let names = distinct_names([hash, btree, alone]);
+    assert_eq!(names[hash], "hash::map::get");
+    assert_eq!(names[btree], "btree::map::get");
+    assert_eq!(names[alone], "option::unwrap_or_default");
+}
+
+#[test]
+fn calls_tell_apart_two_callees_with_one_short_name() {
+    let mut lookup = change("lookup", ChangeKind::Changed, 3);
+    lookup.calls_added = vec![
+        "std::collections::hash::map::{impl#4}::get".into(),
+        "alloc::collections::btree::map::{impl#20}::get".into(),
+    ];
+    let markdown = report(Level::Low, Vec::new(), vec![lookup]).markdown(None);
+
+    let calls = fold(&markdown, "Calls");
+    assert!(
+        calls.contains("- new, no effect: `btree::map::get` in `lookup`"),
+        "{calls}"
+    );
+    assert!(
+        calls.contains("- new, no effect: `hash::map::get` in `lookup`"),
+        "{calls}"
+    );
+}
 
 #[test]
 fn a_cxx_name_drops_its_signature_and_keeps_its_scope() {

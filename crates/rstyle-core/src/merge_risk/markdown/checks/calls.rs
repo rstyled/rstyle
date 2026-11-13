@@ -1,6 +1,6 @@
 //! Calls: library calls the change adds, by what they do, and those it drops.
 
-use super::super::{Links, code, name, place};
+use super::super::{Links, code, distinct_names, name, place};
 use super::{Check, Status, counted};
 use crate::merge_risk::{ChangeKind, ChangeReport, FunctionChange};
 use std::collections::{BTreeMap, BTreeSet};
@@ -25,6 +25,8 @@ pub(in super::super) fn calls(report: &ChangeReport, links: &Links) -> Check {
         return Check::fine("Calls", "no library calls added or removed", item.into());
     }
 
+    let names = shown_names(&gained, &lost);
+    let shown = |callee: &String| code(&names[callee.as_str()]);
     let does = what_calls_do(&report.changes);
     let of = |wanted: fn(Does) -> bool| -> Calls<'_> {
         gained
@@ -42,7 +44,7 @@ pub(in super::super) fn calls(report: &ChangeReport, links: &Links) -> Check {
             format!(
                 "new, {}: {} in {}",
                 label(callee),
-                code(&name(callee)),
+                shown(callee),
                 place(owner, links)
             )
         });
@@ -56,7 +58,7 @@ pub(in super::super) fn calls(report: &ChangeReport, links: &Links) -> Check {
         said(&with_effect, &kind),
         said(&unknown, &|_| "effect unknown".into()),
         said(&quiet, &|_| "no effect".into()),
-        removed_items(&lost, links),
+        removed_items(&lost, &shown, links),
     ];
     let summary = counted(&[
         (with_effect.len(), "with effects"),
@@ -66,6 +68,12 @@ pub(in super::super) fn calls(report: &ChangeReport, links: &Links) -> Check {
     ]);
     let status = Status::of(!with_effect.is_empty(), !unknown.is_empty());
     Check::new("Calls", status, summary.join(", "), items.concat())
+}
+
+/// What each callee the check names reads as, told apart from any other with the same short name.
+fn shown_names<'c>(gained: &Calls<'c>, lost: &Calls<'c>) -> BTreeMap<&'c str, String> {
+    let callees = gained.iter().chain(lost).map(|(callee, _)| callee.as_str());
+    distinct_names(callees)
 }
 
 /// The library callees the change calls more of, and less of: a callee that isn't a function of
@@ -133,11 +141,15 @@ fn what_calls_do(changes: &[FunctionChange]) -> impl Fn(&String) -> Does + '_ {
 }
 
 /// Calls dropped with a function the change removed read as one line per function.
-fn removed_items(lost: &Calls<'_>, links: &Links) -> Vec<String> {
+fn removed_items(
+    lost: &Calls<'_>,
+    shown: &dyn Fn(&String) -> String,
+    links: &Links,
+) -> Vec<String> {
     let mut with_function: BTreeMap<&str, (&FunctionChange, Vec<String>)> = BTreeMap::new();
     let mut items = Vec::new();
     for (callee, owner) in lost {
-        let callee = code(&name(callee));
+        let callee = shown(callee);
         match owner.kind {
             ChangeKind::Removed => {
                 let (_, callees) = with_function

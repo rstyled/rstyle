@@ -9,7 +9,7 @@ use super::rating::{
 use super::{ChangeKind, ChangeReport, EffectChange, FunctionChange};
 use checks::Check;
 use sha2::{Digest, Sha256};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 mod checks;
 
@@ -337,6 +337,54 @@ fn impl_item(name: &str) -> Option<(&str, &str)> {
     let (_, rest) = name.rsplit_once("<impl ")?;
     let (owner, item) = rest.split_once(">::")?;
     Some((owner.rsplit("::").next().unwrap_or(owner), item))
+}
+
+/// A name for each identity, as short as [`name`] makes it unless two shorten to the same, as
+/// `HashMap`'s and `BTreeMap`'s `get` both read `map::get`: those keep as much of their path as
+/// tells them apart, `hash::map::get` and `btree::map::get`.
+fn distinct_names<'i>(identities: impl IntoIterator<Item = &'i str>) -> BTreeMap<&'i str, String> {
+    let mut by_name: BTreeMap<String, BTreeSet<&str>> = BTreeMap::new();
+    for identity in identities {
+        by_name.entry(name(identity)).or_default().insert(identity);
+    }
+    let named = by_name
+        .into_iter()
+        .flat_map(|(short, same)| match same.len() {
+            1 => same
+                .into_iter()
+                .map(|identity| (identity, short.clone()))
+                .collect(),
+            _ => told_apart(&same),
+        });
+    named.collect()
+}
+
+/// Identities that shorten to one name, each with as many parts of its path, from the end, as tell
+/// it from the others. An `impl` block or a generic says nothing a reader can use, so it's left out.
+fn told_apart<'i>(same: &BTreeSet<&'i str>) -> Vec<(&'i str, String)> {
+    let parts = |identity: &str| -> Vec<String> {
+        let kept = identity
+            .split("::")
+            .filter(|part| !part.starts_with(['<', '{']));
+        kept.map(str::to_owned).collect()
+    };
+    let tail = |identity: &str, depth: usize| {
+        let parts = parts(identity);
+        short(&parts[parts.len().saturating_sub(depth)..].join("::"))
+    };
+    let longest = same
+        .iter()
+        .map(|identity| parts(identity).len())
+        .max()
+        .unwrap_or(1);
+    let distinct = |depth: &usize| {
+        let names: BTreeSet<String> = same.iter().map(|identity| tail(identity, *depth)).collect();
+        names.len() == same.len()
+    };
+    let depth = (2..=longest).find(distinct).unwrap_or(longest);
+    same.iter()
+        .map(|identity| (*identity, tail(identity, depth)))
+        .collect()
 }
 
 /// A name without the directories of its import path: `github.com/o/r/native.f` reads as
