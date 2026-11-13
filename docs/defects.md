@@ -116,6 +116,9 @@ return oas, nil
 
 The condition still runs, so taking it out is only safe when evaluating it does nothing else.
 
+It doesn't compare an `else if` with what follows the whole chain, so `if a { return x } else if b { return y }` then
+`return y` isn't found.
+
 On the 14,938 functions of Grafana's `pkg` at an April 2025 commit it reports 11 conditions, each one the same code either
 way: 2 drop an error like the one above, 1 returns one constant, 2 are placeholders and 6 return the same `err`. On 6,900
 competitive-programming solutions in Go, Rust and C++ it reports 7.

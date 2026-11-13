@@ -615,8 +615,9 @@ fn a_condition_that_runs_the_same_code_either_way_is_reported_where_it_is_writte
             (20, "identical_branches", false),
             (30, "identical_branches", true),
             (41, "identical_branches", true),
+            (102, "identical_branches", true),
         ],
-        "the other six functions' conditions decide something"
+        "the other eight functions' conditions are left alone"
     );
 }
 
@@ -629,7 +630,7 @@ fn a_branch_a_macro_wrote_is_not_compared() {
     returned.unwrap()["provenance"]["origin"] = json!("macro_expansion");
     let report = report_of(vec![document], &Config::default());
     let lines: Vec<usize> = report.defects.iter().map(|row| row.line).collect();
-    assert_eq!(lines, [20, 30, 41]);
+    assert_eq!(lines, [20, 30, 41, 102]);
 }
 
 #[test]
@@ -643,5 +644,19 @@ fn an_allow_comment_suppresses_a_condition_that_changes_nothing() {
     }
     let report = from_records(&mut records, &Config::default()).unwrap();
     assert!(report.defects.is_empty(), "{:?}", report.defects);
-    assert_eq!(report.suppressed, 4);
+    assert_eq!(report.suppressed, 5);
+}
+
+#[test]
+fn code_with_no_span_is_compared_by_its_shape_and_what_it_names() {
+    let mut document = identical_branches();
+    let always_false = &mut document["unit"]["functions"][1];
+    for node in always_false["nodes"].as_array_mut().unwrap() {
+        if node["kind"] == "return" {
+            node.as_object_mut().unwrap().remove("span");
+        }
+    }
+    let report = report_of(vec![document], &Config::default());
+    assert!(report.unknown.is_empty(), "{:?}", report.unknown);
+    assert_eq!(found_at(&report)[0], (11, "identical_branches", true));
 }

@@ -96,3 +96,34 @@ func threeWays(r *Reader, a, b int) int {
 		return a
 	}
 }
+
+// Reported: each side declares its own `v`, and the two pair up.
+func ownCopies(r *Reader, values map[string]int, key string) int {
+	if r.on() {
+		if v, ok := values[key]; ok {
+			return v
+		}
+		return 0
+	}
+	if v, ok := values[key]; ok {
+		return v
+	}
+	return 0
+}
+
+// Quiet: an empty branch runs nothing.
+func emptyBranch(r *Reader) bool {
+	if r.on() {
+	}
+	return false
+}
+
+// Quiet: what follows an `else if` comes after the whole chain, which isn't compared.
+func elseIf(r *Reader, a, b int) int {
+	if r.on() {
+		return a
+	} else if a > b {
+		return b
+	}
+	return b
+}
