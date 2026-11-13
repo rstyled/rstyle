@@ -311,6 +311,29 @@ fn an_effect_that_moved_under_a_new_name_is_neither_gained_nor_lost() {
 }
 
 #[test]
+fn a_lost_effect_is_to_look_at_and_a_new_unclassified_call_is_listed() {
+    let mut save = change("save", ChangeKind::Changed, 4);
+    save.effects_lost = vec![effect("io", "os.WriteFile"), effect("unknown", "store.Put")];
+    let mut helper = change("helper", ChangeKind::Added, 9);
+    helper.effects_gained = vec![effect("unknown", "client.Do")];
+    let markdown = report(Level::Low, Vec::new(), vec![save, helper]).markdown(None);
+
+    let summary = "👀 <b>Effects</b>: 1 lost, 1 new function, none does io or network, \
+        1 call nothing classifies</summary>";
+    assert!(markdown.contains(summary), "{markdown}");
+    let effects = fold(&markdown, "Effects");
+    assert!(
+        effects.contains("- `save` loses io: `os.WriteFile`"),
+        "{effects}"
+    );
+    assert!(!effects.contains("store.Put"), "{effects}");
+    assert!(
+        effects.contains("- `helper` is new and calls `client.Do`, which nothing classifies"),
+        "{effects}"
+    );
+}
+
+#[test]
 fn a_new_function_that_does_io_is_named() {
     let mut main = change("main", ChangeKind::Added, 3);
     main.effects_gained = vec![effect("io", "fmt.Fprintln")];
@@ -351,6 +374,75 @@ fn errors_say_where_a_change_is_made_and_who_passes_it_on() {
         "{markdown}"
     );
     assert!(errors.contains(line), "{errors}");
+}
+
+fn untraceable(name: &str, gained: Vec<Source>) -> ErrorChange {
+    ErrorChange {
+        function: format!("go::example.com/errs.{name}"),
+        name: name.into(),
+        path: "elsewhere.go".into(),
+        line: 3,
+        lost: Vec::new(),
+        gained,
+        wrapped: 0,
+    }
+}
+
+#[test]
+fn a_function_that_newly_fails_through_a_function_value_reads_unknown() {
+    let mut report = report(Level::Low, Vec::new(), Vec::new());
+    report.errors = Errors {
+        traced: true,
+        followed: 1,
+        changed: vec![untraceable("Each", vec![Source::Unknown])],
+        untraced: Vec::new(),
+    };
+    let markdown = report.markdown(None);
+
+    let summary =
+        "❓ <b>Errors</b>: 1 function can now fail through a call it can't follow</summary>";
+    assert!(markdown.contains(summary), "{markdown}");
+    let item =
+        "- `Each` can now also fail through a call it can't follow, such as a function value";
+    assert!(fold(&markdown, "Errors").contains(item), "{markdown}");
+}
+
+#[test]
+fn no_change_seen_is_unknown_when_a_changed_function_can_t_be_followed() {
+    let mut report = report(Level::Low, Vec::new(), Vec::new());
+    report.errors = Errors {
+        traced: true,
+        followed: 1,
+        changed: Vec::new(),
+        untraced: vec![untraceable("Each", Vec::new())],
+    };
+    let markdown = report.markdown(None);
+
+    let summary = "❓ <b>Errors</b>: no change seen, but 1 function can fail through a call it can't \
+        follow</summary>";
+    assert!(markdown.contains(summary), "{markdown}");
+    let item = "- `Each` can fail through a call it can't follow, such as a function value";
+    assert!(fold(&markdown, "Errors").contains(item), "{markdown}");
+}
+
+#[test]
+fn errors_that_all_trace_and_didn_t_change_read_fine() {
+    let mut report = report(Level::Low, Vec::new(), Vec::new());
+    report.errors = Errors {
+        traced: true,
+        followed: 2,
+        changed: Vec::new(),
+        untraced: Vec::new(),
+    };
+    let markdown = report.markdown(None);
+
+    let item = "- followed every error the 2 changed functions can return back to where it's made; \
+        none was added or dropped";
+    assert!(
+        markdown.contains("✅ <b>Errors</b>: no function fails in new ways or stops failing"),
+        "{markdown}"
+    );
+    assert!(fold(&markdown, "Errors").contains(item), "{markdown}");
 }
 
 #[test]
