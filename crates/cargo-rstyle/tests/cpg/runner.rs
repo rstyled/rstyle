@@ -2169,12 +2169,12 @@ fn risk_writes_markdown_with_links_into_the_pull_request_diff() {
     assert!(text.starts_with("### ⚪ Merge risk: unrated"), "{text}");
     assert!(
         text.contains(
-            "<details><summary>✅ <b>Changed</b>: 1 function in 1 file: 1 changed</summary>"
+            "<details><summary><b>Changed</b> ✅: 1 function in 1 file: 1 changed</summary>"
         ),
         "{text}"
     );
     assert!(
-        text.contains("<details><summary>👀 <b>Effects</b>: 1 gained</summary>"),
+        text.contains("<details><summary><b>Effects</b> 👀: 1 gained</summary>"),
         "{text}"
     );
     assert!(

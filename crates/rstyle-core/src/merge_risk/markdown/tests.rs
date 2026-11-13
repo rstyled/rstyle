@@ -125,17 +125,17 @@ fn it_leads_with_why_then_folds_each_check() {
     };
     let expected = format!(
         "### 🟡 Merge risk: medium\n\n- 🟡 **Changed code**: {over}.\n\n\
-         <details><summary>✅ <b>Changed</b>: 2 functions in 1 file: 1 changed, 1 removed</summary>\n\n\
+         <details><summary><b>Changed</b> ✅: 2 functions in 1 file: 1 changed, 1 removed</summary>\n\n\
          - [`FromPackages`]({}): changed; signature changed; gains mutation; now calls `slices.Clone`; \
          no longer calls `goeffects.packageErrors`\n\
          - [`typedFiles`]({}): removed\n\
          - 3 test functions changed, which aren't rated\n\n</details>\n\
-         <details><summary>👀 <b>Signatures</b>: 1 changed, 1 caller</summary>\n\n\
+         <details><summary><b>Signatures</b> 👀: 1 changed, 1 caller</summary>\n\n\
          - [`FromPackages`]({}): `func FromPackages(p []*Package) (Effects, error)` → \
          `func FromPackages(p []*Package) Effects` (1 caller)\n\n</details>\n\
-         <details><summary>👀 <b>Effects</b>: 1 gained</summary>\n\n\
+         <details><summary><b>Effects</b> 👀: 1 gained</summary>\n\n\
          - [`FromPackages`]({}) gains mutation: `f.typed`\n\n</details>\n\
-         <details><summary>✅ <b>Calls</b>: 1 no effects</summary>\n\n\
+         <details><summary><b>Calls</b> ✅: 1 no effects</summary>\n\n\
          - new, no effect: `slices.Clone` in [`FromPackages`]({})\n\n</details>",
         at("R25"),
         at("L75"),
@@ -150,13 +150,13 @@ fn it_leads_with_why_then_folds_each_check() {
 fn nothing_changed_reads_fine_and_says_what_it_checked() {
     let markdown = report(Level::Low, Vec::new(), Vec::new()).markdown(None);
     let expected = "### 🟢 Merge risk: low\n\nNothing holds it above low.\n\n\
-        <details><summary>✅ <b>Changed</b>: no function changed, in 0 files</summary>\n\n\
+        <details><summary><b>Changed</b> ✅: no function changed, in 0 files</summary>\n\n\
         - 3 test functions changed, which aren't rated\n\n</details>\n\
-        <details><summary>✅ <b>Signatures</b>: none changed</summary>\n\n\
+        <details><summary><b>Signatures</b> ✅: none changed</summary>\n\n\
         - none of the 0 changed functions changed its parameters or results\n\n</details>\n\
-        <details><summary>✅ <b>Effects</b>: none gained or lost</summary>\n\n\
+        <details><summary><b>Effects</b> ✅: none gained or lost</summary>\n\n\
         - no function gained or lost io, network, global state, mutation or unsafe code\n\n</details>\n\
-        <details><summary>✅ <b>Calls</b>: no library calls added or removed</summary>\n\n\
+        <details><summary><b>Calls</b> ✅: no library calls added or removed</summary>\n\n\
         - no changed function added or dropped a call outside this repository\n\n</details>";
     assert_eq!(markdown, expected);
 }
@@ -191,14 +191,14 @@ fn a_rule_naming_a_call_says_which() {
     assert!(markdown.starts_with(why), "{markdown}");
     let calls = fold(&markdown, "Calls");
     assert!(
-        calls.starts_with("<b>Calls</b>: 1 with effects</summary>"),
+        calls.starts_with("<b>Calls</b> 👀: 1 with effects</summary>"),
         "{calls}"
     );
     assert!(
         calls.contains("- new, io: `os.WriteFile` in `load`"),
         "{calls}"
     );
-    assert!(markdown.contains("👀 <b>Calls</b>"), "{markdown}");
+    assert!(markdown.contains("<b>Calls</b> 👀"), "{markdown}");
 }
 
 #[test]
@@ -214,7 +214,7 @@ fn a_call_nothing_classifies_leaves_calls_unknown() {
     assert!(markdown.contains(why), "{markdown}");
     let calls = fold(&markdown, "Calls");
     assert!(
-        markdown.contains("❓ <b>Calls</b>: 1 effect unknown, 1 no effects"),
+        markdown.contains("<b>Calls</b> ❓: 1 effect unknown, 1 no effects"),
         "{markdown}"
     );
     assert!(
@@ -235,7 +235,7 @@ fn a_call_moved_between_functions_is_neither_new_nor_removed() {
     to.calls_added = vec!["go::fmt.Sprintf".into()];
     let markdown = report(Level::Low, Vec::new(), vec![from, to]).markdown(None);
     assert!(
-        markdown.contains("✅ <b>Calls</b>: no library calls added or removed"),
+        markdown.contains("<b>Calls</b> ✅: no library calls added or removed"),
         "{markdown}"
     );
 }
@@ -258,7 +258,7 @@ fn a_call_a_changed_function_drops_reads_as_removed_from_it() {
     save.calls_removed = vec!["go::os.WriteFile".into()];
     let markdown = report(Level::Low, Vec::new(), vec![save]).markdown(None);
     assert!(
-        markdown.contains("✅ <b>Calls</b>: 1 removed</summary>"),
+        markdown.contains("<b>Calls</b> ✅: 1 removed</summary>"),
         "{markdown}"
     );
     let calls = fold(&markdown, "Calls");
@@ -285,11 +285,11 @@ fn a_signature_change_with_no_text_still_says_it_changed() {
 fn over_five_files_reads_as_one_to_look_at() {
     let small = report(Level::Low, Vec::new(), files(5)).markdown(None);
     assert!(
-        small.contains("✅ <b>Changed</b>: 5 functions in 5 files: 5 changed</summary>"),
+        small.contains("<b>Changed</b> ✅: 5 functions in 5 files: 5 changed</summary>"),
         "{small}"
     );
     let large = report(Level::Low, Vec::new(), files(6)).markdown(None);
-    let look = "👀 <b>Changed</b>: 6 functions in 6 files: 6 changed \
+    let look = "<b>Changed</b> 👀: 6 functions in 6 files: 6 changed \
         (over 5 files rarely reverts cleanly)</summary>";
     assert!(large.contains(look), "{large}");
 }
@@ -307,7 +307,7 @@ fn what_it_cannot_see_leaves_changed_unknown_and_listed() {
 
     let changed = fold(&markdown, "Changed");
     assert!(
-        markdown.contains("❓ <b>Changed</b>: 2 functions in 2 files: 1 text only, 1 unknown"),
+        markdown.contains("<b>Changed</b> ❓: 2 functions in 2 files: 1 text only, 1 unknown"),
         "{markdown}"
     );
     let outside = format!(
@@ -319,7 +319,7 @@ fn what_it_cannot_see_leaves_changed_unknown_and_listed() {
         "- 1 generated function changed, which a macro or a build writes and nothing compares";
     assert!(changed.contains(generated), "{changed}");
     assert!(
-        markdown.contains("✅ <b>Signatures</b>: none changed"),
+        markdown.contains("<b>Signatures</b> ✅: none changed"),
         "{markdown}"
     );
 }
@@ -335,7 +335,7 @@ fn an_effect_that_moved_under_a_new_name_is_neither_gained_nor_lost() {
     let effects = fold(&markdown, "Effects");
     assert!(
         markdown.contains(
-            "✅ <b>Effects</b>: 1 moved between functions, 1 new function, none does io or network"
+            "<b>Effects</b> ✅: 1 moved between functions, 1 new function, none does io or network"
         ),
         "{markdown}"
     );
@@ -350,7 +350,7 @@ fn an_effect_renamed_within_one_function_is_neither_gained_nor_lost() {
     add.effects_gained = vec![effect("mutation", "f.typed")];
     let markdown = report(Level::Low, Vec::new(), vec![add]).markdown(None);
     assert!(
-        markdown.contains("✅ <b>Effects</b>: none gained or lost"),
+        markdown.contains("<b>Effects</b> ✅: none gained or lost"),
         "{markdown}"
     );
 }
@@ -363,7 +363,7 @@ fn a_lost_effect_is_to_look_at_and_a_new_unclassified_call_is_listed() {
     helper.effects_gained = vec![effect("unknown", "client.Do")];
     let markdown = report(Level::Low, Vec::new(), vec![save, helper]).markdown(None);
 
-    let summary = "👀 <b>Effects</b>: 1 lost, 1 new function, none does io or network, \
+    let summary = "<b>Effects</b> 👀: 1 lost, 1 new function, none does io or network, \
         1 call nothing classifies</summary>";
     assert!(markdown.contains(summary), "{markdown}");
     let effects = fold(&markdown, "Effects");
@@ -384,7 +384,7 @@ fn a_new_function_that_does_io_is_named() {
     main.effects_gained = vec![effect("io", "fmt.Fprintln")];
     let markdown = report(Level::Low, Vec::new(), vec![main]).markdown(None);
     assert!(
-        markdown.contains("👀 <b>Effects</b>: 1 new function, <code>main</code> does io</summary>"),
+        markdown.contains("<b>Effects</b> 👀: 1 new function, <code>main</code> does io</summary>"),
         "{markdown}"
     );
 }
@@ -415,7 +415,7 @@ fn errors_say_where_a_change_is_made_and_who_passes_it_on() {
     let line = "- `open` no longer fails with \"no …: …\"; can now fail with `errs.ErrClosed`, \
         and so does `Load`, which wraps it";
     assert!(
-        markdown.contains("👀 <b>Errors</b>: 1 function fails differently"),
+        markdown.contains("<b>Errors</b> 👀: 1 function fails differently"),
         "{markdown}"
     );
     assert!(errors.contains(line), "{errors}");
@@ -446,7 +446,7 @@ fn a_function_that_newly_fails_through_a_function_value_reads_unknown() {
     let markdown = report.markdown(None);
 
     let summary =
-        "❓ <b>Errors</b>: 1 function can now fail through a call it can't follow</summary>";
+        "<b>Errors</b> ❓: 1 function can now fail through a call it can't follow</summary>";
     assert!(markdown.contains(summary), "{markdown}");
     let item =
         "- `Each` can now also fail through a call it can't follow, such as a function value";
@@ -468,7 +468,7 @@ fn errors_say_what_changed_then_what_newly_can_t_be_followed() {
     let markdown = report.markdown(None);
 
     let summary =
-        "👀 <b>Errors</b>: 1 function fails differently, 1 more it can't follow</summary>";
+        "<b>Errors</b> 👀: 1 function fails differently, 1 more it can't follow</summary>";
     assert!(markdown.contains(summary), "{markdown}");
     let errors = fold(&markdown, "Errors");
     let items = "- `open` can now fail with an error from `os.Open`\n\
@@ -487,7 +487,7 @@ fn no_change_seen_is_unknown_when_a_changed_function_can_t_be_followed() {
     };
     let markdown = report.markdown(None);
 
-    let summary = "❓ <b>Errors</b>: no change seen, but 1 function can fail through a call it can't \
+    let summary = "<b>Errors</b> ❓: no change seen, but 1 function can fail through a call it can't \
         follow</summary>";
     assert!(markdown.contains(summary), "{markdown}");
     let item = "- `Each` can fail through a call it can't follow, such as a function value";
@@ -508,7 +508,7 @@ fn errors_that_all_trace_and_didn_t_change_read_fine() {
     let item = "- followed every error the 2 changed functions can return back to where it's made; \
         none was added or dropped";
     assert!(
-        markdown.contains("✅ <b>Errors</b>: no function fails in new ways or stops failing"),
+        markdown.contains("<b>Errors</b> ✅: no function fails in new ways or stops failing"),
         "{markdown}"
     );
     assert!(fold(&markdown, "Errors").contains(item), "{markdown}");
@@ -525,7 +525,7 @@ fn errors_read_fine_when_no_changed_function_returns_one() {
 
     let item = "- no changed function returns an error, and no other function's errors changed";
     assert!(
-        markdown.contains("✅ <b>Errors</b>: no function fails in new ways or stops failing"),
+        markdown.contains("<b>Errors</b> ✅: no function fails in new ways or stops failing"),
         "{markdown}"
     );
     assert!(fold(&markdown, "Errors").contains(item), "{markdown}");

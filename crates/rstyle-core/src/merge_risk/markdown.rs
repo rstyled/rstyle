@@ -76,13 +76,13 @@ impl ChangeReport {
     }
 }
 
-/// A check as a status line that opens to every item behind it.
+/// A check as a line, its name then its status, that opens to every item behind it.
 fn fold(check: &Check) -> String {
     let items: Vec<String> = check.items.iter().map(|item| format!("- {item}")).collect();
     format!(
-        "<details><summary>{} <b>{}</b>: {}</summary>\n\n{}\n\n</details>",
-        check.status.icon(),
+        "<details><summary><b>{}</b> {}: {}</summary>\n\n{}\n\n</details>",
         check.name,
+        check.status.icon(),
         inline_html(&check.summary),
         items.join("\n")
     )

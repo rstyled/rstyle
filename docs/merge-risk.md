@@ -99,8 +99,9 @@ has no tokens to read around one.
 by kind, and each function's lines say which.
 
 `--markdown` writes the report for a pull request's description. Under the rating, each rule above low says what it
-found, and the callees it names. The rating is the worst of them. Then each check a reviewer reads is one line, a status
-and what it found, that opens to every item behind it, each linked to its line in the diff:
+found, and the callees it names. The rating is the worst of them. Then each check a reviewer reads is one line, its name
+followed by a status and what it found, as `**Changed** ✅: …`, that opens to every item behind it, each linked to its
+line in the diff:
 
 | Check | ✅ | 👀 | ❓ |
 | --- | --- | --- | --- |
