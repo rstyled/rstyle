@@ -156,23 +156,32 @@ Unlike the other strict style rules, an [override](../README.md#per-path-overrid
 ```toml
 [strict_style.no_comments]
 enabled = true
+allow_doc_comments = true
+allow_tool_directives = true
 ```
 
-Reports ordinary comments in captured function source, from its signature through its body. It is off by default.
-One diagnostic per function lists the comment start lines. Enabling it makes ordinary comments fail the style check;
-it does not rewrite or delete source. Comments outside captured functions, including file headers, are not checked.
+Reports comments in captured function source, from its signature through its body. It is off by default.
+One diagnostic per function lists the disallowed comment start lines. Enabling it makes disallowed comments fail the
+style check; it does not rewrite or delete source. Comments outside captured functions, including file headers,
+are not checked, regardless of these settings.
 
-Documentation comments (`///`, `//!`, `/**`, `/*!`) and Python docstrings stay allowed. The compiler's literal spans
-protect strings, raw strings and character literals containing comment markers. Comments in nested functions and
-closures belong to their own captures. Rust block comments can nest; Go and C++ block comments do not.
+Both exceptions default to `true`. Set `allow_doc_comments = false` to report documentation comment forms
+(`///`, `//!`, `/**`, `/*!`). Set `allow_tool_directives = false` to report recognized directives too.
+The exceptions are independent. Captures keep each comment's category, so changing policy does not require recompilation.
+Python docstrings remain string literals; the documentation option applies to comment syntax.
 
-Tool directives stay allowed when their comment text starts with one of these prefixes (leading whitespace ignored):
-`go:`, `line `, `rstyle-allow(`, `nolint`, `lint:`, `NOLINT`, `noinspection`, `type:`, `noqa`, `pyright:`, `mypy:`,
-`pylint:`, `isort:`, `yapf:`, `fmt:`, `rustfmt::`, `clang-format`, or `!` (shebang). Other directive spellings are not inferred from prose.
-For an intentional exception, use `// rstyle-allow(no_comments): reason` above the function.
+The compiler's literal spans protect strings, raw strings and character literals containing comment markers.
+Comments in nested functions and closures belong to their own captures. Rust block comments can nest; Go and C++
+block comments do not.
 
-The rule reads Rust, Go, C++ and Python source supplied by their frontends. Saved function facts from before this
-rule have no comment locations; capture them again to check comments.
+Recognized directive prefixes (leading whitespace ignored): `go:`, `line `, `rstyle-allow(`, `nolint`, `lint:`,
+`NOLINT`, `noinspection`, `type:`, `noqa`, `pyright:`, `mypy:`, `pylint:`, `isort:`, `yapf:`, `fmt:`, `rustfmt::`,
+`clang-format`, or `!` (shebang). Other directive spellings are not inferred from prose.
+For an intentional exception, use `// rstyle-allow(no_comments): reason` above the function. This explicit suppression
+still works when either allowance is disabled.
+
+The rule reads Rust, Go, C++ and Python source supplied by their frontends. Older saved function facts without comment
+categories need a new capture.
 
 ### `guard_clause`
 

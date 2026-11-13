@@ -160,7 +160,7 @@ fn function_facts(
             .between(&signature.span, &function.span)?
             .to_string(),
         preceding_line: sources.preceding_line(&signature.span, line)?,
-        comment_lines: super::comments::lines(function, sources, tables.language())?,
+        comments: super::comments::lines(function, sources, tables.language())?,
         mutations,
         calls: events.calls,
         effects: events.effects,

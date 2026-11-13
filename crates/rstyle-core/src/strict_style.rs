@@ -6,7 +6,7 @@ mod primitive_obsession;
 mod value_object;
 
 use crate::config::Config;
-use crate::facts::FnFacts;
+use crate::facts::{CommentKind, FnFacts};
 use crate::report::{Detail, Diagnostic};
 use crate::rules::{Measure, diagnostic};
 
@@ -28,16 +28,30 @@ pub fn fn_spacing(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
 }
 
 pub fn no_comments(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
-    if !cfg.strict_style.no_comments.enabled || f.comment_lines.is_empty() {
+    let rule = &cfg.strict_style.no_comments;
+    if !rule.enabled {
         return Vec::new();
     }
-    let actual = f.comment_lines.len();
-    let lines: Vec<String> = f.comment_lines.iter().map(ToString::to_string).collect();
+    let comment_lines: Vec<usize> = f
+        .comments
+        .iter()
+        .filter(|comment| match comment.kind {
+            CommentKind::Ordinary => true,
+            CommentKind::Documentation => !rule.allow_doc_comments,
+            CommentKind::ToolDirective => !rule.allow_tool_directives,
+        })
+        .map(|comment| comment.line)
+        .collect();
+    if comment_lines.is_empty() {
+        return Vec::new();
+    }
+    let actual = comment_lines.len();
+    let lines: Vec<String> = comment_lines.iter().map(ToString::to_string).collect();
     let mut found = diagnostic(
         f,
         "no_comments",
         format!(
-            "function `{}` has {actual} ordinary comment(s) on line {}; remove them or express their meaning in code",
+            "function `{}` has {actual} disallowed comment(s) on line {}; remove them or express their meaning in code",
             f.name,
             lines.join(", ")
         ),
@@ -46,7 +60,7 @@ pub fn no_comments(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
     found.details = vec![Detail {
         label: "comment".into(),
         count: actual,
-        lines: f.comment_lines.clone(),
+        lines: comment_lines,
     }];
     vec![found]
 }

@@ -98,7 +98,9 @@ caller_hops = 1
 # is off unless you turn it on. One that's on reports and fails a run like any other rule here.
 
 [strict_style.no_comments]
-enabled = false             # ordinary comments in function source; documentation and tool directives stay allowed
+enabled = false             # report comments in captured function source
+allow_doc_comments = true  # keep documentation comment forms
+allow_tool_directives = true # keep recognized linter, formatter and compiler directives
 
 [strict_style.fn_spacing]
 enabled = false             # a body of many statements with no blank line between its phases

@@ -1179,3 +1179,27 @@ fn no_comments_is_opt_in_preserves_literals_and_directives_and_can_be_suppressed
         Some(0)
     );
 }
+
+#[test]
+fn no_comments_exceptions_can_be_changed_independently_in_toml() {
+    let dir = fixture("clean");
+    std::fs::write(dir.path().join("src/lib.rs"), "pub fn f() -> i32 {\n    /// Local documentation.\n    let _value = 0;\n    // rustfmt::skip\n    // ordinary\n    1\n}\n").unwrap();
+    for (docs, directives, lines) in [
+        (true, true, vec![5]),
+        (false, true, vec![2, 5]),
+        (true, false, vec![4, 5]),
+        (false, false, vec![2, 4, 5]),
+    ] {
+        let policy = format!(
+            "[strict_style.no_comments]\nenabled = true\nallow_doc_comments = {docs}\nallow_tool_directives = {directives}\n"
+        );
+        std::fs::write(dir.path().join("rstyle.toml"), policy).unwrap();
+        let output = rstyle(dir.path(), &["--format", "json"]);
+        assert_eq!(output.status.code(), Some(1), "{output:?}");
+        let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+        let found = diagnostics_for(&report, "f");
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0]["actual"], lines.len());
+        assert_eq!(found[0]["details"][0]["lines"], serde_json::json!(lines));
+    }
+}

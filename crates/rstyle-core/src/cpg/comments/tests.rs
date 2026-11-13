@@ -1,7 +1,15 @@
 use super::*;
 
 fn offsets(source: &str, language: &str) -> Vec<usize> {
-    scan(source, vec![], language)
+    ordinary(scan(source, vec![], language))
+}
+
+fn ordinary(comments: Vec<(usize, CommentKind)>) -> Vec<usize> {
+    comments
+        .into_iter()
+        .filter(|(_, kind)| *kind == CommentKind::Ordinary)
+        .map(|(offset, _)| offset)
+        .collect()
 }
 
 #[test]
@@ -34,13 +42,13 @@ fn compiler_literal_spans_protect_strings_and_docstrings() {
     let source = "r###\"// not a comment /* either */\"### // ordinary";
     let end = source.find(" // ordinary").unwrap();
     assert_eq!(
-        scan(source, std::iter::once(0..end).collect(), "rust"),
+        ordinary(scan(source, std::iter::once(0..end).collect(), "rust")),
         [end + 1]
     );
     let source = "\"\"\"# docstring\n# still a string\"\"\"\n# ordinary";
     let end = source.find("\n# ordinary").unwrap();
     assert_eq!(
-        scan(source, std::iter::once(0..end).collect(), "python"),
+        ordinary(scan(source, std::iter::once(0..end).collect(), "python")),
         [end + 1]
     );
 }
@@ -58,11 +66,39 @@ fn captured_go_comments_use_source_lines_and_ignore_raw_string_contents() {
     let document = serde_json::from_str(include_str!("../testdata/no-comments.cpg.json")).unwrap();
     let facts = crate::cpg::rule_facts(&document).unwrap();
     assert_eq!(facts.len(), 1);
-    assert_eq!(facts[0].comment_lines, [6, 8, 9]);
+    assert_eq!(
+        facts[0]
+            .comments
+            .iter()
+            .map(|comment| (comment.line, comment.kind))
+            .collect::<Vec<_>>(),
+        [
+            (5, CommentKind::ToolDirective),
+            (6, CommentKind::Ordinary),
+            (8, CommentKind::Ordinary),
+            (9, CommentKind::Ordinary)
+        ]
+    );
 }
 
 #[test]
 fn empty_blocks_and_unicode_comments_remain_ordinary() {
     assert_eq!(offsets("/**/", "rust"), [0]);
     assert_eq!(offsets("é // explain\r\n// next", "rust"), [3, 15]);
+}
+
+#[test]
+fn documentation_and_directive_categories_survive_capture() {
+    assert_eq!(
+        scan("/// docs\n// fmt: off\n// ordinary", vec![], "rust"),
+        [
+            (0, CommentKind::Documentation),
+            (9, CommentKind::ToolDirective),
+            (21, CommentKind::Ordinary)
+        ]
+    );
+    assert_eq!(
+        scan("#!tool\n# ordinary", vec![], "python"),
+        [(0, CommentKind::ToolDirective), (7, CommentKind::Ordinary)]
+    );
 }

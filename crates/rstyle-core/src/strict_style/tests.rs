@@ -115,7 +115,13 @@ fn a_project_says_how_many_statements_need_a_blank_line() {
 #[test]
 fn no_comments_is_opt_in_and_reports_source_lines() {
     let mut f = sample("commented");
-    f.comment_lines = vec![4, 7];
+    f.comments = [4, 7]
+        .into_iter()
+        .map(|line| crate::facts::SourceComment {
+            line,
+            kind: CommentKind::Ordinary,
+        })
+        .collect();
     let mut cfg = Config::default();
     assert!(no_comments(&f, &cfg).is_empty());
     cfg.strict_style.no_comments.enabled = true;
@@ -124,6 +130,38 @@ fn no_comments_is_opt_in_and_reports_source_lines() {
     assert_eq!(found[0].rule_id, "no_comments");
     assert_eq!((found[0].actual, found[0].limit), (2, 0));
     assert_eq!(found[0].details[0].lines, [4, 7]);
-    f.comment_lines.clear();
+    f.comments.clear();
     assert!(no_comments(&f, &cfg).is_empty());
+}
+
+#[test]
+fn comment_exceptions_are_independent_and_default_to_allowed() {
+    let mut f = sample("comments");
+    f.comments = [
+        CommentKind::Ordinary,
+        CommentKind::Documentation,
+        CommentKind::ToolDirective,
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(index, kind)| crate::facts::SourceComment {
+        line: index + 2,
+        kind,
+    })
+    .collect();
+    for (docs, directives, expected) in [
+        (true, true, vec![2]),
+        (false, true, vec![2, 3]),
+        (true, false, vec![2, 4]),
+        (false, false, vec![2, 3, 4]),
+    ] {
+        let mut cfg = Config::default();
+        cfg.strict_style.no_comments = crate::config::NoCommentsConfig {
+            enabled: true,
+            allow_doc_comments: docs,
+            allow_tool_directives: directives,
+        };
+        let found = no_comments(&f, &cfg);
+        assert_eq!(found[0].details[0].lines, expected);
+    }
 }

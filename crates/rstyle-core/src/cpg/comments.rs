@@ -1,8 +1,9 @@
-//! Ordinary comments in captured function source. Literal spans come from the compiler,
+//! Comment categories in captured function source. Literal spans come from the compiler,
 //! so raw strings, escapes and comment markers in strings need no second language lexer.
 
 use super::model::{Function, NodeKind};
 use super::source::Sources;
+use crate::facts::{CommentKind, SourceComment};
 use std::ops::Range;
 
 const DIRECTIVES: &[&str] = &[
@@ -30,7 +31,7 @@ pub fn lines(
     function: &Function,
     sources: &Sources<'_>,
     language: &str,
-) -> Result<Vec<usize>, String> {
+) -> Result<Vec<SourceComment>, String> {
     if !matches!(
         language,
         "rust" | "go" | "cxx" | "cpp" | "c++" | "py" | "python"
@@ -63,17 +64,18 @@ pub fn lines(
     let first_line = sources.location(span)?.0;
     Ok(scan(source, literals, language)
         .into_iter()
-        .map(|offset| {
-            first_line
+        .map(|(offset, kind)| SourceComment {
+            line: first_line
                 + source[..offset]
                     .bytes()
                     .filter(|byte| *byte == b'\n')
-                    .count()
+                    .count(),
+            kind,
         })
         .collect())
 }
 
-fn scan(source: &str, literals: Vec<Range<usize>>, language: &str) -> Vec<usize> {
+fn scan(source: &str, literals: Vec<Range<usize>>, language: &str) -> Vec<(usize, CommentKind)> {
     let mut slot = 0;
     let python = matches!(language, "py" | "python");
     let mut found = Vec::new();
@@ -84,10 +86,8 @@ fn scan(source: &str, literals: Vec<Range<usize>>, language: &str) -> Vec<usize>
         }
         let next = if let Some(span) = literals.get(slot).filter(|span| span.start <= at) {
             span.end
-        } else if let Some((end, ordinary)) = comment_at(source, at, python, language == "rust") {
-            if ordinary {
-                found.push(at);
-            }
+        } else if let Some((end, kind)) = comment_at(source, at, python, language == "rust") {
+            found.push((at, kind));
             end
         } else {
             at + 1
@@ -97,8 +97,8 @@ fn scan(source: &str, literals: Vec<Range<usize>>, language: &str) -> Vec<usize>
     found
 }
 
-/// End of a comment at this offset, and whether policy treats it as ordinary.
-fn comment_at(source: &str, at: usize, python: bool, nested: bool) -> Option<(usize, bool)> {
+/// End and syntax category of a comment at this offset.
+fn comment_at(source: &str, at: usize, python: bool, nested: bool) -> Option<(usize, CommentKind)> {
     let rest = &source.as_bytes()[at..];
     let width = if python && rest.starts_with(b"#") {
         1
@@ -114,7 +114,14 @@ fn comment_at(source: &str, at: usize, python: bool, nested: bool) -> Option<(us
         source[at..].find('\n').map_or(source.len(), |end| at + end)
     };
     let text = &source[at + width..end];
-    Some((end, !documentation(text, block, python) && !directive(text)))
+    let kind = if documentation(text, block, python) {
+        CommentKind::Documentation
+    } else if directive(text) {
+        CommentKind::ToolDirective
+    } else {
+        CommentKind::Ordinary
+    };
+    Some((end, kind))
 }
 
 fn documentation(text: &str, block: bool, python: bool) -> bool {

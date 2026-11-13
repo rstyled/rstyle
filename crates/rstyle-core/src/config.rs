@@ -98,11 +98,23 @@ impl Default for FnSpacingConfig {
     }
 }
 
-/// Ordinary comments in captured function source; documentation and tool directives stay allowed.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+/// Comments in captured function source, with explicit exceptions.
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct NoCommentsConfig {
     pub enabled: bool,
+    pub allow_doc_comments: bool,
+    pub allow_tool_directives: bool,
+}
+
+impl Default for NoCommentsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            allow_doc_comments: true,
+            allow_tool_directives: true,
+        }
+    }
 }
 
 impl NoCommentsConfig {
@@ -1108,6 +1120,11 @@ mod no_comments_tests {
         assert!(!Config::parse("").unwrap().strict_style.no_comments.enabled);
         let on = Config::parse("[strict_style.no_comments]\nenabled = true").unwrap();
         assert!(on.strict_style.no_comments.enabled);
+        assert!(on.strict_style.no_comments.allow_doc_comments);
+        assert!(on.strict_style.no_comments.allow_tool_directives);
+        let changed = Config::parse("[strict_style.no_comments]\nenabled = true\nallow_doc_comments = false\nallow_tool_directives = false").unwrap();
+        assert!(!changed.strict_style.no_comments.allow_doc_comments);
+        assert!(!changed.strict_style.no_comments.allow_tool_directives);
         let policy = serde_json::to_value(on).unwrap();
         assert_eq!(policy["strict_style"]["no_comments"]["enabled"], true);
         assert!(Config::parse("[strict_style.no_comments]\nenable = true").is_err());
