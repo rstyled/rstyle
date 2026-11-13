@@ -50,6 +50,8 @@ pub struct DeclaredSignature {
     pub generics: Vec<String>,
     pub has_self: bool,
     pub modifiers: Vec<String>,
+    /// The signature as written, on one line.
+    pub text: String,
 }
 
 /// What can be measured of a function.
@@ -98,6 +100,8 @@ pub struct Record {
     pub graph: Option<Pdg>,
     pub bounds: Option<Input>,
     pub flow: Option<Derived>,
+    /// With flow: where the error it returns can come from, when it returns one.
+    pub failures: Option<Vec<super::failures::Failure>>,
     pub defects: Option<Examined>,
     /// The language says the function's file holds tests.
     pub test: bool,
@@ -166,9 +170,11 @@ impl Record {
                 generics: Vec::new(),
                 has_self: false,
                 modifiers: Vec::new(),
+                text: String::new(),
             },
             signature_shapes: Vec::new(),
             known_values: Vec::new(),
+            failures: None,
             ..self
         }
     }
@@ -385,6 +391,9 @@ fn record(
         Measured::Known(facts) | Measured::Body(facts) => facts.pdg.take(),
         _ => None,
     };
+    let failures = flow
+        .as_ref()
+        .and_then(|flow| super::failures::of(function, flow, tables));
 
     Ok(Record {
         function: function.id.clone(),
@@ -400,6 +409,7 @@ fn record(
         graph,
         bounds,
         flow,
+        failures,
         defects,
         test: false,
         syntax_gap: None,
@@ -563,6 +573,7 @@ fn signature(
         generics: generics(signature.generics.as_slice(), function),
         has_self: signature.receiver.is_some(),
         modifiers: signature.modifiers.clone(),
+        text: super::shapes::collapse_whitespace(&text.spelling(Some(&signature.span))),
     })
 }
 

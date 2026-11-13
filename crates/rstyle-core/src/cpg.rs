@@ -10,6 +10,7 @@ mod dependence;
 mod effects;
 mod events;
 mod facts;
+pub mod failures;
 pub mod flow;
 pub mod layout;
 mod metrics;
@@ -123,6 +124,8 @@ pub fn authored(record: records::Record) -> Option<FnFacts> {
 mod body_tests;
 #[cfg(test)]
 mod dependence_tests;
+#[cfg(test)]
+mod failures_tests;
 #[cfg(test)]
 mod flow_tests;
 #[cfg(test)]

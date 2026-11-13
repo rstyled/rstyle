@@ -98,11 +98,22 @@ has no tokens to read around one.
 `--format json` keeps every reason, with `risk`, `policy_configured` and `schema_version`. The text gives what can't be seen
 by kind, and each function's lines say which.
 
-`--markdown` writes the report for a pull request's description. Under the rating, each check above low says what it
-found, and the callees it names. Each check is one of the rules above, so the rating is the worst check. Two folds follow:
-**At a glance**, a table of impact, signatures, calls, effects and coverage, and every changed function in a table per
-file, with what changed in it and how many functions use it, directly and through others. Library calls nothing
-classifies are counted by callee, the most first, and files changed outside any function are listed last.
+`--markdown` writes the report for a pull request's description. Under the rating, each rule above low says what it
+found, and the callees it names. The rating is the worst of them. Then each check a reviewer reads is one line, a status
+and what it found, that opens to every item behind it, each linked to its line in the diff:
+
+| Check | ✅ | 👀 | ❓ |
+| --- | --- | --- | --- |
+| **Changed** | 5 production files or fewer | More than 5: few such changes still revert cleanly a week later | A function's tree isn't all of it, or code changed outside any function or in generated code |
+| **Errors** | No function fails in new ways or stops failing | A function can fail with a new message, call or variable, or no longer can | A function fails through a call it can't follow, such as a function value |
+| **Signatures** | None changed | One changed, before and after, with its callers | |
+| **Effects** | None gained or lost, or they only moved between functions | A function gained or lost a known effect, or a new one does io, network, global state or unsafe code | A gained effect nothing classifies |
+| **Calls** | No library call added, or none with an effect | A new library call with an effect | A new library call nothing classifies |
+
+A check that can't see something says ❓, never ✅, and one with nothing to report says what it looked at. **Errors**
+follows each `return` back through the reaching definitions of the function's flow to where its error is made: a
+constructor's message, a call, or a variable. It follows calls into the codebase, so a function that wraps another's
+change says so on that one's line. Only Go's errors are read so far, and other languages leave the check out.
 
 `--pull-request-url` links files and functions to the PR's Changes tab, such as
 `https://github.com/OWNER/REPO/pull/123/files`. Pass the PR URL with or without `/files`.
