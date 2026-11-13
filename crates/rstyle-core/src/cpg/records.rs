@@ -146,6 +146,33 @@ pub fn canonical_order(records: &mut [Record]) {
 }
 
 impl Record {
+    /// Drops what only a merge-risk comparison reads (where the function is written, its text,
+    /// its declared signature, the shapes and the known values), for a run whose records go to
+    /// the analyses alone. None of their reports reads these.
+    pub fn without_review_fields(self) -> Self {
+        Self {
+            located: FileSpan {
+                file: String::new(),
+                ..self.located
+            },
+            source: String::new(),
+            signature: DeclaredSignature {
+                parameters: Vec::new(),
+                result: DeclaredType {
+                    normalized: None,
+                    observed: String::new(),
+                    spelling: String::new(),
+                },
+                generics: Vec::new(),
+                has_self: false,
+                modifiers: Vec::new(),
+            },
+            signature_shapes: Vec::new(),
+            known_values: Vec::new(),
+            ..self
+        }
+    }
+
     /// Where this record sorts in a run, whatever order its documents arrived in.
     pub fn canonical_key(&self) -> (&str, &str, &str, &str) {
         (
@@ -155,7 +182,21 @@ impl Record {
             &self.root,
         )
     }
+
+    /// `canonical_key`, owned, to keep after the record is gone.
+    pub fn owned_canonical_key(&self) -> CanonicalKey {
+        let (compilation, identity, function, root) = self.canonical_key();
+        (
+            compilation.into(),
+            identity.into(),
+            function.into(),
+            root.into(),
+        )
+    }
 }
+
+/// Where a record sorts in a run: its compilation, identity, function and root.
+pub type CanonicalKey = (String, String, String, String);
 
 /// Every function of a bundled document, in document order. A document that cannot be
 /// read in full is refused, as a run from another frontend must be.

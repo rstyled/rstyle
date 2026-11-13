@@ -13,10 +13,12 @@ use clap::Args;
 use frontend::{AnalysisPaths, Frontend, Saving};
 pub(crate) use risk::{RiskArgs, risk};
 use rstyle_core::config::{Config, Excludes};
+use rstyle_core::cpg::OnRecords;
 use rstyle_core::cpg::records::{Demand, Record};
 use rstyle_core::cpg::transport::{self, DOCUMENTS_MANIFEST, Encoding};
 use rstyle_core::exclusions;
 use rstyle_core::filter::{Analysis, Filter};
+use rstyle_core::unified::Early;
 use rstyle_core::{patterns_report, unified};
 use serde::{Deserialize, Serialize};
 use std::ffi::OsString;
@@ -326,13 +328,14 @@ fn from_frontend(
     let plan = Plan::new((cli, args), (filter, language), (source, project))?;
     let staged = Staged::new(args.destination(&plan.project, language)?)?;
     let frontend = frontend.excluding(&plan.config.exclude.0);
+    let early = Early::new(&plan.filter, &plan.config)?;
 
     let (records, documents) =
         match plan.filter.needs_documents() || frontend.reads_documents(&local) {
-            true => frontend_records(&plan, &frontend, &staged)?,
+            true => frontend_records(&plan, &frontend, &staged, &early)?,
             false => (Vec::new(), 0),
         };
-    let mut unified = plan.analyzed(records)?;
+    let mut unified = plan.analyzed(records, Some(early))?;
     if !local.is_empty() {
         let paths = AnalysisPaths {
             source: &plan.source,
@@ -350,13 +353,15 @@ fn frontend_records(
     plan: &Plan<'_>,
     frontend: &Frontend,
     staged: &Staged,
+    early: &Early,
 ) -> Result<(Vec<Record>, usize), String> {
     let directory = staged.folder(DOCUMENTS_FOLDER)?;
     let saving = Saving {
         directory: &directory,
         encoding: plan.cli.cpg_compression,
     };
-    let streamed = frontend.stream(&plan.source, plan.filter.demand(), &saving)?;
+    let take = |records: Vec<Record>| early.take(records);
+    let streamed = frontend.stream(&plan.source, (plan.filter.demand(), &take), &saving)?;
     Ok((streamed.records, streamed.documents))
 }
 
@@ -377,9 +382,10 @@ pub(crate) fn rust(cli: &Cli, args: &RunArgs) -> Result<(String, u8), String> {
     // The driver compiles every file, and core leaves out what's excluded.
     let plan = Plan::new((cli, args), (filter, "rust"), (root.clone(), root))?;
     let staged = Staged::new(args.destination(&plan.project, "rust")?)?;
+    let early = Early::new(&plan.filter, &plan.config)?;
 
-    let (records, documents) = rust_records(&plan, &staged)?;
-    let unified = plan.analyzed(records)?;
+    let (records, documents) = rust_records(&plan, &staged, &early)?;
+    let unified = plan.analyzed(records, Some(early))?;
     let run = plan.save(&unified, staged, documents)?;
     plan.output(&unified, Some(&run))
 }
@@ -387,7 +393,11 @@ pub(crate) fn rust(cli: &Cli, args: &RunArgs) -> Result<(String, u8), String> {
 /// Reads the capture `cargo rstyle` and `patterns` share, so only what changed compiles, and
 /// keeps its documents with the run.
 // rstyle-allow(side_effect_density): process boundary: runs the compiler and reads what it wrote
-fn rust_records(plan: &Plan<'_>, staged: &Staged) -> Result<(Vec<Record>, usize), String> {
+fn rust_records(
+    plan: &Plan<'_>,
+    staged: &Staged,
+    early: &Early,
+) -> Result<(Vec<Record>, usize), String> {
     if !plan.filter.needs_documents() {
         return Ok((Vec::new(), 0));
     }
@@ -399,7 +409,8 @@ fn rust_records(plan: &Plan<'_>, staged: &Staged) -> Result<(Vec<Record>, usize)
             .iter()
             .map(|seal| (unit.directory.as_path(), seal))
     });
-    let records = input::sealed_records(seals, plan.filter.demand())?;
+    let records =
+        input::sealed_records(seals, plan.filter.demand(), &|records| early.take(records))?;
     Ok((records, documents))
 }
 
@@ -420,9 +431,11 @@ fn saved(
     let mut plan = Plan::new((cli, args), (filter, language), (source.clone(), source))?;
     let recorded = record.as_ref().and_then(|record| record.exclude.as_deref());
     plan.config.exclude_also(recorded.unwrap_or_default());
+    let early = Early::new(&plan.filter, &plan.config)?;
 
-    let records = saved_records(from, record.as_ref(), plan.filter.demand())?;
-    let mut unified = plan.analyzed(records)?;
+    let take = |records: Vec<Record>| early.take(records);
+    let records = saved_records(from, record.as_ref(), (plan.filter.demand(), &take))?;
+    let mut unified = plan.analyzed(records, Some(early))?;
     let documents = documents_folder(from);
     match &args.out {
         Some(out) => {
@@ -536,21 +549,22 @@ fn read_any_record(from: &Path) -> Result<Option<RunRecord>, String> {
 fn saved_records(
     from: &Path,
     record: Option<&RunRecord>,
-    demand: Demand,
+    (demand, take): (Demand, OnRecords<'_>),
 ) -> Result<Vec<Record>, String> {
-    seen_saved_records((from, record), demand, &|_| {})
+    seen_saved_records((from, record), demand, (&|_| {}, take))
 }
 
-/// A saved run's records, with each document shown to `see` as it's read.
+/// A saved run's records, with each document shown to `see` as it's read and its records handed
+/// to `take`.
 // rstyle-allow(side_effect_density): IO boundary: reads a saved run's documents
 fn seen_saved_records(
     (from, record): (&Path, Option<&RunRecord>),
     demand: Demand,
-    see: input::See<'_>,
+    (see, take): (input::See<'_>, OnRecords<'_>),
 ) -> Result<Vec<Record>, String> {
     let directory = documents_folder(from);
     if directory.join(DOCUMENTS_MANIFEST).exists() {
-        return input::seen_capture_records(&directory, demand, see);
+        return input::seen_capture_records(&directory, demand, (see, take));
     }
 
     let paths = cpg::documents(&directory)?;
@@ -565,7 +579,7 @@ fn seen_saved_records(
     if paths.is_empty() {
         return Err(format!("{} holds no documents", from.display()));
     }
-    input::seen_file_records(&paths, demand, see)
+    input::seen_file_records(&paths, demand, (see, take))
 }
 
 /// Where a saved run keeps its documents, or the folder itself if it holds them directly.
@@ -604,9 +618,10 @@ impl<'a> Plan<'a> {
 
 impl Plan<'_> {
     // rstyle-allow(side_effect_density): IO boundary: loads the ledger
-    fn analyzed(&self, records: Vec<Record>) -> Result<Unified, String> {
+    fn analyzed(&self, records: Vec<Record>, early: Option<Early>) -> Result<Unified, String> {
         let options = self.pattern_options()?;
-        let analyses = unified::analyze(records, &self.filter, &self.config, &options)?;
+        let analyses =
+            unified::analyze_taking(records, (&self.filter, &self.config, &options), early)?;
 
         let mut unified = Unified::from(analyses);
         unified.exclude = self.config.exclude.0.clone();

@@ -320,6 +320,34 @@ fn a_call_read_in_two_compilations_counts_once() {
 }
 
 #[test]
+fn defects_folded_in_any_order_report_what_canonical_order_does() {
+    // The same calls in two compilations, and only the test harness's copy allows the drop:
+    // canonical order keeps that copy's call sites, so the drop is suppressed.
+    let mut harness = document_with_calls(&nine_uses_and_a_drop());
+    harness["unit"]["id"] = json!("unit:example-tests");
+    let library = records(vec![document_with_calls(&nine_uses_and_a_drop())]);
+    let mut tests = records(vec![harness]);
+    for record in &mut tests {
+        if let Measured::Known(facts) = &mut record.measured {
+            facts.preceding_line = "// rstyle-allow(ignored_result): best effort".into();
+        }
+    }
+    let config = Config::default();
+    let mut canonical: Vec<Record> = library.iter().chain(&tests).cloned().collect();
+    crate::cpg::records::canonical_order(&mut canonical);
+    let expected = from_records(&mut canonical, &config).unwrap();
+    assert_eq!(expected.suppressed, 1, "{expected:?}");
+
+    let (mut library, mut tests) = (library, tests);
+    let mut fold = DefectsFold::new(&config).unwrap();
+    fold.add(&mut tests);
+    fold.add(&mut library);
+    let folded = fold.into_report(&config);
+    assert_eq!(folded.defects, expected.defects);
+    assert_eq!(folded.suppressed, expected.suppressed);
+}
+
+#[test]
 fn an_allow_comment_covers_a_dropped_result_and_it_still_counts_the_rest() {
     let mut records = records(vec![document_with_calls(&nine_uses_and_a_drop())]);
     let Measured::Known(facts) = &mut records[0].measured else {
@@ -469,6 +497,43 @@ fn a_function_compiled_twice_reports_its_flow_once() {
     compiled_twice.extend(records(vec![document()]));
     let twice = from_records(&mut compiled_twice, &Config::default()).unwrap();
     assert_eq!(once.defects, twice.defects);
+}
+
+#[test]
+fn flows_folded_in_any_order_keep_the_copy_canonical_order_does() {
+    // The same function in two compilations; only the copy canonical order reads first allows
+    // the taint rule, so its flows decide the report.
+    let document = || -> Value {
+        serde_json::from_str(include_str!("../cpg/testdata/taint-go.cpg.json")).unwrap()
+    };
+    // Another compilation: its definitions say which one they belong to.
+    let mut other = document();
+    for definition in other["unit"]["definitions"].as_array_mut().unwrap() {
+        if let Some(compilation) = definition["compilation"].as_str() {
+            definition["compilation"] = json!(format!("{compilation}-tests"));
+        }
+    }
+    let (mut first, mut second) = (records(vec![document()]), records(vec![other]));
+    if first[0].canonical_key() > second[0].canonical_key() {
+        std::mem::swap(&mut first, &mut second);
+    }
+    for record in &mut first {
+        if let Measured::Known(facts) = &mut record.measured {
+            facts.preceding_line = format!("// rstyle-allow({}): fixture", taint::RULE);
+        }
+    }
+    let config = Config::default();
+    let mut canonical: Vec<Record> = first.iter().chain(&second).cloned().collect();
+    crate::cpg::records::canonical_order(&mut canonical);
+    let expected = from_records(&mut canonical, &config).unwrap();
+    assert!(expected.suppressed > 0, "{expected:?}");
+
+    let mut fold = DefectsFold::new(&config).unwrap();
+    fold.add(&mut second);
+    fold.add(&mut first);
+    let folded = fold.into_report(&config);
+    assert_eq!(folded.defects, expected.defects);
+    assert_eq!(folded.suppressed, expected.suppressed);
 }
 
 #[test]

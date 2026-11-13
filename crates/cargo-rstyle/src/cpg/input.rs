@@ -2,7 +2,7 @@
 use super::receipt::{Receipt, TransportProgress};
 use crate::{CpgInputArgs, CpgReceiveArgs, Format};
 use rstyle_core::cpg::{
-    self, Pool,
+    self, OnRecords, Pool, keep_records,
     records::{Demand, Record},
     transport::{self, CaptureReader, DocumentManifest, Encoding, SealedDocument, SequenceReader},
 };
@@ -100,6 +100,7 @@ fn pooled_session<R: BufRead>(
         demand,
         on_failure: &|| {},
         store: None,
+        on_records: &keep_records,
     };
     let result = stream_records(&mut reader, &stream);
     let progress = TransportProgress::Stream(reader.progress());
@@ -111,6 +112,8 @@ pub(crate) struct Stream<'a> {
     pub demand: Demand,
     pub on_failure: &'a (dyn Fn() + Sync),
     pub store: Option<Store<'a>>,
+    /// Given each document's records as the pool derives them.
+    pub on_records: OnRecords<'a>,
 }
 
 /// Where the received bytes are also sealed, so a frontend needs no storage code of its own.
@@ -160,6 +163,7 @@ pub(crate) fn stream_records<R: BufRead>(
         demand: stream.demand,
         on_failure: stream.on_failure,
         on_document: &|_| {},
+        on_records: stream.on_records,
     };
     let jobs = std::iter::from_fn(|| reader.next_bytes().transpose());
     let records = cpg::pooled_records(jobs, load, &pool)?;
@@ -176,13 +180,14 @@ pub(crate) fn stream_records<R: BufRead>(
 fn records_on_disk<J: Send>(
     jobs: impl IntoIterator<Item = J>,
     read: impl Fn(J) -> Result<serde_json::Value, String> + Sync,
-    (demand, see): (Demand, See<'_>),
+    (demand, see, take): (Demand, See<'_>, OnRecords<'_>),
 ) -> Result<Vec<Record>, String> {
     let pool = Pool {
         workers: workers(),
         demand,
         on_failure: &|| {},
         on_document: see,
+        on_records: take,
     };
     let jobs = jobs.into_iter().map(Ok);
     cpg::pooled_records(jobs, |_, job| read(job), &pool)
@@ -193,16 +198,16 @@ pub(crate) type See<'a> = &'a (dyn Fn(&rstyle_core::cpg::model::Document) + Sync
 
 /// Every record of explicitly listed documents.
 pub(crate) fn file_records(paths: &[PathBuf], demand: Demand) -> Result<Vec<Record>, String> {
-    seen_file_records(paths, demand, &|_| {})
+    seen_file_records(paths, demand, (&|_| {}, &keep_records))
 }
 
-/// Every record of explicitly listed documents, each one shown to `see`.
+/// Every record of explicitly listed documents, each one shown to `see` and handed to `take`.
 pub(crate) fn seen_file_records(
     paths: &[PathBuf],
     demand: Demand,
-    see: See<'_>,
+    (see, take): (See<'_>, OnRecords<'_>),
 ) -> Result<Vec<Record>, String> {
-    records_on_disk(paths, |path| super::read(path), (demand, see))
+    records_on_disk(paths, |path| super::read(path), (demand, see, take))
 }
 
 /// Every record of a sealed capture, each document verified against its seal on a worker and
@@ -211,33 +216,34 @@ pub(crate) fn seen_file_records(
 pub(crate) fn seen_capture_records(
     directory: &Path,
     demand: Demand,
-    see: See<'_>,
+    (see, take): (See<'_>, OnRecords<'_>),
 ) -> Result<Vec<Record>, String> {
     let manifest = DocumentManifest::read(&transport::read_manifest_bytes(directory)?)?;
     if manifest.documents.is_empty() {
         return Err("A completed capture must contain at least one document".into());
     }
     let seals = manifest.documents.iter().map(|seal| (directory, seal));
-    seen_sealed_records(seals, demand, see)
+    seen_sealed_records(seals, demand, (see, take))
 }
 
 /// Every record of these sealed documents, wherever each one is, read on one pool.
 pub(crate) fn sealed_records<'a>(
     seals: impl IntoIterator<Item = (&'a Path, &'a SealedDocument)>,
     demand: Demand,
+    take: OnRecords<'_>,
 ) -> Result<Vec<Record>, String> {
-    seen_sealed_records(seals, demand, &|_| {})
+    seen_sealed_records(seals, demand, (&|_| {}, take))
 }
 
 fn seen_sealed_records<'a>(
     seals: impl IntoIterator<Item = (&'a Path, &'a SealedDocument)>,
     demand: Demand,
-    see: See<'_>,
+    (see, take): (See<'_>, OnRecords<'_>),
 ) -> Result<Vec<Record>, String> {
     let read = |(directory, seal): (&Path, &SealedDocument)| {
         transport::read_sealed(directory, seal).map_err(|error| format!("{}: {error}", seal.file))
     };
-    records_on_disk(seals, read, (demand, see))
+    records_on_disk(seals, read, (demand, see, take))
 }
 
 pub(super) fn receive(args: &CpgReceiveArgs, format: Format) -> Result<(String, u8), String> {

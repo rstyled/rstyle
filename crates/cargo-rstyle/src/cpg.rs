@@ -101,6 +101,7 @@ pub fn flow(args: &CpgFlowArgs, format: Format) -> Result<(String, u8), String> 
     let mut records = received.records;
     let functions = FlowReport {
         functions: take_flow(&mut records, args.function.as_deref()),
+        spilled: None,
     };
     let output = match format {
         Format::Text => receipt::text(flow_text(&functions.functions), &received.receipt),

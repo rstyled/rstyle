@@ -6,7 +6,7 @@ use super::model::{
     AccessMode, Coverage, Declarations, Function, NodeKind, Origin, PlaceMode, Status,
 };
 use crate::wording::{Message, Wording};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 /// A vertex's position in its flow.
@@ -558,7 +558,7 @@ fn fixed_point(
 }
 
 /// How far a function's derived graph can be relied on.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Standing {
     /// Follows from what the frontend recorded.
@@ -570,50 +570,50 @@ pub enum Standing {
 }
 
 /// A data edge: the write at `source` can be what the read at `target` sees.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DataEdge {
     pub source: String,
     pub target: String,
     pub symbol: String,
     /// The symbol can also change through a borrow or a capture, which no edge shows.
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub approximate: bool,
 }
 
 /// A control edge: `target` runs because the branch at `source` went this way.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ControlEdge {
     pub source: String,
     pub target: String,
     pub kind: String,
     /// Holds only because a loop between them might never finish; a target that
     /// post-dominates the branch otherwise.
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub termination: bool,
 }
 
 /// An execution edge: `source` is the nearest operation that always runs before `target`.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionEdge {
     pub source: String,
     pub target: String,
 }
 
 /// A function's derived flow facts, in terms of the node IDs of its document.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Derived {
     pub standing: Standing,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reasons: Vec<String>,
     /// What the frontend leaves out of every function's flow.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub assumptions: Vec<String>,
     /// Each reached vertex and its immediate dominator.
     pub dominators: BTreeMap<String, String>,
     /// Each reached vertex and its immediate post-dominator, when one is not the virtual exit.
     pub post_dominators: BTreeMap<String, String>,
     /// Absent when the frontend records no accesses.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data: Option<Vec<DataEdge>>,
     pub control: Vec<ControlEdge>,
     pub execution: Vec<ExecutionEdge>,
