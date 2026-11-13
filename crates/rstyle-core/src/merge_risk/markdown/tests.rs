@@ -253,6 +253,35 @@ fn calls_a_removed_function_made_read_as_one_line() {
 }
 
 #[test]
+fn a_call_a_changed_function_drops_reads_as_removed_from_it() {
+    let mut save = change("save", ChangeKind::Changed, 4);
+    save.calls_removed = vec!["go::os.WriteFile".into()];
+    let markdown = report(Level::Low, Vec::new(), vec![save]).markdown(None);
+    assert!(
+        markdown.contains("✅ <b>Calls</b>: 1 removed</summary>"),
+        "{markdown}"
+    );
+    let calls = fold(&markdown, "Calls");
+    assert!(
+        calls.contains("- removed: `os.WriteFile` in `save`"),
+        "{calls}"
+    );
+}
+
+#[test]
+fn a_signature_change_with_no_text_still_says_it_changed() {
+    let mut open = change("open", ChangeKind::Changed, 12);
+    open.signature_changed = true;
+    open.callers = 3;
+    let markdown = report(Level::Low, Vec::new(), vec![open]).markdown(None);
+    let signatures = fold(&markdown, "Signatures");
+    assert!(
+        signatures.contains("- `open`: signature changed (3 callers)"),
+        "{signatures}"
+    );
+}
+
+#[test]
 fn over_five_files_reads_as_one_to_look_at() {
     let small = report(Level::Low, Vec::new(), files(5)).markdown(None);
     assert!(
@@ -273,6 +302,7 @@ fn what_it_cannot_see_leaves_changed_unknown_and_listed() {
     ];
     let mut unseen = report(Level::Unknown, Vec::new(), changes);
     unseen.changed_outside_functions = vec!["params/config.go".into()];
+    unseen.not_compared_changed = 1;
     let markdown = unseen.markdown(Some(URL));
 
     let changed = fold(&markdown, "Changed");
@@ -285,6 +315,9 @@ fn what_it_cannot_see_leaves_changed_unknown_and_listed() {
          changed outside any function"
     );
     assert!(changed.contains(&outside), "{changed}");
+    let generated =
+        "- 1 generated function changed, which a macro or a build writes and nothing compares";
+    assert!(changed.contains(generated), "{changed}");
     assert!(
         markdown.contains("✅ <b>Signatures</b>: none changed"),
         "{markdown}"
@@ -308,6 +341,18 @@ fn an_effect_that_moved_under_a_new_name_is_neither_gained_nor_lost() {
     );
     let moved = "- mutation `typed` moved from `addPackage` to `(loadedFiles).add` as `f.typed`";
     assert!(effects.contains(moved), "{effects}");
+}
+
+#[test]
+fn an_effect_renamed_within_one_function_is_neither_gained_nor_lost() {
+    let mut add = change("add", ChangeKind::Changed, 5);
+    add.effects_lost = vec![effect("mutation", "typed")];
+    add.effects_gained = vec![effect("mutation", "f.typed")];
+    let markdown = report(Level::Low, Vec::new(), vec![add]).markdown(None);
+    assert!(
+        markdown.contains("✅ <b>Effects</b>: none gained or lost"),
+        "{markdown}"
+    );
 }
 
 #[test]
@@ -376,7 +421,8 @@ fn errors_say_where_a_change_is_made_and_who_passes_it_on() {
     assert!(errors.contains(line), "{errors}");
 }
 
-fn untraceable(name: &str, gained: Vec<Source>) -> ErrorChange {
+/// A function whose errors changed, which can now also come from `gained`.
+fn error_change(name: &str, gained: Vec<Source>) -> ErrorChange {
     ErrorChange {
         function: format!("go::example.com/errs.{name}"),
         name: name.into(),
@@ -394,7 +440,7 @@ fn a_function_that_newly_fails_through_a_function_value_reads_unknown() {
     report.errors = Errors {
         traced: true,
         followed: 1,
-        changed: vec![untraceable("Each", vec![Source::Unknown])],
+        changed: vec![error_change("Each", vec![Source::Unknown])],
         untraced: Vec::new(),
     };
     let markdown = report.markdown(None);
@@ -408,13 +454,36 @@ fn a_function_that_newly_fails_through_a_function_value_reads_unknown() {
 }
 
 #[test]
+fn errors_say_what_changed_then_what_newly_can_t_be_followed() {
+    let mut report = report(Level::Low, Vec::new(), Vec::new());
+    report.errors = Errors {
+        traced: true,
+        followed: 2,
+        changed: vec![
+            error_change("open", vec![Source::Call("go::os.Open".into())]),
+            error_change("Each", vec![Source::Unknown]),
+        ],
+        untraced: Vec::new(),
+    };
+    let markdown = report.markdown(None);
+
+    let summary =
+        "👀 <b>Errors</b>: 1 function fails differently, 1 more it can't follow</summary>";
+    assert!(markdown.contains(summary), "{markdown}");
+    let errors = fold(&markdown, "Errors");
+    let items = "- `open` can now fail with an error from `os.Open`\n\
+        - `Each` can now also fail through a call it can't follow, such as a function value";
+    assert!(errors.contains(items), "{errors}");
+}
+
+#[test]
 fn no_change_seen_is_unknown_when_a_changed_function_can_t_be_followed() {
     let mut report = report(Level::Low, Vec::new(), Vec::new());
     report.errors = Errors {
         traced: true,
         followed: 1,
         changed: Vec::new(),
-        untraced: vec![untraceable("Each", Vec::new())],
+        untraced: vec![error_change("Each", Vec::new())],
     };
     let markdown = report.markdown(None);
 
@@ -438,6 +507,23 @@ fn errors_that_all_trace_and_didn_t_change_read_fine() {
 
     let item = "- followed every error the 2 changed functions can return back to where it's made; \
         none was added or dropped";
+    assert!(
+        markdown.contains("✅ <b>Errors</b>: no function fails in new ways or stops failing"),
+        "{markdown}"
+    );
+    assert!(fold(&markdown, "Errors").contains(item), "{markdown}");
+}
+
+#[test]
+fn errors_read_fine_when_no_changed_function_returns_one() {
+    let mut report = report(Level::Low, Vec::new(), Vec::new());
+    report.errors = Errors {
+        traced: true,
+        ..Errors::default()
+    };
+    let markdown = report.markdown(None);
+
+    let item = "- no changed function returns an error, and no other function's errors changed";
     assert!(
         markdown.contains("✅ <b>Errors</b>: no function fails in new ways or stops failing"),
         "{markdown}"

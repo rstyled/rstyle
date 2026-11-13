@@ -211,7 +211,23 @@ fn function_link(change: &ErrorChange, files: &BTreeSet<&str>, links: &Links) ->
 
 #[cfg(test)]
 mod tests {
-    use super::readable_message;
+    use super::{Source, readable_message, source_text};
+
+    #[test]
+    fn each_source_reads_as_a_reviewer_meets_it() {
+        let read = |source| source_text(&source);
+        assert_eq!(
+            read(Source::Message(String::new())),
+            "an error with a computed message"
+        );
+        assert_eq!(read(Source::Message("no name".into())), "\"no name\"");
+        assert_eq!(
+            read(Source::Call("go::os.Open".into())),
+            "an error from `os.Open`"
+        );
+        assert_eq!(read(Source::Variable("go::io.EOF".into())), "`io.EOF`");
+        assert_eq!(read(Source::Unknown), "an error it can't trace");
+    }
 
     #[test]
     fn a_message_reads_its_verbs_as_an_ellipsis_and_keeps_a_literal_percent() {

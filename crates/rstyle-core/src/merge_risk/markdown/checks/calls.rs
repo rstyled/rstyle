@@ -18,6 +18,17 @@ enum Does {
     Nothing,
 }
 
+impl Does {
+    /// What a new call's line says it does.
+    fn label(self) -> &'static str {
+        match self {
+            Self::Effect(kind) => kind,
+            Self::Unknown => "effect unknown",
+            Self::Nothing => "no effect",
+        }
+    }
+}
+
 pub(in super::super) fn calls(report: &ChangeReport, links: &Links) -> Check {
     let (gained, lost) = library_calls(report);
     if gained.is_empty() && lost.is_empty() {
@@ -39,25 +50,21 @@ pub(in super::super) fn calls(report: &ChangeReport, links: &Links) -> Check {
     let unknown = of(|found| found == Does::Unknown);
     let quiet = of(|found| found == Does::Nothing);
 
-    let said = |calls: &Calls<'_>, label: &dyn Fn(&String) -> String| -> Vec<String> {
+    let said = |calls: &Calls<'_>| -> Vec<String> {
         let items = calls.iter().map(|(callee, owner)| {
             format!(
                 "new, {}: {} in {}",
-                label(callee),
+                does(callee).label(),
                 shown(callee),
                 place(owner, links)
             )
         });
         items.collect()
     };
-    let kind = |callee: &String| match does(callee) {
-        Does::Effect(kind) => kind.to_owned(),
-        _ => String::new(),
-    };
     let items = [
-        said(&with_effect, &kind),
-        said(&unknown, &|_| "effect unknown".into()),
-        said(&quiet, &|_| "no effect".into()),
+        said(&with_effect),
+        said(&unknown),
+        said(&quiet),
         removed_items(&lost, &shown, links),
     ];
     let summary = counted(&[

@@ -63,13 +63,12 @@ pub fn of(function: &Function, flow: &Derived, tables: &Tables<'_>) -> Option<Ve
 
 /// Whether a type is an error, or a tuple whose last item is one.
 fn is_error(tables: &Tables<'_>, id: &str) -> bool {
-    let Ok(ty) = tables.ty(id) else {
-        return false;
-    };
-    match (&ty.kind, ty.items.as_deref()) {
-        (TypeKind::Tuple, Some([.., last])) => is_error(tables, last),
-        _ => ty.spelling == "error",
-    }
+    tables
+        .ty(id)
+        .is_ok_and(|ty| match (&ty.kind, ty.items.as_deref()) {
+            (TypeKind::Tuple, Some([.., last])) => is_error(tables, last),
+            _ => ty.spelling == "error",
+        })
 }
 
 struct Walk<'f> {
@@ -146,15 +145,18 @@ impl<'f> Walk<'f> {
         false
     }
 
+    /// What a node holds: a call's error, or what the symbol or definition it names holds. A node
+    /// that names neither, or that the function doesn't hold, can't be followed.
     fn of_node(&mut self, id: &'f str, wrapped: usize) -> Vec<Failure> {
-        let Some(&node) = self.nodes.get(id) else {
-            return unknown(wrapped);
-        };
         if !self.seen.insert(id) {
             return Vec::new();
         }
-        if node.kind == NodeKind::Call {
-            return self.of_call(node, wrapped);
+        let call = self
+            .nodes
+            .get(id)
+            .filter(|node| node.kind == NodeKind::Call);
+        if let Some(&call) = call {
+            return self.of_call(call, wrapped);
         }
 
         let target = self.refs.get(id).and_then(|found| found.target.as_ref());
