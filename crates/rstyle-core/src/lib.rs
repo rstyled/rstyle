@@ -61,6 +61,7 @@ fn rule_diagnostics(f: &FnFacts, effects: &[rules::Effect], cfg: &Config) -> Vec
         rules::mutation_budget(f, &cfg.mutation_budget),
         rules::side_effect_density_with_lines(f, effects, cfg, || source_lines),
         strict_style::guard_clause(f, cfg),
+        strict_style::no_comments(f, cfg),
     ]
     .concat()
 }

@@ -111,3 +111,19 @@ fn a_project_says_how_many_statements_need_a_blank_line() {
     cfg.strict_style.fn_spacing.min_statements = 8;
     assert_eq!(fn_spacing(&f, &cfg).len(), 1);
 }
+
+#[test]
+fn no_comments_is_opt_in_and_reports_source_lines() {
+    let mut f = sample("commented");
+    f.comment_lines = vec![4, 7];
+    let mut cfg = Config::default();
+    assert!(no_comments(&f, &cfg).is_empty());
+    cfg.strict_style.no_comments.enabled = true;
+    let found = no_comments(&f, &cfg);
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].rule_id, "no_comments");
+    assert_eq!((found[0].actual, found[0].limit), (2, 0));
+    assert_eq!(found[0].details[0].lines, [4, 7]);
+    f.comment_lines.clear();
+    assert!(no_comments(&f, &cfg).is_empty());
+}

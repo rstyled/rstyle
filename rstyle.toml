@@ -97,6 +97,9 @@ caller_hops = 1
 # Strict style: opinions about how code could be shaped rather than limits it passed, so each rule
 # is off unless you turn it on. One that's on reports and fails a run like any other rule here.
 
+[strict_style.no_comments]
+enabled = false             # ordinary comments in function source; documentation and tool directives stay allowed
+
 [strict_style.fn_spacing]
 enabled = false             # a body of many statements with no blank line between its phases
 min_statements = 5          # top-level statements, not lines, at which a body needs a blank line somewhere

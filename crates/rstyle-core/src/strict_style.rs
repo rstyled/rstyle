@@ -27,6 +27,30 @@ pub fn fn_spacing(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
         .collect()
 }
 
+pub fn no_comments(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
+    if !cfg.strict_style.no_comments.enabled || f.comment_lines.is_empty() {
+        return Vec::new();
+    }
+    let actual = f.comment_lines.len();
+    let lines: Vec<String> = f.comment_lines.iter().map(ToString::to_string).collect();
+    let mut found = diagnostic(
+        f,
+        "no_comments",
+        format!(
+            "function `{}` has {actual} ordinary comment(s) on line {}; remove them or express their meaning in code",
+            f.name,
+            lines.join(", ")
+        ),
+        Measure { actual, limit: 0 },
+    );
+    found.details = vec![Detail {
+        label: "comment".into(),
+        count: actual,
+        lines: f.comment_lines.clone(),
+    }];
+    vec![found]
+}
+
 pub fn guard_clause(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
     let rule = &cfg.strict_style.guard_clause;
     let lines: Vec<usize> = f

@@ -20,6 +20,7 @@ pub const RULE_IDS: &[&str] = &[
     "taint_flow",
     "algorithmic_complexity",
     "guard_clause",
+    "no_comments",
     "primitive_obsession",
     "value_object",
 ];

@@ -405,6 +405,10 @@ pub struct FnFacts {
     pub source: String,
     /// The comment line directly above the function (attributes skipped), if any.
     pub preceding_line: String,
+    /// Starts of ordinary comments, as absolute source lines. Literal spans, documentation
+    /// and tool directives are excluded during capture.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub comment_lines: Vec<usize>,
     pub mutations: Vec<MutationEvent>,
     pub calls: Vec<CallEvent>,
     pub effects: Vec<EffectEvent>,
@@ -469,6 +473,7 @@ pub fn sample(name: &str) -> FnFacts {
         complexity: None,
         source: format!("fn {name}() {{}}"),
         preceding_line: String::new(),
+        comment_lines: Vec::new(),
         mutations: vec![],
         calls: vec![],
         effects: vec![],

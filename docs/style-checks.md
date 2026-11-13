@@ -25,7 +25,7 @@ analyzed function.
 | `mutated_targets` | Too many distinct roots mutated in one function. |
 | `side_effect_density` | Too many effects for the number of statements. See below. |
 | `invalid_suppression` | An `rstyle-allow` comment with no reason or an unknown rule id. |
-| `fn_spacing`, `guard_clause`, `primitive_obsession`, `value_object` | Off by default. See [strict style](#strict-style). |
+| `fn_spacing`, `no_comments`, `guard_clause`, `primitive_obsession`, `value_object` | Off by default. See [strict style](#strict-style). |
 
 A missing complexity score is reported as unavailable, never as zero, and makes the run exit 2.
 Closures count toward the function that owns them. Compiler lowering and a macro's own code add no
@@ -150,6 +150,29 @@ blank line in the signature counts too.
 
 Unlike the other strict style rules, an [override](../README.md#per-path-overrides) can set it for some paths, as
 `strict_style.fn_spacing = { enabled = false }`.
+
+### `no_comments`
+
+```toml
+[strict_style.no_comments]
+enabled = true
+```
+
+Reports ordinary comments in captured function source, from its signature through its body. It is off by default.
+One diagnostic per function lists the comment start lines. Enabling it makes ordinary comments fail the style check;
+it does not rewrite or delete source. Comments outside captured functions, including file headers, are not checked.
+
+Documentation comments (`///`, `//!`, `/**`, `/*!`) and Python docstrings stay allowed. The compiler's literal spans
+protect strings, raw strings and character literals containing comment markers. Comments in nested functions and
+closures belong to their own captures. Rust block comments can nest; Go and C++ block comments do not.
+
+Tool directives stay allowed when their comment text starts with one of these prefixes (leading whitespace ignored):
+`go:`, `line `, `rstyle-allow(`, `nolint`, `lint:`, `NOLINT`, `noinspection`, `type:`, `noqa`, `pyright:`, `mypy:`,
+`pylint:`, `isort:`, `yapf:`, `fmt:`, `rustfmt::`, `clang-format`, or `!` (shebang). Other directive spellings are not inferred from prose.
+For an intentional exception, use `// rstyle-allow(no_comments): reason` above the function.
+
+The rule reads Rust, Go, C++ and Python source supplied by their frontends. Saved function facts from before this
+rule have no comment locations; capture them again to check comments.
 
 ### `guard_clause`
 

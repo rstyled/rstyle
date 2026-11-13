@@ -51,6 +51,8 @@ pub struct Config {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct StrictStyleConfig {
+    #[serde(skip_serializing_if = "NoCommentsConfig::is_off")]
+    pub no_comments: NoCommentsConfig,
     #[serde(skip_serializing_if = "FnSpacingConfig::is_off")]
     pub fn_spacing: FnSpacingConfig,
     #[serde(skip_serializing_if = "GuardClauseConfig::is_off")]
@@ -63,7 +65,8 @@ pub struct StrictStyleConfig {
 
 impl StrictStyleConfig {
     fn all_off(&self) -> bool {
-        !self.fn_spacing.enabled
+        !self.no_comments.enabled
+            && !self.fn_spacing.enabled
             && !self.guard_clause.enabled
             && !self.primitive_obsession.enabled
             && !self.value_object.enabled
@@ -92,6 +95,19 @@ impl Default for FnSpacingConfig {
             enabled: false,
             min_statements: 5,
         }
+    }
+}
+
+/// Ordinary comments in captured function source; documentation and tool directives stay allowed.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct NoCommentsConfig {
+    pub enabled: bool,
+}
+
+impl NoCommentsConfig {
+    fn is_off(&self) -> bool {
+        !self.enabled
     }
 }
 
@@ -871,6 +887,7 @@ mod tests {
     #[test]
     fn the_example_config_states_strict_styles_defaults() {
         example_states_the_defaults_of::<GuardClauseConfig>("guard_clause");
+        example_states_the_defaults_of::<NoCommentsConfig>("no_comments");
         example_states_the_defaults_of::<PrimitiveObsessionConfig>("primitive_obsession");
         example_states_the_defaults_of::<ValueObjectConfig>("value_object");
     }
@@ -1079,5 +1096,20 @@ mod tests {
     fn a_baseline_does_not_compare_risk_rules() {
         let policy = |input: &str| serde_json::to_value(Config::parse(input).unwrap()).unwrap();
         assert_eq!(policy("[risk]\npdg_change = \"high\""), policy(""));
+    }
+}
+
+#[cfg(test)]
+mod no_comments_tests {
+    use super::*;
+
+    #[test]
+    fn no_comments_is_opt_in_and_part_of_the_enabled_policy() {
+        assert!(!Config::parse("").unwrap().strict_style.no_comments.enabled);
+        let on = Config::parse("[strict_style.no_comments]\nenabled = true").unwrap();
+        assert!(on.strict_style.no_comments.enabled);
+        let policy = serde_json::to_value(on).unwrap();
+        assert_eq!(policy["strict_style"]["no_comments"]["enabled"], true);
+        assert!(Config::parse("[strict_style.no_comments]\nenable = true").is_err());
     }
 }
