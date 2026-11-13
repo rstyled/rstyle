@@ -592,3 +592,56 @@ fn an_allowed_argument_difference_still_counts_its_siblings_and_counts_once() {
         "each of the three argument differences counts once"
     );
 }
+
+/// `identical-branches.go`, where each function says whether its condition is reported.
+fn identical_branches() -> Value {
+    serde_json::from_str(include_str!("../cpg/testdata/identical-branches.cpg.json")).unwrap()
+}
+
+fn found_at(report: &DefectsReport) -> Vec<(usize, &str, bool)> {
+    let follows = |row: &DefectRow| row.message.contains("what follows it");
+    let rows = report.defects.iter();
+    rows.map(|row| (row.line, row.rule, follows(row))).collect()
+}
+
+#[test]
+fn a_condition_that_runs_the_same_code_either_way_is_reported_where_it_is_written() {
+    let report = report_of(vec![identical_branches()], &Config::default());
+    assert!(report.unknown.is_empty(), "{:?}", report.unknown);
+    assert_eq!(
+        found_at(&report),
+        [
+            (11, "identical_branches", true),
+            (20, "identical_branches", false),
+            (30, "identical_branches", true),
+            (41, "identical_branches", true),
+        ],
+        "the other six functions' conditions decide something"
+    );
+}
+
+#[test]
+fn a_branch_a_macro_wrote_is_not_compared() {
+    let mut document = identical_branches();
+    let always_false = &mut document["unit"]["functions"][1];
+    let nodes = always_false["nodes"].as_array_mut().unwrap();
+    let returned = nodes.iter_mut().find(|node| node["kind"] == "return");
+    returned.unwrap()["provenance"]["origin"] = json!("macro_expansion");
+    let report = report_of(vec![document], &Config::default());
+    let lines: Vec<usize> = report.defects.iter().map(|row| row.line).collect();
+    assert_eq!(lines, [20, 30, 41]);
+}
+
+#[test]
+fn an_allow_comment_suppresses_a_condition_that_changes_nothing() {
+    let mut records = records(vec![identical_branches()]);
+    for record in &mut records {
+        let Measured::Known(facts) = &mut record.measured else {
+            panic!("not measured");
+        };
+        facts.preceding_line = "// rstyle-allow(identical_branches): kept for the next flag".into();
+    }
+    let report = from_records(&mut records, &Config::default()).unwrap();
+    assert!(report.defects.is_empty(), "{:?}", report.defects);
+    assert_eq!(report.suppressed, 4);
+}
