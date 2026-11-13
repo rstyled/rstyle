@@ -492,6 +492,7 @@ fn finding(functions: &[FunctionFlows], site: SinkSite, origin: &Origin) -> Find
     Finding {
         function: site.function,
         defect: Defect {
+            severity: crate::config::Level::Warning,
             rule: RULE,
             line: site.line,
             message,

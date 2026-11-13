@@ -7,9 +7,13 @@ this code does, so it comes with a reason to look, not a number.
 Each rule reads the same `compat.cpg` documents for every language, so a new frontend gets it without any code here.
 
 ```text
-core/txpool/blobpool/conversion.go:192: dead_store: the value stored in `txTasks` here is never read: every path replaces it or leaves first
+core/txpool/blobpool/conversion.go:192: dead_store: warning: the value stored in `txTasks` here is never read: every path replaces it or leaves first
 Defects: 2 defects in 15784 functions, 0 suppressed, 229 unknown
 ```
+
+Defect findings include `severity` in JSON and the level in text output. SARIF uses the same level.
+Existing defect rules remain warnings. A note marks useful cleanup; it does not claim a behavior bug.
+Severity does not change command exit behavior or remove the finding from reports.
 
 ## No result doesn't mean nothing's wrong
 
@@ -67,6 +71,64 @@ A store means an assignment to a binding or a declaration's computed initializer
 
 It reports a real store, and the store may still be harmless, such as clearing a local before returning. It doesn't look
 at fields or what a pointer holds: `t.a = 1` isn't a store here. A compiler already warns about many of these in Rust.
+
+## `identical_branches`
+
+A condition that changes nothing, because the code it guards is the code that runs without it. Whatever it was meant to
+decide, it doesn't:
+
+```go
+func enableSqlExpressions(h *ExpressionQueryReader) bool {
+	enabled := !h.features.IsEnabledGlobally(featuremgmt.FlagSqlExpressions)
+	if enabled {
+		return false
+	}
+	return false
+}
+```
+
+```text
+pkg/expr/reader.go:196: identical_branches: warning: the condition here changes nothing: the branch runs the same code as what follows it
+```
+
+It reports two shapes:
+
+- an `if` whose two branches are the same code
+- an `if` with no `else` whose branch ends in a `return`, where the statements after the `if` are the branch's again
+
+Two pieces of code are the same when they're written with the same tokens and every name in them resolves to the same
+thing. These stay quiet:
+
+| Case | Why |
+| --- | --- |
+| `if v, ok := m[k]; ok { return v }`, then `return v` | The `v` the condition binds for its branch isn't the `v` after it |
+| A branch that does anything more before it returns | It isn't the same code |
+| A branch that doesn't return, such as `if c { log() }`, then `log()` | What follows runs as well, so the condition decides how often |
+| `if a { x } else if b { y } else { x }` | A condition still decides something |
+| Code a macro wrote | Two macros can expand to the same code and not mean the same |
+
+All `identical_branches` findings report at `warning` severity, like `dead_store`. A redundant error guard is a valid
+refactor finding even when it preserves the correct result. TODO comments do not change severity or suppress findings.
+Use `rstyle-allow(identical_branches): reason` above the function for an intentional exception.
+
+A warning identifies a concrete redundancy, not proof of a behavior bug. Some findings deserve closer review, such as
+an error that is dropped:
+
+```go
+if err != nil {
+	return oas, nil
+}
+return oas, nil
+```
+
+The condition still runs, so taking it out is only safe when evaluating it does nothing else.
+
+It doesn't compare an `else if` with what follows the whole chain, so `if a { return x } else if b { return y }` then
+`return y` isn't found.
+
+On the 14,938 functions of Grafana's `pkg` at an April 2025 commit it reports 11 conditions, each one the same code either
+way: 2 drop an error like the one above, 1 returns one constant, 2 are placeholders and 6 return the same `err`. On 6,900
+competitive-programming solutions in Go, Rust and C++ it reports 7.
 
 ## `ignored_result`
 

@@ -4,6 +4,7 @@
 
 mod dead_store;
 pub mod deviant_argument;
+mod identical_branches;
 pub mod ignored_result;
 pub mod taint;
 pub mod value_flow;
@@ -22,6 +23,7 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Defect {
     pub rule: &'static str,
+    pub severity: crate::config::Level,
     pub line: usize,
     pub message: String,
 }
@@ -77,8 +79,10 @@ pub fn examine(
             tables,
             sources,
         };
+        let mut defects = dead_store::find(&reading)?;
+        defects.extend(identical_branches::find(&reading)?);
         Ok(Examined::Read {
-            defects: dead_store::find(&reading)?,
+            defects,
             results: ignored_result::uses(&reading)?,
             flows: value_flow::of(&reading, namespace)?,
             arguments: Box::new(deviant_argument::of(&reading)?),

@@ -51,6 +51,7 @@ pub(super) fn find(reading: &Reading<'_>) -> Result<Vec<Defect>, String> {
 
 fn defect(reading: &Reading<'_>, node: &Node, symbol: &str) -> Result<Defect, String> {
     Ok(Defect {
+        severity: crate::config::Level::Warning,
         rule: RULE,
         line: tree::line(reading.sources, node)?,
         message: format!(

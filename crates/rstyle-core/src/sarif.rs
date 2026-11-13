@@ -383,7 +383,9 @@ fn decision_points<'a>(path: &'a str, detail: &'a Detail) -> impl Iterator<Item 
 }
 
 fn defect(defect: &DefectRow) -> Finding {
-    at_one_place(defect.rule, &defect.message, (&defect.path, defect.line))
+    let mut finding = at_one_place(defect.rule, &defect.message, (&defect.path, defect.line));
+    finding.level = defect.severity.sarif();
+    finding
 }
 
 fn at_one_place(rule_id: &str, text: &str, (path, line): (&str, usize)) -> Finding {

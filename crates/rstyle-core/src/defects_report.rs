@@ -18,6 +18,7 @@ pub struct DefectRow {
     pub path: String,
     pub line: usize,
     pub rule: &'static str,
+    pub severity: crate::config::Level,
     pub message: String,
     /// The function it's in, by identity.
     pub function: String,
@@ -44,10 +45,16 @@ pub struct DefectsReport {
 
 impl DefectsReport {
     pub fn text(&self) -> String {
-        let rows = self
-            .defects
-            .iter()
-            .map(|row| format!("{}:{}: {}: {}", row.path, row.line, row.rule, row.message));
+        let rows = self.defects.iter().map(|row| {
+            format!(
+                "{}:{}: {}: {}: {}",
+                row.path,
+                row.line,
+                row.rule,
+                row.severity.sarif(),
+                row.message
+            )
+        });
         let plural = if self.defects.len() == 1 { "" } else { "s" };
         let summary = format!(
             "Defects: {} defect{plural} in {} functions, {} suppressed, {} unknown",
@@ -239,6 +246,7 @@ impl Gathered {
                 path: holder.path.clone(),
                 line: defect.line,
                 rule: defect.rule,
+                severity: defect.severity,
                 message: defect.message,
                 function: holder.identity.clone(),
             });
@@ -264,6 +272,7 @@ impl Gathered {
                 path: record.path.clone(),
                 line: defect.line,
                 rule: defect.rule,
+                severity: defect.severity,
                 message: defect.message,
                 function: record.identity.clone(),
             });
@@ -322,6 +331,7 @@ impl Gathered {
                 path: site.path,
                 line: site.line,
                 rule: ignored_result::RULE,
+                severity: crate::config::Level::Warning,
                 message: ignored_result::message(&call.name, used, total),
                 function: call.function,
             });
@@ -348,6 +358,7 @@ impl Gathered {
                 path: holder.path.clone(),
                 line: defect.line,
                 rule: defect.rule,
+                severity: defect.severity,
                 message: defect.message,
                 function: holder.identity.clone(),
             });

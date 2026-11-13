@@ -315,10 +315,11 @@ impl TryFrom<UncheckedRisk> for RiskConfig {
     }
 }
 
-/// How loudly SARIF reports a finding.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+/// How loudly a finding is reported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Level {
+    Note,
     Warning,
     Error,
 }
@@ -326,6 +327,7 @@ pub enum Level {
 impl Level {
     pub fn sarif(self) -> &'static str {
         match self {
+            Self::Note => "note",
             Self::Warning => "warning",
             Self::Error => "error",
         }

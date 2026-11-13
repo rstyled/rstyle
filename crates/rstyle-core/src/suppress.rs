@@ -15,6 +15,7 @@ pub const RULE_IDS: &[&str] = &[
     "side_effect_density",
     "abstraction",
     "dead_store",
+    "identical_branches",
     "ignored_result",
     "deviant_argument",
     "taint_flow",
