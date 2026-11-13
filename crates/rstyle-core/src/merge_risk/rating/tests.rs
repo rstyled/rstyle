@@ -11,6 +11,7 @@ fn change(name: &str, kind: ChangeKind) -> FunctionChange {
         kind,
         reason: None,
         signature_changed: false,
+        signature: None,
         values_changed: false,
         graph: GraphDelta::default(),
         calls_added: Vec::new(),

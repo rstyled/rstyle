@@ -3,10 +3,12 @@
 //! stable identity. A text change with no change in the compared facts says only that those facts
 //! didn't change, not that behavior didn't.
 
+pub mod errors;
 mod markdown;
 pub mod rating;
 
 use crate::config::Config;
+use crate::cpg::failures::{Failure, Source};
 use crate::cpg::model::Document;
 use crate::cpg::records::{DeclaredSignature, Measured, Record};
 use crate::facts::{FnFacts, NodeKind, Pdg, PdgNode, TyShape};
@@ -56,6 +58,8 @@ struct Declared {
     shapes: Vec<Option<TyShape>>,
     values: Vec<String>,
     gap: Option<&'static str>,
+    /// Where the error it returns can come from, when it returns one.
+    failures: Option<Vec<Failure>>,
 }
 
 /// One run, as a comparison reads it.
@@ -98,6 +102,13 @@ impl Snapshot {
         for facts in &mut self.facts {
             name_callees_by_locator(facts, &locators);
         }
+        for declared in &mut self.declared {
+            let failures = declared.failures.take();
+            declared.failures = failures.map(|found| {
+                let renamed = found.into_iter().map(|failure| located(failure, &locators));
+                renamed.collect()
+            });
+        }
 
         self.index = self
             .facts
@@ -129,6 +140,7 @@ impl Snapshot {
                 shapes: record.signature_shapes,
                 values: record.known_values,
                 gap: record.syntax_gap,
+                failures: record.failures,
             },
         );
     }
@@ -144,6 +156,20 @@ impl Snapshot {
     fn function(&self, identity: &str) -> Option<(&FnFacts, &Declared)> {
         let &at = self.index.get(identity)?;
         Some((&self.facts[at], &self.declared[at]))
+    }
+}
+
+/// A call a function's error can come from, named by its callee's locator, as its graph's are.
+fn located(failure: Failure, locators: &BTreeMap<String, String>) -> Failure {
+    let Source::Call(callee) = &failure.source else {
+        return failure;
+    };
+    match locators.get(callee) {
+        Some(located) => Failure {
+            source: Source::Call(located.clone()),
+            ..failure
+        },
+        None => failure,
     }
 }
 
@@ -208,6 +234,13 @@ pub struct EffectChange {
     pub label: String,
 }
 
+/// A signature as written before and after it changed.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct SignatureChange {
+    pub before: String,
+    pub after: String,
+}
+
 /// What changed of one function, and what reaches it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct FunctionChange {
@@ -219,6 +252,9 @@ pub struct FunctionChange {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<&'static str>,
     pub signature_changed: bool,
+    /// What the signature reads as on each side, when it changed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<SignatureChange>,
     /// A value the frontend knows at one of its nodes changed, as a constant's does at a use.
     pub values_changed: bool,
     pub graph: GraphDelta,
@@ -254,6 +290,11 @@ pub struct ChangeReport {
     /// package-level value or a type's fields can change what a program does, and no fact here says
     /// how, so these need a person.
     pub changed_outside_functions: Vec<String>,
+    /// How the errors functions can return changed.
+    pub errors: errors::Errors,
+    /// Every function either run holds, by identity: a callee that isn't one is a library's.
+    #[serde(skip)]
+    pub workspace: BTreeSet<String>,
 }
 
 /// Each function's direct callers, and everything that reaches it through them.
@@ -439,9 +480,14 @@ fn compared(
     };
     let (calls_before, calls_after) = (calls_of(before.pdg.as_ref()), calls_of(after.pdg.as_ref()));
     let (effects_before, effects_after) = (effects_of(before, config), effects_of(after, config));
+    let signature_changed = !same_signature(declared_before, declared_after);
     Some(FunctionChange {
         reason,
-        signature_changed: !same_signature(declared_before, declared_after),
+        signature_changed,
+        signature: signature_changed.then(|| SignatureChange {
+            before: declared_before.signature.text.clone(),
+            after: declared_after.signature.text.clone(),
+        }),
         values_changed,
         graph: delta,
         calls_added: more_calls(&calls_before, &calls_after),
@@ -496,6 +542,7 @@ fn one_sided(facts: &FnFacts, kind: ChangeKind) -> FunctionChange {
         kind,
         reason: None,
         signature_changed: false,
+        signature: None,
         values_changed: false,
         graph: GraphDelta::default(),
         calls_added: Vec::new(),
@@ -569,6 +616,7 @@ pub fn compare(base: &Snapshot, head: &Snapshot, config: &Config) -> ChangeRepor
         .collect();
     let not_compared_changed = not_compared_changed(base, head);
     let changed_outside_functions = changed_outside_functions(base, head, &changes);
+    let errors = errors::compare(base, head, &changes);
     let rating = rating::rate(
         &Evidence {
             changes: &changes,
@@ -586,7 +634,9 @@ pub fn compare(base: &Snapshot, head: &Snapshot, config: &Config) -> ChangeRepor
         not_compared: not_compared.len(),
         not_compared_changed,
         changed_outside_functions,
+        errors,
         changes,
+        workspace: identities.into_iter().cloned().collect(),
     }
 }
 

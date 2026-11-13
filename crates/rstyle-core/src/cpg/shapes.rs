@@ -178,7 +178,8 @@ pub fn param_list(
         .collect()
 }
 
-fn collapse_whitespace(text: &str) -> String {
+/// Text with each run of whitespace read as one space.
+pub(super) fn collapse_whitespace(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 

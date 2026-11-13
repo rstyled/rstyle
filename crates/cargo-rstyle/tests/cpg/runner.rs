@@ -2168,7 +2168,13 @@ fn risk_writes_markdown_with_links_into_the_pull_request_diff() {
     let text = String::from_utf8(output.stdout).unwrap();
     assert!(text.starts_with("### ⚪ Merge risk: unrated"), "{text}");
     assert!(
-        text.contains("<details><summary><strong>At a glance</strong></summary>"),
+        text.contains(
+            "<details><summary><b>Changed</b> ✅: 1 function in 1 file: 1 changed</summary>"
+        ),
+        "{text}"
+    );
+    assert!(
+        text.contains("<details><summary><b>Effects</b> 👀: 1 gained</summary>"),
         "{text}"
     );
     assert!(

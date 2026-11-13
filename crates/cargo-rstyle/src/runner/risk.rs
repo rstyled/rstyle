@@ -59,7 +59,7 @@ fn pull_request_url(value: &str) -> Result<String, String> {
 const DEMAND: Demand = Demand {
     graphs: true,
     bounds: false,
-    flow: false,
+    flow: true,
     defects: false,
 };
 

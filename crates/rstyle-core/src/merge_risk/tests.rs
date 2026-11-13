@@ -15,6 +15,7 @@ fn signature(result: &str) -> DeclaredSignature {
         generics: Vec::new(),
         has_self: false,
         modifiers: Vec::new(),
+        text: format!("fn f() -> {result}"),
     }
 }
 
@@ -69,6 +70,7 @@ impl Fixture {
             shapes: Vec::new(),
             values: Vec::new(),
             gap: None,
+            failures: None,
         });
         self
     }
@@ -185,6 +187,7 @@ fn a_signature_is_the_same_whatever_a_frontend_spells_its_types_as() {
             shapes: vec![Some(shape)],
             values: Vec::new(),
             gap: None,
+            failures: None,
         }
     };
     let tuple = |first: &str| {
