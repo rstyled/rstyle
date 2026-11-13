@@ -35,7 +35,7 @@ func sameSteps(r *Reader, note func(string)) int {
 	return 1
 }
 
-// Reported: redundant, though harmless.
+// Quiet: the checked error is returned unchanged.
 func sameError(run func() error) error {
 	err := run()
 	if err != nil {
@@ -126,4 +126,120 @@ func elseIf(r *Reader, a, b int) int {
 		return b
 	}
 	return b
+}
+
+// Quiet: a checked error can accompany a result.
+func sameErrorPair(err error, result int) (int, error) {
+	if err != nil {
+		return result, err
+	}
+	return result, err
+}
+
+// Quiet: comparison order and equality do not change pass-through behavior.
+func sameErrorReversed(err error) error {
+	if nil == err {
+		return err
+	} else {
+		return err
+	}
+}
+
+// Quiet: an explicit placeholder between a guard and the repeated return.
+func todoGuard(r *Reader) error {
+	if r == nil {
+		return nil
+	}
+	// TODO: validate the reader.
+	return nil
+}
+
+// Reported: the error is swallowed, not passed through.
+func droppedError(err error, result int) (int, error) {
+	if err != nil {
+		return result, nil
+	}
+	return result, nil
+}
+
+// Reported: a TODO elsewhere does not mark this guard as a placeholder.
+func unrelatedTodo(r *Reader) bool {
+	// TODO: improve the feature lookup.
+	if r.on() {
+		return false
+	}
+	return false
+}
+
+// Reported: TODO text inside a string is not a placeholder comment.
+func todoString(r *Reader) string {
+	if r.on() {
+		return "TODO"
+	}
+	return "TODO"
+}
+
+// Reported: duplicated work is not just a placeholder return.
+func todoWork(r *Reader, note func(string)) int {
+	if r.on() {
+		note("done")
+		return 1
+	}
+	// TODO: improve this work.
+	note("done")
+	return 1
+}
+
+// Reported: TODOCount is not a TODO marker.
+func todoWord(r *Reader) bool {
+	if r.on() {
+		return false
+	}
+	// TODOCount is a metric name.
+	return false
+}
+
+// Reported: checking a call is not a plain binding pass-through.
+func checkedCall(run func() error) error {
+	if run() != nil {
+		return nil
+	}
+	return nil
+}
+
+var sharedError error
+
+// Reported: a global is not a local binding pass-through.
+func checkedGlobal() error {
+	if sharedError != nil {
+		return sharedError
+	}
+	return sharedError
+}
+
+// Reported: duplicate work before a return still matters.
+func errorWork(err error, note func(string)) error {
+	if err != nil {
+		note("done")
+		return err
+	}
+	note("done")
+	return err
+}
+
+// Reported: work inside a return still matters.
+func errorCall(err error, run func() int) (int, error) {
+	if err != nil {
+		return run(), err
+	}
+	// TODO: choose a different call.
+	return run(), err
+}
+
+// Reported: equality between two values is not a nil pass-through guard.
+func equalValues(a, b int) int {
+	if a == b {
+		return a
+	}
+	return a
 }

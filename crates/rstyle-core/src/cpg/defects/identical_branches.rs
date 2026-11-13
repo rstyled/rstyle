@@ -35,7 +35,12 @@ pub(super) fn find(reading: &Reading<'_>) -> Result<Vec<Defect>, String> {
             continue;
         }
         let (taken, other, message) = ways(reading, node)?;
-        if !taken.is_empty() && Twins::new(reading, &index).same(&taken, &other)? {
+        if taken.is_empty() || !Twins::new(reading, &index).same(&taken, &other)? {
+            continue;
+        }
+        if !guard_returns_input(reading, node, &taken)?
+            && !todo_placeholder(reading, node, &taken, &other)?
+        {
             found.push(Defect {
                 rule: RULE,
                 line: tree::line(reading.sources, node)?,
@@ -44,6 +49,136 @@ pub(super) fn find(reading: &Reading<'_>) -> Result<Vec<Defect>, String> {
         }
     }
     Ok(found)
+}
+
+/// A plain return of the binding the guard checks against Go's builtin nil is
+/// routine error propagation, even when the check is redundant.
+fn guard_returns_input(
+    reading: &Reading<'_>,
+    branch: &Node,
+    taken: &[&Node],
+) -> Result<bool, String> {
+    let condition = reading.body.child(branch, 0)?;
+    if !matches!(condition.operator.as_deref(), Some("eq" | "ne")) {
+        return Ok(false);
+    }
+    let left = reading.body.child(condition, 0)?;
+    let right = reading.body.child(condition, 1)?;
+    let checked = if builtin_nil(reading, right) {
+        left
+    } else if builtin_nil(reading, left) {
+        right
+    } else {
+        return Ok(false);
+    };
+    let Some(symbol) = reading
+        .body
+        .reference(&checked.id)
+        .and_then(|r| r.target.as_ref())
+    else {
+        return Ok(false);
+    };
+    if symbol.kind != TargetKind::Symbol || symbol.id.is_none() {
+        return Ok(false);
+    }
+    let Some(returned) = plain_return(reading, taken)? else {
+        return Ok(false);
+    };
+    let values = return_values(reading, returned)?;
+    if !plain_values(&values) {
+        return Ok(false);
+    }
+    Ok(values.iter().any(|value| {
+        reading
+            .body
+            .reference(&value.id)
+            .and_then(|r| r.target.as_ref())
+            .is_some_and(|target| target.kind == TargetKind::Symbol && target.id == symbol.id)
+    }))
+}
+
+fn plain_values(values: &[&Node]) -> bool {
+    values
+        .iter()
+        .all(|value| matches!(value.kind, NodeKind::Identifier | NodeKind::Literal))
+}
+
+/// Frontends may wrap multiple return values in a tuple.
+fn return_values<'a>(reading: &Reading<'a>, returned: &Node) -> Result<Vec<&'a Node>, String> {
+    let values = reading.body.children(returned)?;
+    if let [tuple] = values.as_slice()
+        && tuple.kind == NodeKind::Tuple
+    {
+        return reading.body.children(tuple);
+    }
+    Ok(values)
+}
+
+fn builtin_nil(reading: &Reading<'_>, node: &Node) -> bool {
+    reading.body.reference(&node.id).is_some_and(|reference| {
+        reference.status == RefStatus::Resolved
+            && reference.target.as_ref().is_some_and(|target| {
+                target.kind == TargetKind::Definition && target.id.as_deref() == Some("def:go::nil")
+            })
+    })
+}
+
+/// Only a single return is a placeholder; duplicated work still deserves a report.
+fn plain_return<'a>(reading: &Reading<'a>, taken: &[&'a Node]) -> Result<Option<&'a Node>, String> {
+    let [statement] = taken else {
+        return Ok(None);
+    };
+    let node = if statement.kind == NodeKind::ExpressionStatement {
+        reading.body.child(statement, 0)?
+    } else {
+        statement
+    };
+    Ok((node.kind == NodeKind::Return).then_some(node))
+}
+
+/// An explicit TODO between a guard and its repeated return marks unfinished code.
+/// Search only that gap, so unrelated TODOs elsewhere cannot hide a defect.
+fn todo_placeholder(
+    reading: &Reading<'_>,
+    branch: &Node,
+    taken: &[&Node],
+    other: &[&Node],
+) -> Result<bool, String> {
+    if branch.children.len() != 2 {
+        return Ok(false);
+    }
+    let Some(returned) = plain_return(reading, taken)? else {
+        return Ok(false);
+    };
+    if !plain_values(&return_values(reading, returned)?) {
+        return Ok(false);
+    }
+    let spans = branch
+        .span
+        .as_ref()
+        .zip(other.first().and_then(|node| node.span.as_ref()));
+    let Some((branch, after)) = spans else {
+        return Ok(false);
+    };
+    let gap = FileSpan {
+        file: branch.file.clone(),
+        start: branch.end,
+        end: after.start,
+    };
+    let text = reading.sources.between(&gap, &gap)?;
+    Ok(text.lines().any(|line| {
+        let comment = line
+            .trim()
+            .strip_prefix("//")
+            .or_else(|| line.trim().strip_prefix('#'));
+        comment.is_some_and(|comment| {
+            comment.trim().strip_prefix("TODO").is_some_and(|rest| {
+                rest.chars()
+                    .next()
+                    .is_none_or(|c| !c.is_alphanumeric() && c != '_')
+            })
+        })
+    }))
 }
 
 /// A function's reads and writes by node, and its locals by the node that declares each.

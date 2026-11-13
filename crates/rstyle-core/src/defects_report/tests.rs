@@ -614,10 +614,19 @@ fn a_condition_that_runs_the_same_code_either_way_is_reported_where_it_is_writte
             (11, "identical_branches", true),
             (20, "identical_branches", false),
             (30, "identical_branches", true),
-            (41, "identical_branches", true),
             (102, "identical_branches", true),
+            (159, "identical_branches", true),
+            (168, "identical_branches", true),
+            (176, "identical_branches", true),
+            (184, "identical_branches", true),
+            (195, "identical_branches", true),
+            (204, "identical_branches", true),
+            (214, "identical_branches", true),
+            (222, "identical_branches", true),
+            (232, "identical_branches", true),
+            (241, "identical_branches", true),
         ],
-        "the other eight functions' conditions are left alone"
+        "the pass-through guards, TODO placeholder and distinct branches stay quiet"
     );
 }
 
@@ -630,7 +639,12 @@ fn a_branch_a_macro_wrote_is_not_compared() {
     returned.unwrap()["provenance"]["origin"] = json!("macro_expansion");
     let report = report_of(vec![document], &Config::default());
     let lines: Vec<usize> = report.defects.iter().map(|row| row.line).collect();
-    assert_eq!(lines, [20, 30, 41, 102]);
+    assert_eq!(
+        lines,
+        [
+            20, 30, 102, 159, 168, 176, 184, 195, 204, 214, 222, 232, 241
+        ]
+    );
 }
 
 #[test]
@@ -644,7 +658,7 @@ fn an_allow_comment_suppresses_a_condition_that_changes_nothing() {
     }
     let report = from_records(&mut records, &Config::default()).unwrap();
     assert!(report.defects.is_empty(), "{:?}", report.defects);
-    assert_eq!(report.suppressed, 5);
+    assert_eq!(report.suppressed, 14);
 }
 
 #[test]
@@ -659,4 +673,52 @@ fn code_with_no_span_is_compared_by_its_shape_and_what_it_names() {
     let report = report_of(vec![document], &Config::default());
     assert!(report.unknown.is_empty(), "{:?}", report.unknown);
     assert_eq!(found_at(&report)[0], (11, "identical_branches", true));
+}
+
+#[test]
+fn incomplete_guard_resolution_does_not_silence_identical_branches() {
+    let mut document = identical_branches();
+    let function = &mut document["unit"]["functions"][4];
+    let refs = function["refs"].as_array_mut().unwrap();
+    let checked = refs.iter_mut().find(|r| r["node"] == "f4.n4").unwrap();
+    checked["target"].as_object_mut().unwrap().remove("id");
+    let report = report_of(vec![document], &Config::default());
+    assert!(found_at(&report).contains(&(41, "identical_branches", true)));
+}
+
+#[test]
+fn direct_returns_without_statement_wrappers_keep_their_guard_exclusion() {
+    let mut document = identical_branches();
+    let function = &mut document["unit"]["functions"][4];
+    for node in function["nodes"].as_array_mut().unwrap() {
+        if node["id"] == "f4.n10" {
+            node["children"] = json!(["f4.n8"]);
+        }
+    }
+    function["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|node| node["id"] != "f4.n9" && node["id"] != "f4.n15");
+    let text = serde_json::to_string(&function)
+        .unwrap()
+        .replace("f4.n9", "f4.n8")
+        .replace("f4.n15", "f4.n14");
+    *function = serde_json::from_str(&text).unwrap();
+    let report = report_of(vec![document], &Config::default());
+    assert!(report.unknown.is_empty(), "{:?}", report.unknown);
+    assert!(!found_at(&report).iter().any(|row| row.0 == 41));
+}
+
+#[test]
+fn returns_without_spans_do_not_get_the_todo_exclusion() {
+    let mut document = identical_branches();
+    let function = &mut document["unit"]["functions"][16];
+    assert_eq!(function["name"], "todoGuard");
+    for node in function["nodes"].as_array_mut().unwrap() {
+        if node["kind"] == "expression_statement" {
+            node.as_object_mut().unwrap().remove("span");
+        }
+    }
+    let report = report_of(vec![document], &Config::default());
+    assert!(found_at(&report).contains(&(150, "identical_branches", true)));
 }

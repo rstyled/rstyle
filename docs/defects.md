@@ -103,9 +103,15 @@ thing. These stay quiet:
 | `if a { x } else if b { y } else { x }` | A condition still decides something |
 | Code a macro wrote | Two macros can expand to the same code and not mean the same |
 
-It reports a real redundancy, and it may still be harmless. `if err != nil { return err }` followed by `return err` returns
-the same either way, and so does a guard kept as a placeholder. The ones worth the look return a constant, or drop an
-error:
+Two common harmless forms stay quiet:
+
+- A guard comparing a binding with Go's builtin `nil`, followed by identical plain returns that pass that binding
+  through unchanged. This includes `if err != nil { return err }; return err` and result/error pairs.
+- A guard with no `else` whose only statement is a return, with a `// TODO` or `# TODO` comment between the guard
+  and the repeated return. A TODO elsewhere in the function does not silence the rule.
+
+Other identical branches may still be intentional; use `rstyle-allow(identical_branches)` with a reason for those.
+The rule still reports a constant return without an explicit placeholder, or a dropped error:
 
 ```go
 if err != nil {
