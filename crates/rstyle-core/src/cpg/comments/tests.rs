@@ -22,7 +22,7 @@ fn ordinary_line_and_nested_block_comments_are_reported_once() {
 fn documentation_and_tool_directives_stay_allowed() {
     for source in [
         "/// docs\n//! module\n/** docs */\n/*! module */",
-        "//go:noinline\n//nolint:unused\n/* NOLINT */\n// rstyle-allow(no_comments): required",
+        "//go:noinline\n//nolint:unused\n/* NOLINT */\n// rstyle-allow(comments): required",
         "// clang-format off\n// rustfmt::skip",
     ] {
         assert!(offsets(source, "rust").is_empty(), "{source}");

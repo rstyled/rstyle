@@ -5,7 +5,7 @@
 mod primitive_obsession;
 mod value_object;
 
-use crate::config::Config;
+use crate::config::{CommentPolicy, Config};
 use crate::facts::{CommentKind, FnFacts};
 use crate::report::{Detail, Diagnostic};
 use crate::rules::{Measure, diagnostic};
@@ -27,8 +27,8 @@ pub fn fn_spacing(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
         .collect()
 }
 
-pub fn no_comments(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
-    let rule = &cfg.strict_style.no_comments;
+pub fn comments(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
+    let rule = &cfg.strict_style.comments;
     if !rule.enabled {
         return Vec::new();
     }
@@ -36,9 +36,9 @@ pub fn no_comments(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
         .comments
         .iter()
         .filter(|comment| match comment.kind {
-            CommentKind::Ordinary => true,
-            CommentKind::Documentation => !rule.allow_doc_comments,
-            CommentKind::ToolDirective => !rule.allow_tool_directives,
+            CommentKind::Ordinary => rule.functions == CommentPolicy::Forbid,
+            CommentKind::Documentation => rule.documentation == CommentPolicy::Forbid,
+            CommentKind::ToolDirective => rule.tool_directives == CommentPolicy::Forbid,
         })
         .map(|comment| comment.line)
         .collect();
@@ -49,7 +49,7 @@ pub fn no_comments(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
     let lines: Vec<String> = comment_lines.iter().map(ToString::to_string).collect();
     let mut found = diagnostic(
         f,
-        "no_comments",
+        "comments",
         format!(
             "function `{}` has {actual} disallowed comment(s) on line {}; remove them or express their meaning in code",
             f.name,

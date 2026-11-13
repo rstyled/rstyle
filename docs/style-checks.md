@@ -25,7 +25,7 @@ analyzed function.
 | `mutated_targets` | Too many distinct roots mutated in one function. |
 | `side_effect_density` | Too many effects for the number of statements. See below. |
 | `invalid_suppression` | An `rstyle-allow` comment with no reason or an unknown rule id. |
-| `fn_spacing`, `no_comments`, `guard_clause`, `primitive_obsession`, `value_object` | Off by default. See [strict style](#strict-style). |
+| `fn_spacing`, `comments`, `guard_clause`, `primitive_obsession`, `value_object` | Off by default. See [strict style](#strict-style). |
 
 A missing complexity score is reported as unavailable, never as zero, and makes the run exit 2.
 Closures count toward the function that owns them. Compiler lowering and a macro's own code add no
@@ -151,13 +151,14 @@ blank line in the signature counts too.
 Unlike the other strict style rules, an [override](../README.md#per-path-overrides) can set it for some paths, as
 `strict_style.fn_spacing = { enabled = false }`.
 
-### `no_comments`
+### `comments`
 
 ```toml
-[strict_style.no_comments]
+[strict_style.comments]
 enabled = true
-allow_doc_comments = true
-allow_tool_directives = true
+functions = "forbid"
+documentation = "allow"
+tool_directives = "allow"
 ```
 
 Reports comments in captured function source, from its signature through its body. It is off by default.
@@ -165,10 +166,12 @@ One diagnostic per function lists the disallowed comment start lines. Enabling i
 style check; it does not rewrite or delete source. Comments outside captured functions, including file headers,
 are not checked, regardless of these settings.
 
-Both exceptions default to `true`. Set `allow_doc_comments = false` to report documentation comment forms
-(`///`, `//!`, `/**`, `/*!`). Set `allow_tool_directives = false` to report recognized directives too.
-The exceptions are independent. Captures keep each comment's category, so changing policy does not require recompilation.
-Python docstrings remain string literals; the documentation option applies to comment syntax.
+The shown policies are the defaults. The usual configuration is just `[strict_style.comments]` with `enabled = true`.
+Each policy accepts only `"allow"` or `"forbid"`. `functions` controls ordinary comments in captured functions;
+`documentation` and `tool_directives` override that base policy for their respective categories. Thus
+`functions = "allow"` with `documentation = "forbid"` reports documentation comments while allowing ordinary ones.
+Documentation comment forms are `///`, `//!`, `/**` and `/*!`. Python docstrings remain string literals.
+Captures keep comment categories, so changing these policies does not require recompilation.
 
 The compiler's literal spans protect strings, raw strings and character literals containing comment markers.
 Comments in nested functions and closures belong to their own captures. Rust block comments can nest; Go and C++
@@ -177,8 +180,8 @@ block comments do not.
 Recognized directive prefixes (leading whitespace ignored): `go:`, `line `, `rstyle-allow(`, `nolint`, `lint:`,
 `NOLINT`, `noinspection`, `type:`, `noqa`, `pyright:`, `mypy:`, `pylint:`, `isort:`, `yapf:`, `fmt:`, `rustfmt::`,
 `clang-format`, or `!` (shebang). Other directive spellings are not inferred from prose.
-For an intentional exception, use `// rstyle-allow(no_comments): reason` above the function. This explicit suppression
-still works when either allowance is disabled.
+For an intentional exception, use `// rstyle-allow(comments): reason` above the function. This explicit suppression
+still works when any comment policy is `"forbid"`.
 
 The rule reads Rust, Go, C++ and Python source supplied by their frontends. Older saved function facts without comment
 categories need a new capture.

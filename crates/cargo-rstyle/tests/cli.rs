@@ -1142,7 +1142,7 @@ fn clone_workspace() -> TempDir {
 }
 
 #[test]
-fn no_comments_is_opt_in_preserves_literals_and_directives_and_can_be_suppressed() {
+fn comments_is_opt_in_preserves_literals_and_directives_and_can_be_suppressed() {
     let dir = fixture("clean");
     let source = "/// Public documentation.\npub fn f() -> &'static str {\n    // rustfmt::skip\n    // ordinary explanation\n    let _formatted = format!(\"https://example.com\");\n    let _nested = || \"https://example.com\";\n    r###\"https://example.com/*literal*/\"###\n}\n";
     std::fs::write(dir.path().join("src/lib.rs"), source).unwrap();
@@ -1152,7 +1152,7 @@ fn no_comments_is_opt_in_preserves_literals_and_directives_and_can_be_suppressed
     );
     std::fs::write(
         dir.path().join("rstyle.toml"),
-        "[strict_style.no_comments]\nenabled = true\n",
+        "[strict_style.comments]\nenabled = true\n",
     )
     .unwrap();
     let on = rstyle(dir.path(), &["--format", "json"]);
@@ -1160,7 +1160,7 @@ fn no_comments_is_opt_in_preserves_literals_and_directives_and_can_be_suppressed
     let report: Value = serde_json::from_slice(&on.stdout).unwrap();
     let found = diagnostics_for(&report, "f");
     assert_eq!(found.len(), 1, "{found:?}");
-    assert_eq!(found[0]["rule_id"], "no_comments");
+    assert_eq!(found[0]["rule_id"], "comments");
     assert_eq!(found[0]["actual"], 1);
     assert_eq!(found[0]["details"][0]["lines"], serde_json::json!([4]));
     let clean = source.replace("    // ordinary explanation\n", "");
@@ -1171,7 +1171,7 @@ fn no_comments_is_opt_in_preserves_literals_and_directives_and_can_be_suppressed
     );
     let allowed = source.replace(
         "pub fn",
-        "// rstyle-allow(no_comments): necessary explanation\npub fn",
+        "// rstyle-allow(comments): necessary explanation\npub fn",
     );
     std::fs::write(dir.path().join("src/lib.rs"), allowed).unwrap();
     assert_eq!(
@@ -1181,23 +1181,35 @@ fn no_comments_is_opt_in_preserves_literals_and_directives_and_can_be_suppressed
 }
 
 #[test]
-fn no_comments_exceptions_can_be_changed_independently_in_toml() {
+fn comment_policies_can_be_changed_independently_in_toml() {
     let dir = fixture("clean");
     std::fs::write(dir.path().join("src/lib.rs"), "pub fn f() -> i32 {\n    /// Local documentation.\n    let _value = 0;\n    // rustfmt::skip\n    // ordinary\n    1\n}\n").unwrap();
-    for (docs, directives, lines) in [
-        (true, true, vec![5]),
-        (false, true, vec![2, 5]),
-        (true, false, vec![4, 5]),
-        (false, false, vec![2, 4, 5]),
+    for (functions, documentation, tool_directives, lines) in [
+        ("forbid", "allow", "allow", vec![5]),
+        ("forbid", "forbid", "allow", vec![2, 5]),
+        ("forbid", "allow", "forbid", vec![4, 5]),
+        ("forbid", "forbid", "forbid", vec![2, 4, 5]),
+        ("allow", "allow", "allow", vec![]),
+        ("allow", "forbid", "allow", vec![2]),
+        ("allow", "allow", "forbid", vec![4]),
+        ("allow", "forbid", "forbid", vec![2, 4]),
     ] {
         let policy = format!(
-            "[strict_style.no_comments]\nenabled = true\nallow_doc_comments = {docs}\nallow_tool_directives = {directives}\n"
+            "[strict_style.comments]\nenabled = true\nfunctions = '{functions}'\ndocumentation = '{documentation}'\ntool_directives = '{tool_directives}'\n"
         );
         std::fs::write(dir.path().join("rstyle.toml"), policy).unwrap();
         let output = rstyle(dir.path(), &["--format", "json"]);
-        assert_eq!(output.status.code(), Some(1), "{output:?}");
+        assert_eq!(
+            output.status.code(),
+            Some(i32::from(!lines.is_empty())),
+            "{output:?}"
+        );
         let report: Value = serde_json::from_slice(&output.stdout).unwrap();
         let found = diagnostics_for(&report, "f");
+        if lines.is_empty() {
+            assert!(found.is_empty(), "{found:?}");
+            continue;
+        }
         assert_eq!(found.len(), 1, "{found:?}");
         assert_eq!(found[0]["actual"], lines.len());
         assert_eq!(found[0]["details"][0]["lines"], serde_json::json!(lines));

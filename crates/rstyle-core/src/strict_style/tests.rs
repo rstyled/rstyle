@@ -113,7 +113,7 @@ fn a_project_says_how_many_statements_need_a_blank_line() {
 }
 
 #[test]
-fn no_comments_is_opt_in_and_reports_source_lines() {
+fn comments_is_opt_in_and_reports_source_lines() {
     let mut f = sample("commented");
     f.comments = [4, 7]
         .into_iter()
@@ -123,19 +123,20 @@ fn no_comments_is_opt_in_and_reports_source_lines() {
         })
         .collect();
     let mut cfg = Config::default();
-    assert!(no_comments(&f, &cfg).is_empty());
-    cfg.strict_style.no_comments.enabled = true;
-    let found = no_comments(&f, &cfg);
+    assert!(comments(&f, &cfg).is_empty());
+    cfg.strict_style.comments.enabled = true;
+    let found = comments(&f, &cfg);
     assert_eq!(found.len(), 1);
-    assert_eq!(found[0].rule_id, "no_comments");
+    assert_eq!(found[0].rule_id, "comments");
     assert_eq!((found[0].actual, found[0].limit), (2, 0));
     assert_eq!(found[0].details[0].lines, [4, 7]);
     f.comments.clear();
-    assert!(no_comments(&f, &cfg).is_empty());
+    assert!(comments(&f, &cfg).is_empty());
 }
 
 #[test]
-fn comment_exceptions_are_independent_and_default_to_allowed() {
+fn category_policies_override_the_functions_policy() {
+    use crate::config::CommentPolicy::{Allow, Forbid};
     let mut f = sample("comments");
     f.comments = [
         CommentKind::Ordinary,
@@ -149,19 +150,28 @@ fn comment_exceptions_are_independent_and_default_to_allowed() {
         kind,
     })
     .collect();
-    for (docs, directives, expected) in [
-        (true, true, vec![2]),
-        (false, true, vec![2, 3]),
-        (true, false, vec![2, 4]),
-        (false, false, vec![2, 3, 4]),
+    for (functions, documentation, tool_directives, expected) in [
+        (Forbid, Allow, Allow, vec![2]),
+        (Forbid, Forbid, Allow, vec![2, 3]),
+        (Forbid, Allow, Forbid, vec![2, 4]),
+        (Forbid, Forbid, Forbid, vec![2, 3, 4]),
+        (Allow, Allow, Allow, vec![]),
+        (Allow, Forbid, Allow, vec![3]),
+        (Allow, Allow, Forbid, vec![4]),
+        (Allow, Forbid, Forbid, vec![3, 4]),
     ] {
         let mut cfg = Config::default();
-        cfg.strict_style.no_comments = crate::config::NoCommentsConfig {
+        cfg.strict_style.comments = crate::config::CommentsConfig {
             enabled: true,
-            allow_doc_comments: docs,
-            allow_tool_directives: directives,
+            functions,
+            documentation,
+            tool_directives,
         };
-        let found = no_comments(&f, &cfg);
-        assert_eq!(found[0].details[0].lines, expected);
+        let found = comments(&f, &cfg);
+        let lines: Vec<usize> = found
+            .iter()
+            .flat_map(|d| d.details[0].lines.iter().copied())
+            .collect();
+        assert_eq!(lines, expected);
     }
 }
