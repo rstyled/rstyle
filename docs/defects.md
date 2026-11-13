@@ -68,6 +68,58 @@ A store means an assignment to a binding or a declaration's computed initializer
 It reports a real store, and the store may still be harmless, such as clearing a local before returning. It doesn't look
 at fields or what a pointer holds: `t.a = 1` isn't a store here. A compiler already warns about many of these in Rust.
 
+## `identical_branches`
+
+A condition that changes nothing, because the code it guards is the code that runs without it. Whatever it was meant to
+decide, it doesn't:
+
+```go
+func enableSqlExpressions(h *ExpressionQueryReader) bool {
+	enabled := !h.features.IsEnabledGlobally(featuremgmt.FlagSqlExpressions)
+	if enabled {
+		return false
+	}
+	return false
+}
+```
+
+```text
+pkg/expr/reader.go:196: identical_branches: the condition here changes nothing: the branch runs the same code as what follows it
+```
+
+It reports two shapes:
+
+- an `if` whose two branches are the same code
+- an `if` with no `else` whose branch ends in a `return`, where the statements after the `if` are the branch's again
+
+Two pieces of code are the same when they're written with the same tokens and every name in them resolves to the same
+thing. These stay quiet:
+
+| Case | Why |
+| --- | --- |
+| `if v, ok := m[k]; ok { return v }`, then `return v` | The `v` the condition binds for its branch isn't the `v` after it |
+| A branch that does anything more before it returns | It isn't the same code |
+| A branch that doesn't return, such as `if c { log() }`, then `log()` | What follows runs as well, so the condition decides how often |
+| `if a { x } else if b { y } else { x }` | A condition still decides something |
+| Code a macro wrote | Two macros can expand to the same code and not mean the same |
+
+It reports a real redundancy, and it may still be harmless. `if err != nil { return err }` followed by `return err` returns
+the same either way, and so does a guard kept as a placeholder. The ones worth the look return a constant, or drop an
+error:
+
+```go
+if err != nil {
+	return oas, nil
+}
+return oas, nil
+```
+
+The condition still runs, so taking it out is only safe when evaluating it does nothing else.
+
+On the 14,938 functions of Grafana's `pkg` at an April 2025 commit it reports 11 conditions, each one the same code either
+way: 2 drop an error like the one above, 1 returns one constant, 2 are placeholders and 6 return the same `err`. On 6,900
+competitive-programming solutions in Go, Rust and C++ it reports 7.
+
 ## `ignored_result`
 
 A call that drops its result where nearly all of the run's other calls of that callee use it. Nothing in a signature says
