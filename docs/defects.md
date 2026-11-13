@@ -107,15 +107,12 @@ thing. These stay quiet:
 | `if a { x } else if b { y } else { x }` | A condition still decides something |
 | Code a macro wrote | Two macros can expand to the same code and not mean the same |
 
-Two common harmless forms report at `note` severity as refactor opportunities:
+All `identical_branches` findings report at `warning` severity, like `dead_store`. A redundant error guard is a valid
+refactor finding even when it preserves the correct result. TODO comments do not change severity or suppress findings.
+Use `rstyle-allow(identical_branches): reason` above the function for an intentional exception.
 
-- A guard comparing a binding with Go's builtin `nil`, followed by identical plain returns that pass that binding
-  through unchanged. This includes `if err != nil { return err }; return err` and result/error pairs.
-- A guard with no `else` whose only statement is a return, with a `// TODO` or `# TODO` comment between the guard
-  and the repeated return. A TODO elsewhere in the function does not silence the rule.
-
-Other identical branches report at `warning` severity. They may still be intentional; use `rstyle-allow(identical_branches)` with a reason for those.
-The rule still reports a constant return without an explicit placeholder, or a dropped error:
+A warning identifies a concrete redundancy, not proof of a behavior bug. Some findings deserve closer review, such as
+an error that is dropped:
 
 ```go
 if err != nil {

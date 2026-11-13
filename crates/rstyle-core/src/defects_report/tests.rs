@@ -691,7 +691,7 @@ fn incomplete_guard_resolution_does_not_silence_identical_branches() {
 }
 
 #[test]
-fn direct_returns_without_statement_wrappers_keep_note_severity() {
+fn direct_returns_without_statement_wrappers_keep_warning_severity() {
     let mut document = identical_branches();
     let function = &mut document["unit"]["functions"][4];
     for node in function["nodes"].as_array_mut().unwrap() {
@@ -717,12 +717,12 @@ fn direct_returns_without_statement_wrappers_keep_note_severity() {
             .find(|row| row.line == 41)
             .unwrap()
             .severity,
-        crate::config::Level::Note
+        crate::config::Level::Warning
     );
 }
 
 #[test]
-fn returns_without_spans_do_not_get_the_todo_exclusion() {
+fn returns_without_spans_still_report_the_redundant_guard() {
     let mut document = identical_branches();
     let function = &mut document["unit"]["functions"][16];
     assert_eq!(function["name"], "todoGuard");
@@ -736,32 +736,29 @@ fn returns_without_spans_do_not_get_the_todo_exclusion() {
 }
 
 #[test]
-fn routine_redundancies_are_notes_in_text_json_and_sarif() {
+fn redundancies_are_warnings_in_text_json_and_sarif_regardless_of_todo_comments() {
     let report = report_of(vec![identical_branches()], &Config::default());
-    let notes: Vec<usize> = report
-        .defects
-        .iter()
-        .filter(|row| row.severity == crate::config::Level::Note)
-        .map(|row| row.line)
-        .collect();
-    assert_eq!(notes, [41, 133, 141, 150]);
-    assert!(report.text().contains(":41: identical_branches: note: "));
+    assert_eq!(report.defects.len(), 18);
     assert!(
         report
-            .text()
-            .contains(":159: identical_branches: warning: ")
+            .defects
+            .iter()
+            .all(|row| row.severity == crate::config::Level::Warning)
     );
+    for line in [41, 133, 141, 150, 159] {
+        assert!(
+            report
+                .text()
+                .contains(&format!(":{line}: identical_branches: warning: "))
+        );
+    }
     let json = serde_json::to_value(&report).unwrap();
     let root = std::path::Path::new(if cfg!(windows) { r"C:\w" } else { "/w" });
     let sarif = serde_json::to_value(sarif::defects(&report, root).unwrap()).unwrap();
     let results = sarif["runs"][0]["results"].as_array().unwrap();
+    assert_eq!(results.len(), report.defects.len());
     for (row, result) in json["defects"].as_array().unwrap().iter().zip(results) {
-        let expected = if notes.contains(&row["line"].as_u64().unwrap().try_into().unwrap()) {
-            "note"
-        } else {
-            "warning"
-        };
-        assert_eq!(row["severity"], expected);
-        assert_eq!(result["level"], expected);
+        assert_eq!(row["severity"], "warning");
+        assert_eq!(result["level"], "warning");
     }
 }
