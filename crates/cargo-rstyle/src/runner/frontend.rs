@@ -4,6 +4,7 @@ use super::pipe;
 use crate::cpg::analyze::FrontendResult;
 use crate::cpg::input::{self, STREAM_BUFFER, Store, Stream};
 use rstyle_core::config::Excludes;
+use rstyle_core::cpg::OnRecords;
 use rstyle_core::cpg::records::{Demand, Record};
 use rstyle_core::cpg::transport::{self, DocumentManifest, Encoding, SequenceReader};
 use rstyle_core::filter::valid_name;
@@ -177,7 +178,7 @@ impl Frontend {
     pub(super) fn stream(
         &self,
         source: &Path,
-        demand: Demand,
+        (demand, on_records): (Demand, OnRecords<'_>),
         saving: &Saving<'_>,
     ) -> Result<Streamed, String> {
         let (reader, writer) =
@@ -192,6 +193,7 @@ impl Frontend {
         let stream = Stream {
             demand,
             on_failure: &stop,
+            on_records,
             store: Some(Store {
                 directory: saving.directory,
                 encoding: saving.encoding,

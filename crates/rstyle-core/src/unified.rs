@@ -11,9 +11,12 @@ use crate::filter::{Analysis, Filter};
 use crate::patterns_report::{self, PatternsReport};
 use crate::report::{self, Report};
 use crate::{Retention, candidates, rules, sarif};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::Path;
+
+mod early;
+pub use early::{Early, SpilledFlow};
 
 /// What the selected analyses reported; a filtered one stays absent. Nothing here says where or
 /// when the run happened, so two runs over the same source are byte-comparable.
@@ -32,7 +35,7 @@ pub struct Analyses {
 }
 
 /// A function's derived flow, in terms of its document's node ids.
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct FlowRow {
     pub function: String,
     pub name: String,
@@ -40,29 +43,59 @@ pub struct FlowRow {
     pub flow: Derived,
 }
 
-/// Each function's flow.
-#[derive(Serialize)]
+/// Each function's flow: held in memory, or spilled to disk as the run derived it, when
+/// `functions` is empty. Both serialize the same.
 pub struct FlowReport {
     pub functions: Vec<FlowRow>,
+    pub spilled: Option<SpilledFlow>,
 }
 
 impl FlowReport {
+    pub fn held(functions: Vec<FlowRow>) -> Self {
+        Self {
+            functions,
+            spilled: None,
+        }
+    }
+
     /// One line per function is `cpg flow`'s to print. A whole run's text says how many stand
     /// where, and the JSON report has each function.
     pub fn summary(&self) -> String {
-        let count = |standing: Standing| {
-            self.functions
+        let count = |standing: Standing| match &self.spilled {
+            Some(spilled) => spilled
+                .standings()
+                .iter()
+                .filter(|s| **s == standing)
+                .count(),
+            None => self
+                .functions
                 .iter()
                 .filter(|row| row.flow.standing == standing)
-                .count()
+                .count(),
         };
+        let total = self
+            .spilled
+            .as_ref()
+            .map_or(self.functions.len(), SpilledFlow::len);
         format!(
             "Control flow of {} functions: {} known, {} approximated, {} unknown",
-            self.functions.len(),
+            total,
             count(Standing::Known),
             count(Standing::Approximated),
             count(Standing::Unknown),
         )
+    }
+}
+
+impl Serialize for FlowReport {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut report = serializer.serialize_struct("FlowReport", 1)?;
+        match &self.spilled {
+            Some(spilled) => report.serialize_field("functions", spilled)?,
+            None => report.serialize_field("functions", &self.functions)?,
+        }
+        report.end()
     }
 }
 
@@ -86,22 +119,42 @@ pub fn take_flow(records: &mut [Record], name: Option<&str>) -> Vec<FlowRow> {
 /// Runs the selected analyses over records in canonical order. `options.top` also limits the
 /// bounds rows.
 pub fn analyze(
-    mut records: Vec<Record>,
+    records: Vec<Record>,
     filter: &Filter,
     config: &Config,
     options: &patterns_report::Options,
 ) -> Result<Analyses, String> {
+    analyze_taking(records, (filter, config, options), None)
+}
+
+/// As `analyze`, over records that `early` took flow and defects from while they were derived.
+pub fn analyze_taking(
+    mut records: Vec<Record>,
+    (filter, config, options): (&Filter, &Config, &patterns_report::Options),
+    early: Option<Early>,
+) -> Result<Analyses, String> {
     reject_a_run_outside_its_root(&records)?;
     records::canonical_order(&mut records);
+    let (spilled, folded) = match early {
+        Some(early) => early.finish()?,
+        None => (None, None),
+    };
     let runtime_bounds = filter
         .core(Analysis::Bounds)
         .then(|| from_records(&records, options.top));
-    let flow = filter.core(Analysis::Flow).then(|| FlowReport {
-        functions: take_flow(&mut records, None),
+    let flow = filter.core(Analysis::Flow).then(|| match spilled {
+        Some(spilled) => FlowReport {
+            functions: Vec::new(),
+            spilled: Some(spilled),
+        },
+        None => FlowReport::held(take_flow(&mut records, None)),
     });
     let defects = filter
         .core(Analysis::Defects)
-        .then(|| defects_report::from_records(&mut records, config))
+        .then(|| match folded {
+            Some(folded) => Ok(folded.into_report(config)),
+            None => defects_report::from_records(&mut records, config),
+        })
         .transpose()?;
 
     let (check, patterns) = checked_and_mined(records, filter, config, options)?;
@@ -318,6 +371,51 @@ mod tests {
         let error = result.err().expect("no error");
         assert!(error.contains("None of this run's 3 functions"), "{error}");
         assert!(error.contains("../elsewhere/"), "{error}");
+    }
+
+    fn example() -> Value {
+        serde_json::from_str(include_str!("cpg/testdata/example.cpg.json")).unwrap()
+    }
+
+    /// The example's functions compiled twice, as a library and its test harness are.
+    fn compiled_twice() -> [Vec<Record>; 2] {
+        let mut tests = example();
+        tests["unit"]["id"] = "unit:example-tests".into();
+        let demand = Filter::Everything.demand();
+        [example(), tests].map(|document| read_records([Ok(document)], demand).unwrap())
+    }
+
+    #[test]
+    fn taking_flow_and_defects_early_reports_what_holding_them_does_whatever_the_order() {
+        let (filter, config) = (Filter::Everything, Config::default());
+        let options = patterns_report::Options::default();
+        let [library, tests] = compiled_twice();
+        let whole: Vec<Record> = library.iter().chain(&tests).cloned().collect();
+        let held = analyze(whole, &filter, &config, &options).unwrap();
+
+        let early = Early::new(&filter, &config).unwrap();
+        // The compilation canonical order puts last arrives first.
+        let tests = early.take(tests).unwrap();
+        let library = early.take(library).unwrap();
+        assert!(
+            library
+                .iter()
+                .all(|record| record.flow.is_none() && record.source.is_empty())
+        );
+        let taken = tests.into_iter().chain(library).collect();
+        let taken = analyze_taking(taken, (&filter, &config, &options), Some(early)).unwrap();
+
+        assert!(
+            taken
+                .flow
+                .as_ref()
+                .is_some_and(|flow| flow.spilled.is_some())
+        );
+        let compact = |analyses: &Analyses| serde_json::to_string(analyses).unwrap();
+        let pretty = |analyses: &Analyses| serde_json::to_string_pretty(analyses).unwrap();
+        assert_eq!(compact(&taken), compact(&held));
+        assert_eq!(pretty(&taken), pretty(&held));
+        assert_eq!(taken.text(), held.text());
     }
 
     #[test]

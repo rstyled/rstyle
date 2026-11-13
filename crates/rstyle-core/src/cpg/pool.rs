@@ -21,6 +21,17 @@ pub struct Pool<'a> {
     pub on_failure: &'a (dyn Fn() + Sync),
     /// Shown each bundled document, on a worker, for what a run's records don't hold.
     pub on_document: &'a (dyn Fn(&Document) + Sync),
+    /// Given each document's records on the worker that derived them, before the pool keeps
+    /// what it returns, to take what needn't wait for the rest of the run.
+    pub on_records: OnRecords<'a>,
+}
+
+/// What a pool hands each document's records to. Its error fails the run.
+pub type OnRecords<'a> = &'a (dyn Fn(Vec<Record>) -> Result<Vec<Record>, String> + Sync);
+
+/// Keeps every record whole.
+pub fn keep_records(records: Vec<Record>) -> Result<Vec<Record>, String> {
+    Ok(records)
 }
 
 /// Derives every job's document. `load` turns a job, numbered in arrival order, into its
@@ -93,6 +104,7 @@ struct State<'a> {
     demand: Demand,
     on_failure: &'a (dyn Fn() + Sync),
     on_document: &'a (dyn Fn(&Document) + Sync),
+    on_records: OnRecords<'a>,
     failed: AtomicBool,
     failure: Mutex<Option<String>>,
     functions: Mutex<layout::FunctionIds>,
@@ -106,6 +118,7 @@ impl<'a> State<'a> {
             demand: pool.demand,
             on_failure: pool.on_failure,
             on_document: pool.on_document,
+            on_records: pool.on_records,
             failed: AtomicBool::new(false),
             failure: Mutex::default(),
             functions: Mutex::default(),
@@ -147,7 +160,7 @@ impl<'a> State<'a> {
             .lock()
             .expect("no panic while including")
             .include(document)?;
-        let batch = records::records(document, self.demand)?;
+        let batch = (self.on_records)(records::records(document, self.demand)?)?;
         self.records
             .lock()
             .expect("no panic while extending")
@@ -190,6 +203,7 @@ mod tests {
             demand,
             on_failure: &no_failure,
             on_document: &|_| {},
+            on_records: &keep_records,
         }
     }
 
@@ -272,6 +286,7 @@ mod tests {
             demand: Demand::default(),
             on_failure: &stop,
             on_document: &|_| {},
+            on_records: &keep_records,
         };
         let jobs = (0..100).map(|index| match index {
             3 => Err("broken pipe".to_string()),

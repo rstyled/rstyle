@@ -6,7 +6,7 @@ use crate::cpg::defects::ignored_result::{self, ResultUse};
 use crate::cpg::defects::taint::{self, Finding, FunctionFlows};
 use crate::cpg::defects::value_flow::ValueFlows;
 use crate::cpg::defects::{Defect, Examined};
-use crate::cpg::records::{Measured, Record};
+use crate::cpg::records::{CanonicalKey, Measured, Record};
 use crate::{exclusions, suppress};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -66,23 +66,47 @@ impl DefectsReport {
 /// compiled twice, as a library and its test harness are, holds the same function twice, so what
 /// repeats is reported once.
 pub fn from_records(records: &mut [Record], config: &Config) -> Result<DefectsReport, String> {
-    let excluded = exclusions::Matcher::compile(&config.exclude.0)?;
-    let mut read = Gathered::default();
-    for record in records {
-        let Some(examined) = record.defects.take() else {
-            continue;
-        };
-        let written = matches!(record.measured, Measured::Known(_));
-        if !written || excluded.is_excluded(Path::new(&record.path)) {
-            continue;
-        }
-        read.add(record, examined);
+    let mut fold = DefectsFold::new(config)?;
+    fold.add(records);
+    Ok(fold.into_report(config))
+}
+
+/// A run's defects, read a batch of records at a time and in any order: what a function holds
+/// twice keeps the copy canonical order would, so the report is the same however records arrive.
+pub struct DefectsFold {
+    read: Gathered,
+    excluded: exclusions::Matcher,
+}
+
+impl DefectsFold {
+    pub fn new(config: &Config) -> Result<Self, String> {
+        Ok(Self {
+            read: Gathered::default(),
+            excluded: exclusions::Matcher::compile(&config.exclude.0)?,
+        })
     }
-    Ok(read.into_report(config))
+
+    /// Moves each record's defects out, for the functions a person wrote and the run selected.
+    pub fn add(&mut self, records: &mut [Record]) {
+        for record in records {
+            let Some(examined) = record.defects.take() else {
+                continue;
+            };
+            let written = matches!(record.measured, Measured::Known(_));
+            if !written || self.excluded.is_excluded(Path::new(&record.path)) {
+                continue;
+            }
+            self.read.add(record, examined);
+        }
+    }
+
+    pub fn into_report(self, config: &Config) -> DefectsReport {
+        self.read.into_report(config)
+    }
 }
 
 /// Where a call is, which makes it one call however many compilations hold it.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct CallSite {
     path: String,
     line: usize,
@@ -112,6 +136,22 @@ struct Gathered {
     flows: BTreeMap<String, FunctionFlows>,
     /// What each method's calls pass, by its identity.
     arguments: BTreeMap<String, MethodArguments>,
+    /// The canonical key of the record each kept entry came from. Canonical order keeps an
+    /// identity's first flows and arguments and a call site's last call; keeping the least and
+    /// the greatest key does the same whatever order records come in.
+    kept_from: KeptFrom,
+}
+
+#[derive(Default)]
+struct KeptFrom {
+    flows: BTreeMap<String, CanonicalKey>,
+    arguments: BTreeMap<String, CanonicalKey>,
+    results: BTreeMap<(String, CallSite), CanonicalKey>,
+}
+
+/// Whether `key` replaces what `kept` holds, when the earliest record in canonical order wins.
+fn earlier(kept: Option<&CanonicalKey>, key: &CanonicalKey) -> bool {
+    kept.is_none_or(|kept| key < kept)
 }
 
 fn preceding(record: &Record) -> &str {
@@ -160,9 +200,11 @@ impl Gathered {
             allowed: suppress::allows(preceding(record), taint::RULE),
             flows,
         };
-        self.flows
-            .entry(record.identity.clone())
-            .or_insert(function);
+        let key = record.owned_canonical_key();
+        if earlier(self.kept_from.flows.get(&record.identity), &key) {
+            self.kept_from.flows.insert(record.identity.clone(), key);
+            self.flows.insert(record.identity.clone(), function);
+        }
     }
 
     fn add_arguments(&mut self, record: &Record, arguments: Arguments) {
@@ -172,9 +214,13 @@ impl Gathered {
             allowed: suppress::allows(preceding(record), deviant_argument::RULE),
             arguments,
         };
-        self.arguments
-            .entry(record.identity.clone())
-            .or_insert(method);
+        let key = record.owned_canonical_key();
+        if earlier(self.kept_from.arguments.get(&record.identity), &key) {
+            self.kept_from
+                .arguments
+                .insert(record.identity.clone(), key);
+            self.arguments.insert(record.identity.clone(), method);
+        }
     }
 
     /// Reports the arguments a method passes where its siblings' same calls all pass another.
@@ -238,10 +284,21 @@ impl Gathered {
                 function: record.identity.clone(),
                 allowed,
             };
-            self.results
-                .entry(result.callee)
-                .or_default()
-                .insert(site, call);
+            // The latest record in canonical order wins a call site.
+            let key = record.owned_canonical_key();
+            let slot = (result.callee.clone(), site.clone());
+            if self
+                .kept_from
+                .results
+                .get(&slot)
+                .is_none_or(|kept| key >= *kept)
+            {
+                self.kept_from.results.insert(slot, key);
+                self.results
+                    .entry(result.callee)
+                    .or_default()
+                    .insert(site, call);
+            }
         }
     }
 

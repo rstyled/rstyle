@@ -5,6 +5,7 @@ use super::{RunRecord, read_any_record, seen_saved_records};
 use crate::cpg::load_config;
 use crate::{Cli, Format};
 use rstyle_core::config::Config;
+use rstyle_core::cpg::keep_records;
 use rstyle_core::cpg::records::Demand;
 use rstyle_core::merge_risk::{self, Snapshot, SourceFiles};
 use std::path::{Path, PathBuf};
@@ -82,7 +83,9 @@ fn base_policy(cli: &Cli, base: &Path) -> Result<Config, String> {
 // rstyle-allow(side_effect_density): IO boundary: reads a saved run
 fn snapshot(run: &Path, record: Option<&RunRecord>, config: &Config) -> Result<Snapshot, String> {
     let files = SourceFiles::default();
-    let records = seen_saved_records((run, record), DEMAND, &|document| files.see(document))?;
+    // A comparison reads every field, so records are kept whole.
+    let see = |document: &rstyle_core::cpg::model::Document| files.see(document);
+    let records = seen_saved_records((run, record), DEMAND, (&see, &keep_records))?;
     Snapshot::of(records, files, config)
 }
 
