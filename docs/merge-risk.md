@@ -74,8 +74,7 @@ errors. The limit is a policy on size, not a proof that behavior is preserved,
 and it only lowers `pdg_change`.
 
 The rating is the strongest of its reasons, in this order: `high`, `unknown`, `unrated`, `medium`, `low`. So a measured high
-stands whatever else is unclear, and what can't be seen can't be rated away. These are always **unknown**, under any policy
-that has rules:
+stands whatever else is unclear, and what can't be seen can't be rated away. These are always **unknown**:
 
 | Reason | Meaning |
 | --- | --- |
