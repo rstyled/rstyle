@@ -2306,6 +2306,39 @@ fn risk_reads_a_new_pure_standard_call_as_classified_and_a_trait_call_as_not() {
     assert!(!called.contains("first"), "{called}");
 }
 
+/// `.await` polls the body of the `async fn` it awaits, which the call that made the future already
+/// reads, and `?` converts the error with the workspace's `From` or with none at all, so an async
+/// function that awaits and propagates adds no call nothing classifies.
+#[test]
+fn risk_reads_await_and_try_as_the_workspace_code_they_run() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let errors = "pub struct Failed;\npub struct Other;\n\
+        impl From<Other> for Failed { fn from(_: Other) -> Self { Failed } }\n\
+        pub async fn own() -> Result<u8, Failed> { Ok(1) }\n\
+        pub async fn other() -> Result<u8, Other> { Ok(2) }\n";
+    let base = saved_run_of(
+        root,
+        &format!("{errors}pub async fn f() -> Result<u8, Failed> {{ Ok(0) }}\n"),
+    );
+    let head = saved_run_of(
+        root,
+        &format!(
+            "{errors}pub async fn f() -> Result<u8, Failed> {{ Ok(own().await? + other().await?) }}\n"
+        ),
+    );
+
+    let rated = report(&risk(&base, &head));
+    assert_eq!(rated["risk"], "low", "{rated}");
+    assert_eq!(
+        rated["changes"][0]["calls_unclassified"],
+        serde_json::json!([]),
+        "{rated}"
+    );
+}
+
 /// An exact entry classifies the member it names and not one whose name it starts, and a member
 /// that only allocates is pure.
 #[test]
