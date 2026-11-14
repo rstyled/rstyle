@@ -383,6 +383,10 @@ pub struct ReviewConfig {
     /// Merge a pull request rated low risk that adds no errors, once every other check is green.
     /// One that changes `rstyle.toml` or `.github/` stays for a person to merge.
     pub auto_merge: bool,
+    /// The projects to review, by their directory in the repository, `.` for its root. Empty is
+    /// the one project Rstyle finds there. A pull request that changes code outside every one
+    /// isn't merged automatically.
+    pub projects: Vec<String>,
 }
 
 /// How `algorithmic_complexity` reports a function whose proven loop bound is of degree two or more.
@@ -1077,6 +1081,9 @@ mod tests {
     fn a_review_takes_each_pull_request_setting_off_unless_asked_and_no_baseline_compares_it() {
         let review = Config::parse("").unwrap().review;
         assert!(!review.comment_warnings && !review.status_check && !review.auto_merge);
+        assert!(review.projects.is_empty());
+        let projects = Config::parse("[review]\nprojects = [\".\", \"worker\"]").unwrap();
+        assert_eq!(projects.review.projects, [".", "worker"]);
         let config = Config::parse(
             "[review]
 comment_warnings = true
