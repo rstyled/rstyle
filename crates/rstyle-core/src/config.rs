@@ -31,6 +31,10 @@ pub struct Config {
     /// Left out of what a baseline compares for the same reason: only the SARIF report reads it.
     #[serde(skip_serializing)]
     pub algorithmic_complexity: AlgorithmicComplexityConfig,
+    /// Left out of what a baseline compares for the same reason: only Rstyle's pull request review
+    /// reads it.
+    #[serde(skip_serializing)]
+    pub review: ReviewConfig,
     pub grouping: GroupingConfig,
     /// Left out of what a baseline compares while nothing is on, so a project that hasn't asked for
     /// these rules sees no change in its policy. Turning one on is one.
@@ -363,6 +367,22 @@ impl Level {
             Self::Error => "error",
         }
     }
+}
+
+/// What Rstyle's GitHub app does on a pull request, read from the base branch so a pull request
+/// can't change it for itself. It always comments on the errors a pull request adds on lines its
+/// diff shows, and counts its new warnings in the summary.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ReviewConfig {
+    /// Comment on new warnings on changed lines too, not only count them.
+    pub comment_warnings: bool,
+    /// Post an "Rstyle" status check on each head commit: green when it adds no errors. Branch
+    /// protection decides whether it's required.
+    pub status_check: bool,
+    /// Merge a pull request rated low risk that adds no errors, once every other check is green.
+    /// One that changes `rstyle.toml` or `.github/` stays for a person to merge.
+    pub auto_merge: bool,
 }
 
 /// How `algorithmic_complexity` reports a function whose proven loop bound is of degree two or more.
@@ -1051,6 +1071,32 @@ mod tests {
         let config = Config::parse("[ignored_result]\nmin_calls = 20").unwrap();
         let policy = serde_json::to_value(&config).unwrap();
         assert!(policy.get("ignored_result").is_none(), "{policy}");
+    }
+
+    #[test]
+    fn a_review_takes_each_pull_request_setting_off_unless_asked_and_no_baseline_compares_it() {
+        let review = Config::parse("").unwrap().review;
+        assert!(!review.comment_warnings && !review.status_check && !review.auto_merge);
+        let config = Config::parse(
+            "[review]
+comment_warnings = true
+status_check = true
+auto_merge = true",
+        )
+        .unwrap();
+        assert!(
+            config.review.comment_warnings
+                && config.review.status_check
+                && config.review.auto_merge
+        );
+        let policy = serde_json::to_value(&config).unwrap();
+        assert!(policy.get("review").is_none(), "{policy}");
+        let typo = Config::parse(
+            "[review]
+comment_warning = true",
+        )
+        .unwrap_err();
+        assert!(typo.to_string().contains("comment_warning"), "{typo}");
     }
 
     #[test]

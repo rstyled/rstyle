@@ -76,6 +76,9 @@ is a commented example, though it raises the complexity limits above their defau
 | `deviant_argument.min_methods` | 4 | Fewest sibling methods, counting the one that differs, that make the call; at least 3. See [`deviant_argument`](defects.md#deviant_argument) |
 | `deviant_argument.min_shared_callees_percent` | 50 | How much of their callees two methods of a type share to be siblings, from 1 to 100 |
 | `algorithmic_complexity.severity_level` | `"error"` | Level of a loop bound that multiplies one input by itself; `"warning"` lowers it. See [runtime bounds](runtime-bounds.md#in-the-check-run) |
+| `review.comment_warnings` | `false` | Rstyle's pull request review comments on the errors a pull request adds on its changed lines and counts new warnings. `true` comments on those warnings too |
+| `review.status_check` | `false` | `true` posts an "Rstyle" status check on each pull request commit, green when it adds no errors. Make it required in branch protection to gate merging on it |
+| `review.auto_merge` | `false` | `true` merges a pull request rated low merge risk that adds no errors, once every other check is green. A draft, a `no-automerge` label, a review requesting changes, or a change to `rstyle.toml` or `.github/` leaves it for a person |
 | `grouping.caller_rules` | `["fn_params"]` | Rules whose fix also edits the function's callers |
 | `grouping.caller_hops` | 1 | How many caller hops those fixes reach |
 | `strict_style.*` | off | See [strict style](#strict-style) |
