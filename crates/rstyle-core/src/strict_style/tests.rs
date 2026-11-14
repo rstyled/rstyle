@@ -111,3 +111,67 @@ fn a_project_says_how_many_statements_need_a_blank_line() {
     cfg.strict_style.fn_spacing.min_statements = 8;
     assert_eq!(fn_spacing(&f, &cfg).len(), 1);
 }
+
+#[test]
+fn comments_is_opt_in_and_reports_source_lines() {
+    let mut f = sample("commented");
+    f.comments = [4, 7]
+        .into_iter()
+        .map(|line| crate::facts::SourceComment {
+            line,
+            kind: CommentKind::Ordinary,
+        })
+        .collect();
+    let mut cfg = Config::default();
+    assert!(comments(&f, &cfg).is_empty());
+    cfg.strict_style.comments.enabled = true;
+    let found = comments(&f, &cfg);
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].rule_id, "comments");
+    assert_eq!((found[0].actual, found[0].limit), (2, 0));
+    assert_eq!(found[0].details[0].lines, [4, 7]);
+    f.comments.clear();
+    assert!(comments(&f, &cfg).is_empty());
+}
+
+#[test]
+fn category_policies_override_the_functions_policy() {
+    use crate::config::CommentPolicy::{Allow, Forbid};
+    let mut f = sample("comments");
+    f.comments = [
+        CommentKind::Ordinary,
+        CommentKind::Documentation,
+        CommentKind::ToolDirective,
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(index, kind)| crate::facts::SourceComment {
+        line: index + 2,
+        kind,
+    })
+    .collect();
+    for (functions, documentation, tool_directives, expected) in [
+        (Forbid, Allow, Allow, vec![2]),
+        (Forbid, Forbid, Allow, vec![2, 3]),
+        (Forbid, Allow, Forbid, vec![2, 4]),
+        (Forbid, Forbid, Forbid, vec![2, 3, 4]),
+        (Allow, Allow, Allow, vec![]),
+        (Allow, Forbid, Allow, vec![3]),
+        (Allow, Allow, Forbid, vec![4]),
+        (Allow, Forbid, Forbid, vec![3, 4]),
+    ] {
+        let mut cfg = Config::default();
+        cfg.strict_style.comments = crate::config::CommentsConfig {
+            enabled: true,
+            functions,
+            documentation,
+            tool_directives,
+        };
+        let found = comments(&f, &cfg);
+        let lines: Vec<usize> = found
+            .iter()
+            .flat_map(|d| d.details[0].lines.iter().copied())
+            .collect();
+        assert_eq!(lines, expected);
+    }
+}

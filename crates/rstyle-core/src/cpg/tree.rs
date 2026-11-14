@@ -12,6 +12,7 @@ pub struct Tables<'a> {
     types: BTreeMap<&'a str, &'a Type>,
     unbounded_integers: bool,
     wording: Wording,
+    language: &'a str,
 }
 
 impl<'a> Tables<'a> {
@@ -21,7 +22,12 @@ impl<'a> Tables<'a> {
             types: index("type", &unit.types, |t| &t.id)?,
             unbounded_integers: unit.semantics.integer_overflow == "unbounded",
             wording: Wording::of(&unit.language.name),
+            language: &unit.language.name,
         })
+    }
+
+    pub fn language(&self) -> &str {
+        self.language
     }
 
     /// The terms the unit's messages use.

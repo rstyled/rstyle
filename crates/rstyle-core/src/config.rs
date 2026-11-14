@@ -51,6 +51,8 @@ pub struct Config {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct StrictStyleConfig {
+    #[serde(skip_serializing_if = "CommentsConfig::is_off")]
+    pub comments: CommentsConfig,
     #[serde(skip_serializing_if = "FnSpacingConfig::is_off")]
     pub fn_spacing: FnSpacingConfig,
     #[serde(skip_serializing_if = "GuardClauseConfig::is_off")]
@@ -63,7 +65,8 @@ pub struct StrictStyleConfig {
 
 impl StrictStyleConfig {
     fn all_off(&self) -> bool {
-        !self.fn_spacing.enabled
+        !self.comments.enabled
+            && !self.fn_spacing.enabled
             && !self.guard_clause.enabled
             && !self.primitive_obsession.enabled
             && !self.value_object.enabled
@@ -92,6 +95,41 @@ impl Default for FnSpacingConfig {
             enabled: false,
             min_statements: 5,
         }
+    }
+}
+
+/// A direct policy for a category of comments.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CommentPolicy {
+    Allow,
+    Forbid,
+}
+
+/// Comments in captured function source, with explicit exceptions.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct CommentsConfig {
+    pub enabled: bool,
+    pub functions: CommentPolicy,
+    pub documentation: CommentPolicy,
+    pub tool_directives: CommentPolicy,
+}
+
+impl Default for CommentsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            functions: CommentPolicy::Forbid,
+            documentation: CommentPolicy::Allow,
+            tool_directives: CommentPolicy::Allow,
+        }
+    }
+}
+
+impl CommentsConfig {
+    fn is_off(&self) -> bool {
+        !self.enabled
     }
 }
 
@@ -904,6 +942,7 @@ mod tests {
     #[test]
     fn the_example_config_states_strict_styles_defaults() {
         example_states_the_defaults_of::<GuardClauseConfig>("guard_clause");
+        example_states_the_defaults_of::<CommentsConfig>("comments");
         example_states_the_defaults_of::<PrimitiveObsessionConfig>("primitive_obsession");
         example_states_the_defaults_of::<ValueObjectConfig>("value_object");
     }
@@ -1121,5 +1160,40 @@ mod tests {
     fn a_baseline_does_not_compare_risk_rules() {
         let policy = |input: &str| serde_json::to_value(Config::parse(input).unwrap()).unwrap();
         assert_eq!(policy("[risk]\npdg_change = \"high\""), policy(""));
+    }
+}
+
+#[cfg(test)]
+mod comments_tests {
+    use super::*;
+
+    #[test]
+    fn comments_are_opt_in_with_explicit_policy_defaults() {
+        assert!(!Config::parse("").unwrap().strict_style.comments.enabled);
+        let on = Config::parse("[strict_style.comments]\nenabled = true").unwrap();
+        let rule = &on.strict_style.comments;
+        assert!(rule.enabled);
+        assert_eq!(rule.functions, CommentPolicy::Forbid);
+        assert_eq!(rule.documentation, CommentPolicy::Allow);
+        assert_eq!(rule.tool_directives, CommentPolicy::Allow);
+        let policy = serde_json::to_value(on).unwrap();
+        let rule = &policy["strict_style"]["comments"];
+        assert_eq!(rule["functions"], "forbid");
+        assert_eq!(rule["documentation"], "allow");
+        assert_eq!(rule["tool_directives"], "allow");
+    }
+
+    #[test]
+    fn invalid_comment_policies_and_old_names_are_errors() {
+        for input in [
+            "[strict_style.comments]\nfunctions = true",
+            "[strict_style.comments]\nfunctions = 'deny'",
+            "[strict_style.comments]\ndocumentation = 'deny'",
+            "[strict_style.comments]\ntool_directives = 'deny'",
+            "[strict_style.comments]\nallow_doc_comments = true",
+            "[strict_style.no_comments]\nenabled = true",
+        ] {
+            assert!(Config::parse(input).is_err(), "{input}");
+        }
     }
 }

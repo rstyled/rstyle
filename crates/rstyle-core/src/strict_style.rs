@@ -5,8 +5,8 @@
 mod primitive_obsession;
 mod value_object;
 
-use crate::config::Config;
-use crate::facts::FnFacts;
+use crate::config::{CommentPolicy, Config};
+use crate::facts::{CommentKind, FnFacts};
 use crate::report::{Detail, Diagnostic};
 use crate::rules::{Measure, diagnostic};
 
@@ -25,6 +25,44 @@ pub fn fn_spacing(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
         .then(|| diagnostic(f, "fn_spacing", message, Measure { actual, limit }))
         .into_iter()
         .collect()
+}
+
+pub fn comments(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
+    let rule = &cfg.strict_style.comments;
+    if !rule.enabled {
+        return Vec::new();
+    }
+    let comment_lines: Vec<usize> = f
+        .comments
+        .iter()
+        .filter(|comment| match comment.kind {
+            CommentKind::Ordinary => rule.functions == CommentPolicy::Forbid,
+            CommentKind::Documentation => rule.documentation == CommentPolicy::Forbid,
+            CommentKind::ToolDirective => rule.tool_directives == CommentPolicy::Forbid,
+        })
+        .map(|comment| comment.line)
+        .collect();
+    if comment_lines.is_empty() {
+        return Vec::new();
+    }
+    let actual = comment_lines.len();
+    let lines: Vec<String> = comment_lines.iter().map(ToString::to_string).collect();
+    let mut found = diagnostic(
+        f,
+        "comments",
+        format!(
+            "function `{}` has {actual} disallowed comment(s) on line {}; remove them or express their meaning in code",
+            f.name,
+            lines.join(", ")
+        ),
+        Measure { actual, limit: 0 },
+    );
+    found.details = vec![Detail {
+        label: "comment".into(),
+        count: actual,
+        lines: comment_lines,
+    }];
+    vec![found]
 }
 
 pub fn guard_clause(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {

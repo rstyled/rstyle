@@ -373,6 +373,21 @@ pub struct Pdg {
     pub edges: Vec<PdgEdge>,
 }
 
+/// Comment syntax classified during capture, before project policy is applied.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CommentKind {
+    Ordinary,
+    Documentation,
+    ToolDirective,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SourceComment {
+    pub line: usize,
+    pub kind: CommentKind,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FnFacts {
     /// Stable id: `<crate>::<def path>` with impl disambiguators (`{impl#0}`).
@@ -405,6 +420,9 @@ pub struct FnFacts {
     pub source: String,
     /// The comment line directly above the function (attributes skipped), if any.
     pub preceding_line: String,
+    /// Comment starts and categories, as absolute source lines. Literal spans are excluded.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub comments: Vec<SourceComment>,
     pub mutations: Vec<MutationEvent>,
     pub calls: Vec<CallEvent>,
     pub effects: Vec<EffectEvent>,
@@ -469,6 +487,7 @@ pub fn sample(name: &str) -> FnFacts {
         complexity: None,
         source: format!("fn {name}() {{}}"),
         preceding_line: String::new(),
+        comments: Vec::new(),
         mutations: vec![],
         calls: vec![],
         effects: vec![],
