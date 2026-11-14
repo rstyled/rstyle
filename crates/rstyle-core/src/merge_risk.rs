@@ -260,8 +260,8 @@ pub struct FunctionChange {
     pub graph: GraphDelta,
     pub calls_added: Vec<String>,
     pub calls_removed: Vec<String>,
-    /// It makes a call whose target can't be known, in either run, so nothing can be said of all it
-    /// calls.
+    /// It makes a call whose target can't be known more often than the base did, so nothing can be
+    /// said of all it newly calls. One it already made, or stops making, hides nothing new.
     pub unresolved_calls: bool,
     /// Library callees it calls more often that nothing says the effect of, by identity.
     pub calls_unclassified: Vec<String>,
@@ -422,8 +422,13 @@ fn unclassified_calls<'f>(facts: &'f FnFacts, config: &Config) -> BTreeMap<&'f s
     found
 }
 
-fn has_unresolved_calls(facts: &FnFacts) -> bool {
-    facts.calls.iter().any(|call| call.dynamic)
+/// How many times a function makes each call whose target can't be known, by callee.
+fn dynamic_calls(facts: &FnFacts) -> BTreeMap<&str, usize> {
+    let mut found = BTreeMap::new();
+    for call in facts.calls.iter().filter(|call| call.dynamic) {
+        *found.entry(call.callee.as_str()).or_default() += 1;
+    }
+    found
 }
 
 fn effects_of(facts: &FnFacts, config: &Config) -> BTreeSet<EffectChange> {
@@ -492,7 +497,7 @@ fn compared(
         graph: delta,
         calls_added: more_calls(&calls_before, &calls_after),
         calls_removed: more_calls(&calls_after, &calls_before),
-        unresolved_calls: has_unresolved_calls(before) || has_unresolved_calls(after),
+        unresolved_calls: !more_calls(&dynamic_calls(before), &dynamic_calls(after)).is_empty(),
         calls_unclassified: more_calls(
             &unclassified_calls(before, config),
             &unclassified_calls(after, config),
@@ -514,7 +519,7 @@ fn present_once(facts: &FnFacts, kind: ChangeKind, config: &Config) -> FunctionC
         effects_of(facts, config).into_iter().collect(),
     );
     let change = FunctionChange {
-        unresolved_calls: has_unresolved_calls(facts),
+        unresolved_calls: kind == ChangeKind::Added && facts.calls.iter().any(|call| call.dynamic),
         ..one_sided(facts, kind)
     };
     match kind {
@@ -719,7 +724,7 @@ fn change_lines(change: &FunctionChange) -> Vec<String> {
         .then(|| "  a known value changed, as a constant's does".to_owned());
     let unresolved = change
         .unresolved_calls
-        .then(|| "  makes a call whose target can't be known".to_owned());
+        .then(|| "  newly makes a call whose target can't be known".to_owned());
     let unclassified = change
         .calls_unclassified
         .iter()
