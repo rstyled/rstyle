@@ -1,0 +1,6 @@
+# Every line a pull request changes is covered by a test.
+coverage:
+  status:
+    patch:
+      default:
+        target: 100%
