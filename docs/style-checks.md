@@ -79,6 +79,7 @@ is a commented example, though it raises the complexity limits above their defau
 | `review.comment_warnings` | `false` | Rstyle's pull request review comments on the errors a pull request adds on its changed lines and counts new warnings. `true` comments on those warnings too |
 | `review.status_check` | `false` | `true` posts an "Rstyle" status check on each pull request commit, green when it adds no errors. Make it required in branch protection to gate merging on it |
 | `review.auto_merge` | `false` | `true` merges a pull request rated low merge risk that adds no errors, once every other check is green. A draft, a `no-automerge` label, a review requesting changes, or a change to `rstyle.toml` or `.github/` leaves it for a person |
+| `review.projects` | `[]` | The projects a pull request review checks, by directory (`"."` for the root): `[".", "worker", "runner"]` reviews three separate Cargo workspaces together. Empty reviews the one project Rstyle finds. A pull request that changes code outside every one isn't merged automatically |
 | `grouping.caller_rules` | `["fn_params"]` | Rules whose fix also edits the function's callers |
 | `grouping.caller_hops` | 1 | How many caller hops those fixes reach |
 | `strict_style.*` | off | See [strict style](#strict-style) |
