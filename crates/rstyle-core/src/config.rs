@@ -264,11 +264,11 @@ pub struct CallRule {
     pub level: Severity,
 }
 
-/// How much each kind of change between two runs matters, for `rstyle risk`. Nothing here has a
-/// default: how much a change matters is a project's to say, so a change nothing here rates stays
-/// unrated rather than being given a severity. Rules are checked on load, so a typo can't quietly
-/// turn one off.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// How much each kind of change between two runs matters, for `rstyle risk`. Each rule has a
+/// default, so every project is rated: a changed, new or gone function is medium, and low when at
+/// most three functions changed. `[risk]` overrides the rules it names and adds call rules. Rules
+/// are checked on load, so a typo can't quietly turn one off.
+#[derive(Debug, Clone, Deserialize)]
 #[serde(try_from = "UncheckedRisk")]
 pub struct RiskConfig {
     /// A function's dependence graph changed, or it was added or removed.
@@ -279,13 +279,37 @@ pub struct RiskConfig {
     pub calls: Vec<CallRule>,
 }
 
+impl Default for RiskConfig {
+    fn default() -> Self {
+        let UncheckedRisk {
+            pdg_change,
+            pdg_low_risk_max_functions,
+            calls,
+        } = UncheckedRisk::default();
+        Self {
+            pdg_change,
+            pdg_low_risk_max_functions,
+            calls,
+        }
+    }
+}
+
 impl RiskConfig {
+    /// No rules at all: every change is unrated.
+    pub fn none() -> Self {
+        Self {
+            pdg_change: None,
+            pdg_low_risk_max_functions: 0,
+            calls: Vec::new(),
+        }
+    }
+
     pub fn is_set(&self) -> bool {
         self.pdg_change.is_some() || !self.calls.is_empty()
     }
 }
 
-#[derive(Default, Deserialize)]
+#[derive(Deserialize)]
 #[serde(default, deny_unknown_fields)]
 struct UncheckedRisk {
     pdg_change: Option<Severity>,
@@ -293,13 +317,20 @@ struct UncheckedRisk {
     calls: Vec<CallRule>,
 }
 
+impl Default for UncheckedRisk {
+    fn default() -> Self {
+        Self {
+            pdg_change: Some(Severity::Medium),
+            pdg_low_risk_max_functions: 3,
+            calls: Vec::new(),
+        }
+    }
+}
+
 impl TryFrom<UncheckedRisk> for RiskConfig {
     type Error = String;
 
     fn try_from(risk: UncheckedRisk) -> Result<Self, String> {
-        if risk.pdg_low_risk_max_functions > 0 && risk.pdg_change.is_none() {
-            return Err("risk.pdg_low_risk_max_functions requires pdg_change".to_owned());
-        }
         let mut callees = std::collections::BTreeSet::new();
         for rule in &risk.calls {
             let named = !rule.callee.is_empty() && rule.callee.trim() == rule.callee;
@@ -1023,10 +1054,20 @@ mod tests {
     }
 
     #[test]
-    fn risk_rules_have_no_defaults() {
+    fn every_risk_rule_has_a_default_a_project_can_override() {
         let risk = Config::parse("").unwrap().risk;
-        assert!(!risk.is_set());
-        assert_eq!(risk.pdg_change, None);
+        assert_eq!(risk.pdg_change, Some(Severity::Medium));
+        assert_eq!(risk.pdg_low_risk_max_functions, 3);
+        assert!(risk.calls.is_empty());
+
+        let only_calls =
+            "[risk]\n[[risk.calls]]\ncallee = \"std::fs::remove_file\"\nlevel = \"high\"\n";
+        let written = Config::parse(only_calls).unwrap().risk;
+        assert_eq!(
+            written.pdg_change,
+            Some(Severity::Medium),
+            "a [risk] that names only calls keeps the default for every other change"
+        );
 
         let set = Config::parse(
             "[risk]\npdg_change = \"medium\"\npdg_low_risk_max_functions = 3\n\
@@ -1049,7 +1090,6 @@ mod tests {
         let error = |input: &str| Config::parse(input).unwrap_err().to_string();
         assert!(error("[risk]\npdg_change = \"severe\"").contains("severe"));
         assert!(error("[risk]\ndependency_change = \"high\"").contains("dependency_change"));
-        assert!(error("[risk]\npdg_low_risk_max_functions = 3").contains("requires pdg_change"),);
 
         let rule =
             |callee: &str| format!("[[risk.calls]]\ncallee = \"{callee}\"\nlevel = \"low\"\n");
