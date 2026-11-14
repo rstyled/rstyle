@@ -1,7 +1,6 @@
 //! Pure evaluation of style rules over facts extracted by `rstyle-driver`.
 
 pub mod advisory;
-pub mod webhook_test;
 pub mod align;
 pub mod candidates;
 pub mod cli_args;
@@ -41,6 +40,7 @@ pub mod strict_style;
 pub mod suppress;
 pub mod unified;
 pub mod versioned;
+pub mod webhook_test;
 pub mod wl;
 pub mod wl_trace;
 pub mod wording;
