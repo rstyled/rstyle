@@ -1,6 +1,7 @@
 //! Pure evaluation of style rules over facts extracted by `rstyle-driver`.
 
 pub mod advisory;
+pub mod webhook_test;
 pub mod align;
 pub mod candidates;
 pub mod cli_args;
