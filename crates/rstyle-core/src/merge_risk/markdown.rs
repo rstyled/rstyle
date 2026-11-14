@@ -182,7 +182,7 @@ fn what_changed(change: &FunctionChange) -> String {
             .then(|| "a known value changed".to_owned()),
         change
             .unresolved_calls
-            .then(|| "calls an unknown target".to_owned()),
+            .then(|| "newly calls an unknown target".to_owned()),
         nonzero(
             change.calls_unclassified.len(),
             "unclassified call",

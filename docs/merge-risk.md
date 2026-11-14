@@ -19,7 +19,7 @@ Affected functions: 110.
 
 core/rawdb/freezer_meta.go:133: newMetadata: changed, 1 callers, reached by 176
   signature changed
-  makes a call whose target can't be known
+  newly makes a call whose target can't be known
   gains io: (*os.File).Sync
   gains io: (*os.File).Truncate
   calls more: go::(*os.File).Sync
@@ -79,7 +79,7 @@ stands whatever else is unclear, and what can't be seen can't be rated away. The
 | Reason | Meaning |
 | --- | --- |
 | `pdg_change`, on a `text only` or `unknown` function | Its text changed and the compared facts don't say how |
-| `unresolved_calls` | A changed function, in either run, makes a call whose target can't be known, so call rules can't speak for it |
+| `unresolved_calls` | A changed or new function makes a call whose target can't be known more often than the base did, so call rules can't speak for what it newly calls. A call it already made, or stops making, hides nothing new |
 | `unclassified_call` | It newly calls a library function that nothing says the effect of |
 | `analysis_unavailable` | A file changed outside any function, or a function a macro or a build writes changed |
 

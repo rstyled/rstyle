@@ -168,7 +168,8 @@ fn impact(change: &FunctionChange, policy: &RiskConfig) -> Reason {
 
 fn function_reasons(change: &FunctionChange, policy: &RiskConfig) -> Vec<Reason> {
     let unresolved = change.unresolved_calls.then(|| {
-        let message = "it makes a call whose target can't be known, so call rules are incomplete";
+        let message =
+            "it newly makes a call whose target can't be known, so call rules are incomplete";
         Reason::at(change, UNRESOLVED_CALLS, Level::Unknown, message.to_owned())
     });
     let added = policy

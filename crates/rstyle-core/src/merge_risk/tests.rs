@@ -555,7 +555,7 @@ fn a_new_function_says_each_library_call_nothing_classifies_and_a_removed_one_do
 }
 
 #[test]
-fn a_call_to_an_unknown_target_in_either_run_is_said_of_a_change() {
+fn only_a_call_to_an_unknown_target_the_change_adds_is_said_of_it() {
     let indirect = || CallEvent {
         dynamic: true,
         ..call_of("<fn pointer>", None)
@@ -566,7 +566,23 @@ fn a_call_to_an_unknown_target_in_either_run_is_said_of_a_change() {
     };
 
     let gone = report(vec![making("f", vec![indirect()])], vec![edited(vec![])]);
-    assert!(only(&gone).unresolved_calls);
+    assert!(
+        !only(&gone).unresolved_calls,
+        "one it stops making hides nothing new"
+    );
+    let kept = report(
+        vec![making("f", vec![indirect()])],
+        vec![edited(vec![indirect()])],
+    );
+    assert!(
+        !only(&kept).unresolved_calls,
+        "nor does one it already made"
+    );
+    let again = report(
+        vec![making("f", vec![indirect()])],
+        vec![edited(vec![indirect(), indirect()])],
+    );
+    assert!(only(&again).unresolved_calls, "making it once more might");
 
     let came = report(vec![making("f", vec![])], vec![edited(vec![indirect()])]);
     let change = only(&came);
@@ -574,7 +590,7 @@ fn a_call_to_an_unknown_target_in_either_run_is_said_of_a_change() {
     assert!(change.calls_unclassified.is_empty(), "it isn't both");
     assert!(
         came.text()
-            .contains("  makes a call whose target can't be known")
+            .contains("  newly makes a call whose target can't be known")
     );
 
     let neither = report(vec![making("f", vec![])], vec![edited(vec![])]);
