@@ -32,7 +32,7 @@ fn changed(name: &str) -> FunctionChange {
 fn policy(pdg_change: Option<Severity>) -> RiskConfig {
     RiskConfig {
         pdg_change,
-        ..RiskConfig::default()
+        ..RiskConfig::none()
     }
 }
 
@@ -67,7 +67,7 @@ fn rules_at(rating: &Rating, level: Level) -> Vec<&'static str> {
 fn with_no_rules_anything_is_unrated_and_the_evidence_stays() {
     let rating = rated(
         &[change("text", ChangeKind::TextOnly), changed("f")],
-        &RiskConfig::default(),
+        &RiskConfig::none(),
     );
     assert_eq!(rating.risk, Level::Unrated);
     assert!(!rating.policy_configured);
@@ -83,7 +83,7 @@ fn with_no_rules_anything_is_unrated_and_the_evidence_stays() {
 fn a_rule_for_something_else_leaves_a_change_unrated_and_says_what_is_missing() {
     let rules = RiskConfig {
         calls: vec![calling_rule("os.Remove", Severity::High)],
-        ..RiskConfig::default()
+        ..RiskConfig::none()
     };
     let rating = rated(&[changed("f")], &rules);
     assert_eq!(rating.risk, Level::Unrated);
@@ -154,7 +154,7 @@ fn high_outweighs_unknown_which_outweighs_unrated_which_outweighs_medium() {
     let rules = RiskConfig {
         pdg_change: Some(Severity::Low),
         calls: vec![calling_rule("os.WriteFile", Severity::High)],
-        ..RiskConfig::default()
+        ..RiskConfig::none()
     };
     let rating = rated(&[change("text", ChangeKind::TextOnly), writes], &rules);
     assert_eq!(rating.risk, Level::High, "a measured high comes first");
@@ -165,7 +165,7 @@ fn a_call_rule_names_one_callee_exactly_and_says_where() {
     let rules = RiskConfig {
         pdg_change: Some(Severity::Low),
         calls: vec![calling_rule("os.WriteFile", Severity::High)],
-        ..RiskConfig::default()
+        ..RiskConfig::none()
     };
     let writes = |callee: &str| FunctionChange {
         calls_added: vec![callee.into()],
@@ -270,7 +270,7 @@ fn a_rule_for_a_library_callee_is_the_project_saying_what_it_is() {
     let rules = RiskConfig {
         pdg_change: Some(Severity::Low),
         calls: vec![calling_rule("tokio::fs::write", Severity::Medium)],
-        ..RiskConfig::default()
+        ..RiskConfig::none()
     };
     let writes = FunctionChange {
         calls_added: vec!["tokio::fs::write".into()],

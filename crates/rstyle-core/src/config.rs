@@ -264,11 +264,11 @@ pub struct CallRule {
     pub level: Severity,
 }
 
-/// How much each kind of change between two runs matters, for `rstyle risk`. Nothing here has a
-/// default: how much a change matters is a project's to say, so a change nothing here rates stays
-/// unrated rather than being given a severity. Rules are checked on load, so a typo can't quietly
-/// turn one off.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// How much each kind of change between two runs matters, for `rstyle risk`. A project without
+/// `[risk]` gets the default: a changed, new or gone function is medium, and low when at most three
+/// functions changed. A project with `[risk]` gets exactly what it wrote, so a change nothing there
+/// rates stays unrated. Rules are checked on load, so a typo can't quietly turn one off.
+#[derive(Debug, Clone, Deserialize)]
 #[serde(try_from = "UncheckedRisk")]
 pub struct RiskConfig {
     /// A function's dependence graph changed, or it was added or removed.
@@ -279,7 +279,26 @@ pub struct RiskConfig {
     pub calls: Vec<CallRule>,
 }
 
+impl Default for RiskConfig {
+    fn default() -> Self {
+        Self {
+            pdg_change: Some(Severity::Medium),
+            pdg_low_risk_max_functions: 3,
+            calls: Vec::new(),
+        }
+    }
+}
+
 impl RiskConfig {
+    /// No rules at all: every change is unrated.
+    pub fn none() -> Self {
+        Self {
+            pdg_change: None,
+            pdg_low_risk_max_functions: 0,
+            calls: Vec::new(),
+        }
+    }
+
     pub fn is_set(&self) -> bool {
         self.pdg_change.is_some() || !self.calls.is_empty()
     }
@@ -1023,10 +1042,17 @@ mod tests {
     }
 
     #[test]
-    fn risk_rules_have_no_defaults() {
+    fn risk_rules_default_to_medium_unless_a_project_writes_its_own() {
         let risk = Config::parse("").unwrap().risk;
-        assert!(!risk.is_set());
-        assert_eq!(risk.pdg_change, None);
+        assert_eq!(risk.pdg_change, Some(Severity::Medium));
+        assert_eq!(risk.pdg_low_risk_max_functions, 3);
+        assert!(risk.calls.is_empty());
+
+        let written = Config::parse("[risk]\n").unwrap().risk;
+        assert!(
+            !written.is_set(),
+            "a [risk] of its own replaces the default"
+        );
 
         let set = Config::parse(
             "[risk]\npdg_change = \"medium\"\npdg_low_risk_max_functions = 3\n\

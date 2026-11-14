@@ -584,7 +584,10 @@ fn a_call_to_an_unknown_target_in_either_run_is_said_of_a_change() {
 #[test]
 fn the_report_leads_with_the_rating() {
     let mut config = Config::default();
-    config.risk.pdg_change = Some(crate::config::Severity::Medium);
+    config.risk = crate::config::RiskConfig {
+        pdg_change: Some(crate::config::Severity::Medium),
+        ..crate::config::RiskConfig::none()
+    };
     let report = compare(
         &snapshot(vec![function("f", calling(&["a"]))]),
         &snapshot(vec![function("f", calling(&["b"]))]),
