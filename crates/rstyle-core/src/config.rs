@@ -264,10 +264,10 @@ pub struct CallRule {
     pub level: Severity,
 }
 
-/// How much each kind of change between two runs matters, for `rstyle risk`. A project without
-/// `[risk]` gets the default: a changed, new or gone function is medium, and low when at most three
-/// functions changed. A project with `[risk]` gets exactly what it wrote, so a change nothing there
-/// rates stays unrated. Rules are checked on load, so a typo can't quietly turn one off.
+/// How much each kind of change between two runs matters, for `rstyle risk`. Each rule has a
+/// default, so every project is rated: a changed, new or gone function is medium, and low when at
+/// most three functions changed. `[risk]` overrides the rules it names and adds call rules. Rules
+/// are checked on load, so a typo can't quietly turn one off.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(try_from = "UncheckedRisk")]
 pub struct RiskConfig {
@@ -281,10 +281,15 @@ pub struct RiskConfig {
 
 impl Default for RiskConfig {
     fn default() -> Self {
+        let UncheckedRisk {
+            pdg_change,
+            pdg_low_risk_max_functions,
+            calls,
+        } = UncheckedRisk::default();
         Self {
-            pdg_change: Some(Severity::Medium),
-            pdg_low_risk_max_functions: 3,
-            calls: Vec::new(),
+            pdg_change,
+            pdg_low_risk_max_functions,
+            calls,
         }
     }
 }
@@ -304,7 +309,7 @@ impl RiskConfig {
     }
 }
 
-#[derive(Default, Deserialize)]
+#[derive(Deserialize)]
 #[serde(default, deny_unknown_fields)]
 struct UncheckedRisk {
     pdg_change: Option<Severity>,
@@ -312,13 +317,20 @@ struct UncheckedRisk {
     calls: Vec<CallRule>,
 }
 
+impl Default for UncheckedRisk {
+    fn default() -> Self {
+        Self {
+            pdg_change: Some(Severity::Medium),
+            pdg_low_risk_max_functions: 3,
+            calls: Vec::new(),
+        }
+    }
+}
+
 impl TryFrom<UncheckedRisk> for RiskConfig {
     type Error = String;
 
     fn try_from(risk: UncheckedRisk) -> Result<Self, String> {
-        if risk.pdg_low_risk_max_functions > 0 && risk.pdg_change.is_none() {
-            return Err("risk.pdg_low_risk_max_functions requires pdg_change".to_owned());
-        }
         let mut callees = std::collections::BTreeSet::new();
         for rule in &risk.calls {
             let named = !rule.callee.is_empty() && rule.callee.trim() == rule.callee;
@@ -1042,16 +1054,19 @@ mod tests {
     }
 
     #[test]
-    fn risk_rules_default_to_medium_unless_a_project_writes_its_own() {
+    fn every_risk_rule_has_a_default_a_project_can_override() {
         let risk = Config::parse("").unwrap().risk;
         assert_eq!(risk.pdg_change, Some(Severity::Medium));
         assert_eq!(risk.pdg_low_risk_max_functions, 3);
         assert!(risk.calls.is_empty());
 
-        let written = Config::parse("[risk]\n").unwrap().risk;
-        assert!(
-            !written.is_set(),
-            "a [risk] of its own replaces the default"
+        let only_calls =
+            "[risk]\n[[risk.calls]]\ncallee = \"std::fs::remove_file\"\nlevel = \"high\"\n";
+        let written = Config::parse(only_calls).unwrap().risk;
+        assert_eq!(
+            written.pdg_change,
+            Some(Severity::Medium),
+            "a [risk] that names only calls keeps the default for every other change"
         );
 
         let set = Config::parse(
@@ -1075,7 +1090,6 @@ mod tests {
         let error = |input: &str| Config::parse(input).unwrap_err().to_string();
         assert!(error("[risk]\npdg_change = \"severe\"").contains("severe"));
         assert!(error("[risk]\ndependency_change = \"high\"").contains("dependency_change"));
-        assert!(error("[risk]\npdg_low_risk_max_functions = 3").contains("requires pdg_change"),);
 
         let rule =
             |callee: &str| format!("[[risk.calls]]\ncallee = \"{callee}\"\nlevel = \"low\"\n");

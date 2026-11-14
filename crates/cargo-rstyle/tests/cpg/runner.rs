@@ -2166,7 +2166,7 @@ fn risk_writes_markdown_with_links_into_the_pull_request_diff() {
     let output = markdown(&[]);
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     let text = String::from_utf8(output.stdout).unwrap();
-    assert!(text.starts_with("### ⚪ Merge risk: unrated"), "{text}");
+    assert!(text.starts_with("### 🟢 Merge risk: low"), "{text}");
     assert!(
         text.contains(
             "<details><summary><b>Changed</b> ✅: 1 function in 1 file: 1 changed</summary>"
@@ -2220,9 +2220,13 @@ fn risk_rates_by_the_base_runs_rules_and_a_change_cannot_turn_them_off() {
         report(&output)["risk"].as_str().unwrap().to_owned()
     };
 
-    let unrated = saved_run_of(root, "pub fn f() -> i32 { 1 }\n");
+    let defaults = saved_run_of(root, "pub fn f() -> i32 { 1 }\n");
     let head = saved_run_of(root, "pub fn f() -> i32 { 2 }\n");
-    assert_eq!(rated(&unrated, &head), "unrated", "no rules, no severity");
+    assert_eq!(
+        rated(&defaults, &head),
+        "low",
+        "the default rates a small change"
+    );
 
     std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"high\"\n").unwrap();
     let base = saved_run_of(root, "pub fn f() -> i32 { 3 }\n");

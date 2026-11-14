@@ -55,9 +55,9 @@ Each one also says:
 
 ## How it rates a change
 
-What changed is measured, and how much that matters has a default you can replace. With no `[risk]` in `rstyle.toml`, a
-changed, new or gone function is **medium**, and **low** when at most three functions changed. Write `[risk]` to say it
-yourself; only `rstyle risk` reads it:
+What changed is measured, and every project is rated: by default a changed, new or gone function is **medium**, and
+**low** when at most three functions changed. `[risk]` in `rstyle.toml` overrides the rules it names and adds call
+rules; only `rstyle risk` reads it:
 
 ```toml
 [risk]
@@ -69,8 +69,8 @@ callee = "go::os.WriteFile"       # its identity, as the report prints it under 
 level = "high"
 ```
 
-A `[risk]` of your own replaces the default whole, so a kind of change it doesn't rate is **unrated**, and the report says
-so. A mistyped level, a rule with no callee, two rules for one callee, or a limit with no `pdg_change` are errors. The limit is a policy on size, not a proof that behavior is preserved,
+A rule `[risk]` leaves out keeps its default. A mistyped level, a rule with no callee or two rules for one callee are
+errors. The limit is a policy on size, not a proof that behavior is preserved,
 and it only lowers `pdg_change`.
 
 The rating is the strongest of its reasons, in this order: `high`, `unknown`, `unrated`, `medium`, `low`. So a measured high
