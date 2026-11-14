@@ -1423,7 +1423,7 @@ fn a_library_call_is_classified_by_the_implementation_it_selects() {
         .map(|call| (call.line, call.library))
         .collect();
     // `Result.branch` is pure, `Vec.clone` runs its elements' `clone`, and a workspace
-    // implementation is followed through its edge, so the call keeps its declared callee's class.
+    // implementation is followed through its edge, so the call is no library call.
     let expected = [
         (2, Some(LibraryClass::Pure)),
         (3, None),
@@ -1443,7 +1443,7 @@ fn a_library_call_is_classified_by_the_implementation_it_selects() {
         [
             &declared("Try.branch"),
             &declared("Clone.clone"),
-            &declared("Clone.clone"),
+            &None,
             &declared("Clone.clone")
         ]
     );

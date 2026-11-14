@@ -31,6 +31,10 @@ pub fn keyed(map: BTreeMap<u8, u8>, set: BTreeSet<u8>, list: Vec<u8>, mut slice:
     let _ = (ExitCode::from(1u8), Stdio::from(std::io::stderr()));
     text.chars().count() + usize::from(!&flag) + (!&word) as usize + text.to_string().len() + (&text).clone().len()
 }
+
+pub async fn awaited(read: Result<u8, std::fmt::Error>) -> Result<u8, std::fmt::Error> {
+    Ok(std::future::ready(read?).await)
+}
 ";
 
 /// What each path key names on the pinned nightly, as the document names that definition.
@@ -86,6 +90,18 @@ const IMPLEMENTATIONS: &[(&str, &str)] = &[
     (
         "core::clone::impls::{impl#6}::clone",
         "std::clone::impls::<impl std::clone::Clone for &T>::clone",
+    ),
+    (
+        "core::convert::{impl#4}::from",
+        "<T as std::convert::From<T>>::from",
+    ),
+    (
+        "core::future::into_future::{impl#0}::into_future",
+        "<F as std::future::IntoFuture>::into_future",
+    ),
+    (
+        "core::future::ready::{impl#1}::poll",
+        "<std::future::Ready<T> as std::future::Future>::poll",
     ),
     (
         "core::iter::traits::collect::{impl#0}::into_iter",

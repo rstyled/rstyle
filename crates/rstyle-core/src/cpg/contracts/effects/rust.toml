@@ -25,8 +25,9 @@
 # `none` lists members that are pure for every type they're called with. They don't do IO, touch
 # globals, the environment, the clock or randomness; they take no callable, have no bound through
 # which a caller's type runs code (`Ord`, `Hash`, `Deref`, `Clone`, `Default`, `From`, `Iterator`), and
-# drop no value of a type parameter. So `Option`'s `clone`, which runs its element's, isn't listed, and
-# nor is `Result.from_residual`, which converts the error with `From`. One that writes through
+# drop no value of a type parameter. So `Option`'s `clone`, which runs its element's, isn't listed. `?`
+# on a `Result` converts the error with `From`, so its call is classified by that conversion: a
+# workspace `impl From` is followed, and a type's conversion to itself is listed. One that writes through
 # `&mut self`, as `Option.replace` does, writes the caller's own place, which core counts from the
 # borrow. An `unsafe` member can be listed, since core counts the `unsafe` block it's called in.
 #
@@ -282,6 +283,7 @@ none = [
     { exact = "owned_box.new" },
     { exact = "owned_box.new_uninit" },
     { exact = "owned_box.new_uninit_slice" },
+    { exact = "pin.new_unchecked" },
     { exact = "slice.copy_from_slice" },
     "slice.first",
     "slice.get",
@@ -437,6 +439,8 @@ none = [
     { exact = "alloc::boxed::box_assume_init_into_vec_unsafe" },
     { exact = "alloc::fmt::format" },
     { exact = "alloc::intrinsics::write_box_via_move" },
+    { exact = "core::future::get_context" },
+    { exact = "core::future::ready::ready" },
     { exact = "core::hint::must_use" },
     { exact = "core::intrinsics::discriminant_value" },
     { exact = "core::intrinsics::unreachable" },
@@ -465,6 +469,9 @@ none = [
     { exact = "alloc::vec::{impl#20}::into_iter" },                      # `&mut Vec`
     { exact = "core::array::iter::{impl#2}::into_iter" },                # `[T; N]`
     { exact = "core::clone::impls::{impl#6}::clone" },                   # `&T`
+    { exact = "core::convert::{impl#4}::from" },                         # `From<T>` for every `T`
+    { exact = "core::future::into_future::{impl#0}::into_future" },      # `IntoFuture` for every `F: Future`
+    { exact = "core::future::ready::{impl#1}::poll" },                   # `future::Ready`
     { exact = "core::iter::traits::collect::{impl#0}::into_iter" },      # `IntoIterator` for every `I: Iterator`
     { exact = "core::ops::bit::{impl#14}::not" },                        # `&bool`
     { exact = "core::ops::bit::{impl#19}::not" },                        # `&u64`

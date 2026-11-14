@@ -276,7 +276,7 @@ impl<'a> Walk<'a> {
         let line = self.line(site.node)?;
         let library = self.library_class(site.node, &callee)?;
         let library_callee =
-            (declared.scope == Scope::Library).then(|| declared.stable_identity.clone());
+            (callee.selected.scope == Scope::Library).then(|| declared.stable_identity.clone());
         out.calls.push(CallEvent {
             callee: name,
             line,
@@ -297,13 +297,10 @@ impl<'a> Walk<'a> {
         node: &'a Node,
         callee: &Callee<'a>,
     ) -> Result<Option<LibraryClass>, String> {
-        if callee.declared.scope != Scope::Library {
+        if callee.selected.scope != Scope::Library {
             return Ok(None);
         }
-        let runs = match callee.selected.scope {
-            Scope::Library => callee.selected,
-            Scope::Unit | Scope::Workspace => callee.declared,
-        };
+        let runs = callee.selected;
 
         let Some(operation) = runs.operation.as_deref() else {
             return Ok(self.classes.unlisted());

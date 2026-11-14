@@ -86,8 +86,9 @@ stands whatever else is unclear, and what can't be seen can't be rated away. The
 `unclassified_call` is why a new library call can't pass as a clean one. Go's and C++'s effect tables give a call with
 no entry the `unknown` effect. Rust's only lists standard methods and functions that have no effect whatever type they're
 called with, such as `slice::iter` and `std::mem::swap`. A trait method's call is read by the implementation it selects, so
-`?` on a `Result` is classified, and `core::clone::Clone::clone` is when it runs `String`'s, but not when it runs `Option`'s,
-which runs the element's `clone`. That call, a function like `std::cmp::max`, which runs the caller's `Ord`, and any other
+`core::clone::Clone::clone` is classified when it runs `String`'s, but not when it runs `Option`'s, which runs the
+element's `clone`, and a call that runs the workspace's own implementation is no library call. `?` on a `Result` is read
+by the `From` conversion it runs, and `.await` on an `async fn`'s future by the body it polls. That call, a function like `std::cmp::max`, which runs the caller's `Ord`, and any other
 crate's function count until [`side_effects.paths`](style-checks.md) or a rule here names them. Python's lists the
 standard library, and a builtin such as `len` only counts as pure where the frontend says the call runs none of the
 workspace's code, so `len` of a class that defines `__len__` still counts. The report names the

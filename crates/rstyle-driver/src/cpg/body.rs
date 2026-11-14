@@ -1268,14 +1268,57 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
     }
 
     /// The implementation static selection finds for an interface member with concrete
-    /// arguments; none when the arguments do not instantiate the member fully.
+    /// arguments; none when the arguments do not instantiate the member fully. The future an
+    /// `async fn` returns is its body's own type here, so `.await` selects the body it polls.
     fn selection(
         &self,
         callee: hir::def_id::DefId,
         args: ty::GenericArgsRef<'tcx>,
     ) -> Option<ty::Instance<'tcx>> {
         (args.len() == self.tcx.generics_of(callee).count()).then_some(())?;
-        crate::ids::selected_instance(self.tcx, self.owner, callee, args)
+        let args = self.tcx.mk_args_from_iter(args.iter().map(|arg| {
+            match arg.as_type().map(|ty| *ty.kind()) {
+                Some(ty::Alias(
+                    _,
+                    ty::AliasTy {
+                        kind: ty::AliasTyKind::Opaque { def_id },
+                        args: opaque,
+                        ..
+                    },
+                )) => self
+                    .tcx
+                    .try_expand_impl_trait_type(def_id, opaque)
+                    .map_or(arg, Into::into),
+                _ => arg,
+            }
+        }));
+        let instance = crate::ids::selected_instance(self.tcx, self.owner, callee, args)
+            .filter(|instance| matches!(instance.def, ty::InstanceKind::Item(_)))?;
+        Some(self.conversion(callee, instance).unwrap_or(instance))
+    }
+
+    /// `?` on a `Result` returns the error through `From`, so the conversion is what runs:
+    /// a workspace `impl From`, or the identity a type's conversion to itself is.
+    fn conversion(
+        &self,
+        callee: hir::def_id::DefId,
+        instance: ty::Instance<'tcx>,
+    ) -> Option<ty::Instance<'tcx>> {
+        (Some(callee) == self.tcx.lang_items().from_residual_fn()).then_some(())?;
+        let from = self.tcx.get_diagnostic_item(rustc_span::sym::From)?;
+        let method = self
+            .tcx
+            .get_diagnostic_item(rustc_span::Symbol::intern("from_fn"))?;
+        let bound = self
+            .tcx
+            .clauses_of(instance.def_id())
+            .instantiate(self.tcx, instance.args)
+            .clauses
+            .into_iter()
+            .filter_map(|clause| clause.skip_norm_wip().as_trait_clause())
+            .find(|bound| bound.def_id() == from)?;
+        let args = bound.skip_binder().trait_ref.args;
+        crate::ids::selected_instance(self.tcx, self.owner, method, args)
             .filter(|instance| matches!(instance.def, ty::InstanceKind::Item(_)))
     }
 
