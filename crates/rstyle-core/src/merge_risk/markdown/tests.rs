@@ -720,3 +720,15 @@ fn an_unknown_line_links_to_the_file_diff() {
     let markdown = report.markdown(Some(URL));
     assert!(markdown.contains(&format!("[`f`]({URL}/files#diff-69a4aa84cf12711d033673793bd9079bfc0cfbb545bfc1c60bd7ea36c05d0065)")), "{markdown}");
 }
+
+#[test]
+fn a_function_that_newly_calls_an_unknown_target_says_so() {
+    let mut walking = change("goFiles", ChangeKind::Changed, 36);
+    walking.unresolved_calls = true;
+    let markdown = report(Level::Unknown, Vec::new(), vec![walking]).markdown(Some(URL));
+    let changed = fold(&markdown, "Changed");
+    assert!(
+        changed.contains("changed; newly calls an unknown target"),
+        "{changed}"
+    );
+}
