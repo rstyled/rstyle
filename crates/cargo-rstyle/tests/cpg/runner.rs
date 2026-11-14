@@ -2306,6 +2306,44 @@ fn risk_reads_a_new_pure_standard_call_as_classified_and_a_trait_call_as_not() {
     assert!(!called.contains("first"), "{called}");
 }
 
+/// A `[[boundaries]]` table makes a call from one layer into a layer it may not reach an error at
+/// the call, however the call names its callee, while the layer itself may call its own code.
+#[test]
+fn a_call_across_a_boundary_is_an_error_at_the_call() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(
+        root.join("rstyle.toml"),
+        "[[boundaries]]\nfrom = [\"src/lib.rs\"]\ndeny = [\"adapters\"]\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(root.join("src/adapters")).unwrap();
+    std::fs::write(
+        root.join("src/adapters/mod.rs"),
+        "pub fn fetch() -> u8 { send() }\npub fn send() -> u8 { 1 }\n",
+    )
+    .unwrap();
+    let run = saved_run_of(
+        root,
+        "mod adapters;\npub fn rate() -> u8 {\n    crate::adapters::fetch() + own()\n}\nfn own() -> u8 { 2 }\n",
+    );
+
+    let sarif: Value =
+        serde_json::from_str(&std::fs::read_to_string(run.join("check.sarif")).unwrap()).unwrap();
+    let crossings: Vec<&Value> = sarif["runs"][0]["results"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|result| result["ruleId"] == "boundary")
+        .collect();
+    assert_eq!(crossings.len(), 1, "{sarif}");
+    assert_eq!(crossings[0]["level"], "error");
+    let location = &crossings[0]["locations"][0]["physicalLocation"];
+    assert_eq!(location["artifactLocation"]["uri"], "src/lib.rs");
+    assert_eq!(location["region"]["startLine"], 3, "{location}");
+}
+
 /// `.await` polls the body of the `async fn` it awaits, which the call that made the future already
 /// reads, and `?` converts the error with the workspace's `From` or with none at all, so an async
 /// function that awaits and propagates adds no call nothing classifies.

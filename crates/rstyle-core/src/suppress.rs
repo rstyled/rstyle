@@ -23,6 +23,7 @@ pub const RULE_IDS: &[&str] = &[
     "guard_clause",
     "primitive_obsession",
     "value_object",
+    "boundary",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]

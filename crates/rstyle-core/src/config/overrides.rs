@@ -94,7 +94,7 @@ impl TryFrom<Table> for Override {
     }
 }
 
-fn glob_set(paths: &[String]) -> Result<GlobSet, String> {
+pub(crate) fn glob_set(paths: &[String]) -> Result<GlobSet, String> {
     if paths.is_empty() {
         return Err("an override needs at least one path".into());
     }

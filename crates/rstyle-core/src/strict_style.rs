@@ -68,6 +68,7 @@ pub fn across_the_run(facts: &[FnFacts], cfg: &Config) -> Vec<Vec<Diagnostic>> {
     if rules.value_object.enabled {
         value_object::add(facts, &rules.value_object, &mut found);
     }
+    crate::boundaries::add(facts, &cfg.boundaries, &mut found);
     found
 }
 

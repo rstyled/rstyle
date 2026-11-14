@@ -2,6 +2,7 @@
 
 pub mod advisory;
 pub mod align;
+pub mod boundaries;
 pub mod candidates;
 pub mod cli_args;
 pub mod clip;

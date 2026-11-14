@@ -24,6 +24,7 @@ analyzed function.
 | `mutation_per_target` | Too many writes or `&mut` borrows of one root: a local, parameter or `self`. |
 | `mutated_targets` | Too many distinct roots mutated in one function. |
 | `side_effect_density` | Too many effects for the number of statements. See below. |
+| `boundary` | A call from code under a `[[boundaries]]` `from` into code under its `deny`. An error, where the others are warnings. See [boundaries](#boundaries). |
 | `invalid_suppression` | An `rstyle-allow` comment with no reason or an unknown rule id. |
 | `fn_spacing`, `guard_clause`, `primitive_obsession`, `value_object` | Off by default. See [strict style](#strict-style). |
 
@@ -113,6 +114,22 @@ and `list.append`. Builtins such as `len`, `isinstance` and `str`'s methods are 
 `none_without_callback`: pure where the frontend says the call calls nothing of the workspace's back,
 and unclassified elsewhere, since `len` of a class runs its `__len__`. `[side_effects.paths]` wins for
 any callee it matches, so you can still name a third-party package there.
+
+### Boundaries
+
+`[[boundaries]]` keeps one layer from calling another, as a domain that may not reach its adapters:
+
+```toml
+[[boundaries]]
+from = ["domain"]
+deny = ["adapters"]
+```
+
+Paths are read as `[[overrides]]` reads its `paths`, so `adapters` is that module anywhere in the
+tree. Each call from a function under `from` into a workspace function under `deny` is a `boundary`
+error at the call. It's read off the call graph, so writing the callee's full path breaks it as a
+`use` does. Code under both may call its own layer. Only calls are checked: a type named across the
+line, with nothing of it called, isn't one.
 
 ## Suppressing a finding
 

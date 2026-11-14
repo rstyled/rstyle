@@ -40,6 +40,10 @@ pub struct Config {
     /// these rules sees no change in its policy. Turning one on is one.
     #[serde(skip_serializing_if = "StrictStyleConfig::all_off")]
     pub strict_style: StrictStyleConfig,
+    /// Files whose code may not call other files'. Left out of what a baseline compares while there
+    /// are none, so a project without them sees no change.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub boundaries: Vec<Boundary>,
     /// Per-path rule settings, merged onto the base in declaration order. Left out of what a
     /// baseline compares while there are none, so a project without them sees no change.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -372,6 +376,52 @@ impl Level {
 /// What Rstyle's GitHub app does on a pull request, read from the base branch so a pull request
 /// can't change it for itself. It always comments on the errors a pull request adds on lines its
 /// diff shows, and counts its new warnings in the summary.
+/// Code in files under `from` may not call code in files under `deny`. Each is a list of paths, read
+/// as `[[overrides]]` reads its `paths`: `adapters` is that module anywhere in the tree.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(try_from = "BoundaryPaths")]
+pub struct Boundary {
+    pub from: Vec<String>,
+    pub deny: Vec<String>,
+    #[serde(skip)]
+    from_paths: globset::GlobSet,
+    #[serde(skip)]
+    deny_paths: globset::GlobSet,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BoundaryPaths {
+    from: Vec<String>,
+    deny: Vec<String>,
+}
+
+impl TryFrom<BoundaryPaths> for Boundary {
+    type Error = String;
+
+    fn try_from(paths: BoundaryPaths) -> Result<Self, String> {
+        if paths.from.is_empty() || paths.deny.is_empty() {
+            return Err("a boundary needs `from` and `deny` paths".into());
+        }
+        Ok(Self {
+            from_paths: overrides::glob_set(&paths.from)?,
+            deny_paths: overrides::glob_set(&paths.deny)?,
+            from: paths.from,
+            deny: paths.deny,
+        })
+    }
+}
+
+impl Boundary {
+    pub fn is_from(&self, path: &str) -> bool {
+        self.from_paths.is_match(path)
+    }
+
+    pub fn is_denied(&self, path: &str) -> bool {
+        self.deny_paths.is_match(path)
+    }
+}
+
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ReviewConfig {

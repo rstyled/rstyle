@@ -159,6 +159,9 @@ pub fn check(
 ) -> Result<Log, String> {
     let findings = report.diagnostics.iter().map(|d| {
         let mut finding = diagnostic(d, group_of(d, &report.fix_groups));
+        if d.rule_id == crate::boundaries::RULE {
+            finding.level = "error";
+        }
         if let Some(name) = function_of(d, report) {
             finding
                 .partial_fingerprints
