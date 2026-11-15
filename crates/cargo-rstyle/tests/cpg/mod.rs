@@ -480,6 +480,7 @@ mod effects;
 mod facts;
 mod flow;
 mod ids;
+mod keywords;
 #[cfg(unix)]
 mod runner;
 mod stdin;

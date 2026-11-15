@@ -5,7 +5,7 @@ use super::*;
 use std::collections::BTreeMap;
 
 /// Each function's bound in a frontend's document, by name: its row, then the lines under it.
-fn bounds(fixture: &str) -> BTreeMap<String, String> {
+pub(super) fn bounds(fixture: &str) -> BTreeMap<String, String> {
     let testdata = workspace_root().join("crates/rstyle-core/src/cpg/testdata");
     let output = Command::new(cargo_bin("cargo-rstyle"))
         .args(["rstyle", "cpg", "analyze", "--filter", "bounds"])

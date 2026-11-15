@@ -72,6 +72,10 @@ as a closure's does.
 runs. A pattern holding anything else is unsupported, as is a declaration that writes what a loop's
 length is measured from.
 
+**Arguments.** A call evaluates its receiver or callee, then what each argument passes. An argument that
+holds its value under a name, as Python's `print(total, end="")` does, passes that value. One that unpacks
+a sequence or a mapping, as `*items` and `**options` do, is unsupported.
+
 **Collections.** Resolved collection length queries and traversal adapters are abstracted and excluded
 from call counts. Ordinary body calls can have unknown cost while preserving a bound on a private scalar
 counter.

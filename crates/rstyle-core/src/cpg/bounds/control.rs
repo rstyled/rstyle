@@ -97,7 +97,7 @@ impl<'a> Collector<'_, '_, 'a> {
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
     fn call(&mut self, expression: &'a Node, next: u32) -> Lowered {
         let callee = self.facts.body.child(expression, 0)?;
-        let arguments: Vec<&'a Node> = self.facts.body.children(expression)?[1..].to_vec();
+        let arguments: Vec<&'a Node> = self.evaluated_by(expression)?[1..].to_vec();
         // A closure bound to a local, or written where it's called, runs here.
         if let Some(Callback::Closure(closure)) = self.callback(callee) {
             // Arguments are evaluated before the inlined body runs.
@@ -140,6 +140,20 @@ impl<'a> Collector<'_, '_, 'a> {
         let entry = self.arguments(&arguments, call)?;
 
         self.expr(callee, entry)
+    }
+
+    /// What a call evaluates, in the order it's written: its receiver or callee, then what each
+    /// argument passes. An argument that holds its value in a child, as a keyword argument
+    /// holds what it passes, is that child.
+    fn evaluated_by(&self, call: &'a Node) -> Result<Vec<&'a Node>, String> {
+        let passed = self.facts.body.arguments(call)?;
+        let value = |written: &'a Node| {
+            let mut bound = passed.iter();
+            let bound = bound.find(|argument| std::ptr::eq(argument.node, written));
+            bound.map_or(written, |argument| argument.value)
+        };
+        let written = self.facts.body.children(call)?;
+        Ok(written.into_iter().map(value).collect())
     }
 
     /// Lowers `items` in evaluation order, built backward from `next`.
@@ -205,7 +219,7 @@ impl<'a> Collector<'_, '_, 'a> {
     }
 
     fn method_invocation(&mut self, expression: &'a Node, next: u32) -> Lowered {
-        let inputs = self.facts.body.children(expression)?;
+        let inputs = self.evaluated_by(expression)?;
         let callee = self
             .facts
             .reference(expression)
