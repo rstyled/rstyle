@@ -49,6 +49,12 @@ including those outside `--top`. It describes capture availability, not proof su
 may still yield unknown or partial results. These counts add no proofs, do not count every latent blocker,
 and describe only the supplied input roster, not functions absent from the capture.
 
+The compiler report (`rstyle.compiler-runtime-bounds-report/2`) includes the same stable context and
+coverage maps. Its `coverage_scope` explicitly limits the denominator to `assessed_functions_in_unit`
+and the requested `authored` or `captured` source population. Owners absent from that handoff are not
+counted. The compiler keeps every scoped row and uses `selected` indices for `--top`; selection does not
+change coverage. Generated empty functions can add zero-loop proofs, without adding a scan proof.
+
 ## In the check run
 
 When bounds run alongside `check`, each function with a proven bound of degree two or more is a
