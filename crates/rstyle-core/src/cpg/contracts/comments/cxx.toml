@@ -1,0 +1,9 @@
+# How C and C++ write comments, for the `comments` rule. Doxygen's `///`, `//!`, `/**` and `/*!`
+# document. `NOLINT` is clang-tidy's, also as `NOLINTNEXTLINE`.
+schema = "rstyle.comment-syntax/1"
+namespace = "cxx"
+line = ["//"]
+block = { open = "/*", close = "*/", nested = false }
+documentation = ["///", "//!", "/**", "/*!"]
+ordinary = ["////", "/***", "/**/"]
+directives = ["NOLINT", "clang-format", "rstyle-allow(", "noinspection"]

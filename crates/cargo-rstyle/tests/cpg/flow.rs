@@ -130,6 +130,17 @@ pub fn closing() -> u32 {
     count
 }
 
+pub fn mapping(value: Option<u32>, limit: u32) -> Option<u32> {
+    value.map(|item| {
+        let mut kept = item + limit;
+        if kept > 3 {
+            return 0;
+        }
+        kept += 1;
+        kept
+    })
+}
+
 pub async fn sleeping(flag: bool) -> u32 {
     if flag { return 88; }
     other().await
@@ -229,9 +240,11 @@ fn emitted() -> &'static Emitted {
     })
 }
 
-/// One function: its document record and what core derived of it.
+/// One function: its document record and what core derived of it. A closure written in it is
+/// read the same way, by its own flow.
 struct Function {
     record: &'static Value,
+    cfg: &'static Value,
     derived: &'static Value,
 }
 
@@ -250,14 +263,30 @@ fn function(name: &str) -> Function {
         .find(|row| row["name"] == name)
         .map(|row| &row["flow"])
         .unwrap();
-    Function { record, derived }
+    Function {
+        record,
+        cfg: &record["cfg"],
+        derived,
+    }
 }
 
 impl Function {
+    /// The one closure written in the function, as the flow of its own it is.
+    fn closure(&self) -> Function {
+        let cfg = &self.record["cfg"]["closures"][0];
+        Function {
+            record: self.record,
+            cfg,
+            derived: &self.derived["closures"][cfg["node"].as_str().unwrap()],
+        }
+    }
+
     /// What a node is written as, or its kind where the compiler wrote it.
     fn text(&self, id: &str) -> String {
-        if matches!(id, "entry" | "exit") {
-            return id.to_owned();
+        let boundaries = ["entry", "exit"].into_iter();
+        let boundary = |name: &&str| id == *name || id.ends_with(&format!(":{name}"));
+        if let Some(name) = boundaries.into_iter().find(boundary) {
+            return name.to_owned();
         }
         let node = self.record["nodes"]
             .as_array()
@@ -321,7 +350,7 @@ impl Function {
 
     /// The transfers leaving the vertex written as `source`.
     fn transfers(&self, source: &str) -> BTreeSet<(String, String)> {
-        self.record["cfg"]["edges"]
+        self.cfg["edges"]
             .as_array()
             .unwrap()
             .iter()
@@ -336,7 +365,7 @@ impl Function {
     }
 
     fn edges_with(&self, kind: &str) -> Vec<&'static Value> {
-        self.record["cfg"]["edges"]
+        self.cfg["edges"]
             .as_array()
             .unwrap()
             .iter()
@@ -356,6 +385,46 @@ impl Function {
 
 fn pair(source: &str, target: &str) -> (String, String) {
     (source.to_owned(), target.to_owned())
+}
+
+/// A closure's body runs when the closure is called, so it's a flow of its own. Where it's
+/// written is one vertex of the function's flow, nothing in its body is, and a `return` there
+/// leaves by the closure's exit.
+#[test]
+fn a_closure_s_body_is_a_flow_of_its_own() {
+    let mapping = function("mapping");
+    assert!(mapping.transfers("return 0").is_empty());
+    assert!(mapping.transfers("kept > 3").is_empty());
+    let made: Vec<_> = mapping.transfers("value").into_iter().collect();
+    assert!(made[0].1.starts_with("|item| {"), "{made:?}");
+
+    let closure = mapping.closure();
+    assert_eq!(
+        closure.transfers("return 0"),
+        BTreeSet::from([pair("return", "exit")])
+    );
+    assert!(closure.depends("kept > 3", "true", "return 0"));
+    assert!(closure.depends("kept > 3", "false", "kept += 1"));
+    assert_eq!(closure.standing(), "known", "{}", closure.reasons());
+}
+
+/// What a closure captures is written at the entry of its flow, as a parameter is at a
+/// function's, and what it declares is written where it's declared. A write in its body reaches
+/// the reads after it there.
+#[test]
+fn what_a_closure_captures_is_written_at_its_entry() {
+    let closure = function("mapping").closure();
+    let data = closure.data();
+
+    assert!(data.contains(&pair("entry", "limit")), "{data:?}");
+    assert!(data.contains(&pair("item", "item")), "{data:?}");
+    assert!(data.contains(&pair("mut kept", "kept")), "{data:?}");
+    // In the function's own flow the closure's node holds `limit`, and no read in the body does.
+    let outside = function("mapping").data();
+    let held =
+        |(source, target): &(String, String)| source == "entry" && target.starts_with("|item|");
+    assert!(outside.iter().any(held), "{outside:?}");
+    assert!(!outside.contains(&pair("entry", "limit")), "{outside:?}");
 }
 
 #[test]
