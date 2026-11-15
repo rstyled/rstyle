@@ -2,6 +2,8 @@
 
 use super::super::model::{Dispatch, Node, NodeKind};
 use super::Collector;
+use super::chains::{Callback, evaluated};
+use super::extent::run_once;
 use crate::runtime_bounds::{Action, Argument, Callee, Condition, Flow, Value};
 
 type Lowered = Result<u32, String>;
@@ -151,14 +153,52 @@ impl<'a> Collector<'_, '_, 'a> {
         if self.extent_value(expression)?.is_some() {
             return Ok(next);
         }
-        if let Some(entry) = self.iterator_chain(expression, next)? {
+        if let Some(entry) = self.iteration(expression, next)? {
             return Ok(entry);
         }
-        if self.unresolved_callback(expression)? {
-            let reason = "Iterator callback or chain has no resolved standard model";
-            return Ok(self.unsupported(expression, next, reason));
+        if let Some(entry) = self.run_once(expression, next)? {
+            return Ok(entry);
         }
         self.method_invocation(expression, next)
+    }
+
+    /// A modeled iterator chain, or an iteration call left unknown because one of its callable
+    /// arguments can't be resolved. `None` is any other call.
+    fn iteration(&mut self, expression: &'a Node, next: u32) -> Result<Option<u32>, String> {
+        if let Some(entry) = self.iterator_chain(expression, next)? {
+            return Ok(Some(entry));
+        }
+        if !self.unresolved_callback(expression)? {
+            return Ok(None);
+        }
+        let reason = "Iterator callback or chain has no resolved standard model";
+        Ok(Some(self.unsupported(expression, next, reason)))
+    }
+
+    /// A member that runs what it's handed at most once for the call, as `Option::map` runs its
+    /// closure: the receiver and every other argument are evaluated, and then the callable
+    /// runs or it doesn't. The member does nothing else, so it adds no call of its own. `None`
+    /// keeps ordinary call lowering, where a callable nothing here resolves stays unknown.
+    fn run_once(&mut self, expression: &'a Node, next: u32) -> Result<Option<u32>, String> {
+        let inputs = self.facts.body.children(expression)?;
+        let index = run_once(self.facts, expression);
+        let handed = index.and_then(|index| Some((index, *inputs.get(index + 1)?)));
+        let Some((index, callback)) =
+            handed.and_then(|(index, argument)| Some((index, self.callback(argument)?)))
+        else {
+            return Ok(None);
+        };
+        let either = self.ran_or_not(callback, expression, next)?;
+        let others: Vec<&'a Node> = evaluated(&inputs[1..], Some(index as u32)).collect();
+        let entry = self.arguments(&others, either)?;
+
+        self.expr(inputs[0], entry).map(Some)
+    }
+
+    /// A branch that runs the callable and goes on, or goes on without it.
+    fn ran_or_not(&mut self, callback: Callback<'a>, at: &'a Node, next: u32) -> Lowered {
+        let ran = self.invoke(callback, at, next)?;
+        Ok(self.choice((ran, next), at))
     }
 
     fn method_invocation(&mut self, expression: &'a Node, next: u32) -> Lowered {

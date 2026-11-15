@@ -2363,6 +2363,40 @@ fn risk_reads_a_new_pure_standard_call_as_classified_and_a_trait_call_as_not() {
     assert!(!called.contains("first"), "{called}");
 }
 
+/// `Result`'s members that run what they're handed at most once are read as `Option`'s are: the
+/// closure is the function's own code, and the member does nothing else.
+#[test]
+fn risk_reads_a_closure_a_result_s_member_runs_as_this_function_s_code() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let signature = "pub fn f(o: Option<u8>, r: Result<u8, u8>) -> usize";
+    let base = saved_run_of(
+        root,
+        &format!("{signature} {{ usize::from(o.is_some() && r.is_ok()) }}\n"),
+    );
+    let closures = saved_run_of(
+        root,
+        &format!(
+            "{signature} {{\n    \
+            let seen = o.inspect(|_| ()).is_some();\n    \
+            let kept = |x: u8| if x > 1 {{ Ok(x) }} else {{ Err(x) }};\n    \
+            let chained = r.and_then(|x| kept(x)).or_else(|x| kept(x));\n    \
+            let watched = chained.inspect(|_| ()).inspect_err(|_| ());\n    \
+            usize::from(seen && !watched.is_err_and(|x| x > 2)) + watched.map_or(0, |x| usize::from(x))\n}}\n"
+        ),
+    );
+
+    let rated = report(&risk(&base, &closures));
+    assert_eq!(rated["risk"], "low", "{rated}");
+    assert_eq!(
+        rated["changes"][0]["calls_unclassified"],
+        serde_json::json!([]),
+        "{rated}"
+    );
+}
+
 /// A closure written in the function is the function's own code, so a standard member that only runs
 /// it, as `Option::map` or `Iterator::filter` does, adds no call nothing classifies.
 #[test]

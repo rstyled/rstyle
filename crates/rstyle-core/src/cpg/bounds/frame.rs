@@ -4,7 +4,7 @@
 use super::super::model::{Node, NodeKind, TypeKind};
 use super::calls::Parameter;
 use super::extent::{
-    Place, extent_receiver, extent_type, has_role, is_method, iteration_receiver, place,
+    Place, extent_receiver, extent_type, has_role, is_method, iteration_receiver, place, run_once,
 };
 use super::facts::Facts;
 use crate::advisory::runtime_bounds::{MAX_NODES, MAX_VARIABLES};
@@ -452,12 +452,17 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
         ty.kind == TypeKind::Integer
     }
 
-    // Callbacks are admitted only where lowering can resolve every invocation.
+    // Callbacks are admitted only where lowering can resolve every invocation: any closure an
+    // iteration member is handed, and the one a member runs at most once for the call.
     fn admit_callbacks(&mut self, expression: &'a Node) -> Visited {
-        if !is_method(self.facts, expression) || !iteration_member(self.facts, expression) {
+        if !is_method(self.facts, expression) {
             return Ok(());
         }
-        for argument in &self.facts.body.children(expression)?[1..] {
+        let iterating = iteration_member(self.facts, expression);
+        let once = run_once(self.facts, expression);
+        let arguments = &self.facts.body.children(expression)?[1..];
+        let handed = arguments.iter().enumerate();
+        for (_, argument) in handed.filter(|(index, _)| iterating || once == Some(*index)) {
             if argument.kind == NodeKind::Closure {
                 self.callbacks.insert(argument.id.as_str());
             }

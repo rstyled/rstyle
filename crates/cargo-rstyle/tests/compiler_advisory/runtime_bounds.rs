@@ -106,6 +106,9 @@ pub fn btree_lookups(index: &Index, keys: &[String]) -> usize { let mut found = 
 pub fn lookup_caller(index: &Index, keys: &[String]) -> usize { btree_lookups(index, keys) }
 pub fn str_keys(s: &str) -> String { let _ = s.is_empty(); s.into() }
 pub fn local_map(n: usize) -> bool { let mut map = std::collections::BTreeMap::new(); map.insert(n, n); map.contains_key(&n) }
+pub fn once_callback(xs: &[usize], ys: &[usize], o: Option<usize>) -> usize { let mut t = 0; for x in xs { t += o.map(|v| { let mut s = v; for y in ys { s += *y; } s }).unwrap_or(*x); } t }
+pub fn once_default(xs: &[usize], ys: &[usize], o: Option<usize>) -> usize { o.map_or(ys.iter().copied().sum(), |v| { let mut s = v; for x in xs { s += *x; } s }) }
+pub fn once_written(xs: &[usize], o: Option<usize>) -> usize { let mut seen = 0; for _ in xs { let _ = o.map(|_| seen += 1); } seen }
 "#;
 
 const DROPS: &str = r#"
@@ -221,6 +224,8 @@ fn assert_known_bounds(rows: &[Value]) {
         ("closure_return", 3),
         ("vec_collect", 3),
         ("mutable_receiver", 3),
+        ("once_callback", 12),
+        ("once_default", 6),
     ] {
         let row = named_row(rows, name);
         let bound: rstyle_core::runtime_bounds::Bound =
@@ -310,13 +315,14 @@ fn assert_composed(rows: &[Value]) {
             .contains("len(g.edges)"),
         "{edge}"
     );
-    // Unsummarizable callees and unproven loops are explicit opaque factors.
+    // Unsummarizable callees, unproven loops and an input no argument maps are explicit opaque
+    // factors. A function `Option::map` is handed is called there, with a value nothing bounds.
     for (name, kind, reason) in [
         ("recursive_count", "Call", "Recursive"),
         ("dyn_area", "Call", "Unresolved"),
         ("unknown_continue", "Loop", "backedge can skip"),
         ("default_ne", "Call", "Unresolved"),
-        ("item_to_std", "Call", "Unresolved"),
+        ("item_to_std", "Input", "unmapped"),
     ] {
         let composed = &named_row(rows, name)["composed"]["Partial"];
         let factors = composed["opaque_factors"].as_array().unwrap();
@@ -476,6 +482,7 @@ fn assert_unknown(rows: &[Value]) {
         "user_clone",
         "ordered_collect",
         "boxed_callback",
+        "once_written",
     ] {
         let row = named_row(rows, name);
         assert!(row["result"].get("Unknown").is_some(), "{name}: {row}");
