@@ -473,11 +473,19 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
                 .fields
                 .insert("modifiers".into(), json!(["coroutine"]));
         }
-        shape
-            .fields
-            .insert("captures".into(), json!(self.captures(closure)));
+        let (captures, definition) = self.closure_facts(closure);
+        shape.fields.insert("captures".into(), captures);
+        shape.fields.insert("definition".into(), definition);
 
         shape
+    }
+
+    /// What a closure captures, and the definition its type names, so a value of that type
+    /// leads to its node.
+    fn closure_facts(&mut self, closure: &'tcx hir::Closure<'tcx>) -> (Value, Value) {
+        let captures = json!(self.captures(closure));
+        let definition = self.unit.definition(closure.def_id.to_def_id());
+        (captures, json!(definition))
     }
 
     /// The places a closure captures, by root binding, with how it holds each.

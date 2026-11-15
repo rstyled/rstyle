@@ -26,8 +26,8 @@ fn with_reading(document: Value, index: usize, check: impl FnOnce(&Reading<'_>))
         dependence: reaching.data_dependence(),
         flow,
         reaching,
-        body: Body::new(function).unwrap(),
-        parents: parents(function),
+        body: Body::new(function).unwrap().into(),
+        parents: parents(function).into(),
         tables: &tables,
         sources: &sources,
     };

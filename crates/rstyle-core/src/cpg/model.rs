@@ -570,6 +570,8 @@ pub struct Node {
     pub adjustments: Option<Vec<Adjustment>>,
     pub binding_mode: Option<String>,
     pub captures: Option<Vec<Capture>>,
+    /// For a closure, the definition its type names, where the language gives it one.
+    pub definition: Option<Id>,
     pub operator: Option<String>,
     pub token: Option<FileSpan>,
     pub label: Option<String>,
@@ -608,6 +610,20 @@ pub struct Provenance {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Cfg {
+    pub entry: Id,
+    pub exits: Vec<Exit>,
+    pub edges: Vec<CfgEdge>,
+    /// The flow of each closure written in the function.
+    #[serde(default)]
+    pub closures: Vec<ClosureFlow>,
+}
+
+/// A closure's own flow. Its body runs when the closure is called, so no edge joins it to the
+/// function's flow, where the closure's node is one vertex.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ClosureFlow {
+    pub node: Id,
     pub entry: Id,
     pub exits: Vec<Exit>,
     pub edges: Vec<CfgEdge>,

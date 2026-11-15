@@ -1,7 +1,8 @@
 //! A function's control flow over its emitted tree, in evaluation order. A node runs after
 //! the operands it evaluates, so a construct's vertex is where its paths rejoin; a `for`,
-//! which has nothing to rejoin at, tests for another item at its own. A closure's body is
-//! opaque, a coroutine's runs in place, and a panic ends its path without reaching an exit.
+//! which has nothing to rejoin at, tests for another item at its own. A closure's body runs
+//! when the closure is called, so it is a flow of its own, and where it's written is one
+//! vertex. A coroutine's runs in place, and a panic ends its path without reaching an exit.
 
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
@@ -96,19 +97,27 @@ pub struct Inputs<'a> {
     pub refs: &'a [Value],
 }
 
-struct Walk<'a> {
+/// What every flow of a function reads: its nodes by ID, and what the inputs say of them.
+struct Tree<'a> {
     nodes: HashMap<&'a str, &'a Value>,
     diverging: &'a HashSet<String>,
     overloaded: HashSet<&'a str>,
+}
+
+struct Walk<'t, 'a> {
+    nodes: &'t HashMap<&'a str, &'a Value>,
+    diverging: &'a HashSet<String>,
+    overloaded: &'t HashSet<&'a str>,
     scopes: Vec<Scope<'a>>,
     /// Each coroutine being walked, innermost last.
     coroutines: Vec<Coroutine<'a>>,
     edges: Vec<Edge<'a>>,
 }
 
-/// The control flow of a function with these nodes.
+/// The control flow of a function with these nodes: its own, from its root, and one for each
+/// closure written in it, from the closure's parameters through its body.
 pub fn cfg(nodes: &[Value], inputs: Inputs<'_>) -> Value {
-    let mut walk = Walk {
+    let tree = Tree {
         nodes: nodes
             .iter()
             .filter_map(|node| Some((node["id"].as_str()?, node)))
@@ -119,33 +128,73 @@ pub fn cfg(nodes: &[Value], inputs: Inputs<'_>) -> Value {
             .iter()
             .filter_map(|reference| reference["node"].as_str())
             .collect(),
-        scopes: Vec::new(),
-        coroutines: Vec::new(),
-        edges: Vec::new(),
     };
-    let entry = vec![Transfer {
-        source: ENTRY,
-        kind: "normal",
-        role: None,
-    }];
-    let finished = walk.visit(inputs.root, entry);
-    walk.connect(&finished, EXIT);
-
-    let edges: Vec<Value> = walk.edges.iter().enumerate().map(edge_record).collect();
-
-    json!({"entry": ENTRY, "exits": [{"id": EXIT, "kind": "normal"}], "edges": edges})
-}
-
-fn edge_record((index, edge): (usize, &Edge<'_>)) -> Value {
-    let mut record = json!({"id": format!("e{index}"), "source": edge.source,
-                            "target": edge.target, "kind": edge.kind});
-    if let Some(role) = edge.role {
-        record["loop_role"] = json!(role);
+    let mut cfg = tree.flow(&[inputs.root], "");
+    let closures: Vec<Value> = nodes
+        .iter()
+        .filter(|node| node["kind"] == "closure" && !coroutine(node))
+        .filter_map(|node| Some((node["id"].as_str()?, node)))
+        .map(|(id, node)| {
+            let mut flow = tree.flow(&children_of(node), &format!("{id}:"));
+            flow["node"] = json!(id);
+            flow
+        })
+        .collect();
+    if !closures.is_empty() {
+        cfg["closures"] = json!(closures);
     }
-    record
+    cfg
 }
 
-impl<'a> Walk<'a> {
+/// A coroutine's body runs where it's written, as all of an `async fn` does.
+fn coroutine(closure: &Value) -> bool {
+    let modifiers = closure["modifiers"].as_array().map(Vec::as_slice);
+    modifiers.unwrap_or_default().contains(&json!("coroutine"))
+}
+
+impl<'a> Tree<'a> {
+    /// The flow from an entry through `roots` in turn to an exit. Its entry, exit and edges
+    /// take `prefix`, which keeps a closure's apart from its function's.
+    fn flow(&self, roots: &[&'a str], prefix: &str) -> Value {
+        let mut walk = Walk {
+            nodes: &self.nodes,
+            diverging: self.diverging,
+            overloaded: &self.overloaded,
+            scopes: Vec::new(),
+            coroutines: Vec::new(),
+            edges: Vec::new(),
+        };
+        let entry = vec![Transfer {
+            source: ENTRY,
+            kind: "normal",
+            role: None,
+        }];
+        let finished = walk.sequence(roots, entry);
+        walk.connect(&finished, EXIT);
+
+        let named = |end: &str| match end == ENTRY || end == EXIT {
+            true => format!("{prefix}{end}"),
+            false => end.to_owned(),
+        };
+        let edges: Vec<Value> = walk
+            .edges
+            .iter()
+            .enumerate()
+            .map(|(index, edge)| {
+                let mut record = json!({"id": format!("{prefix}e{index}"), "source": named(edge.source),
+                                        "target": named(edge.target), "kind": edge.kind});
+                if let Some(role) = edge.role {
+                    record["loop_role"] = json!(role);
+                }
+                record
+            })
+            .collect();
+
+        json!({"entry": named(ENTRY), "exits": [{"id": named(EXIT), "kind": "normal"}], "edges": edges})
+    }
+}
+
+impl<'a> Walk<'_, 'a> {
     fn connect(&mut self, transfers: &[Transfer<'a>], target: &'a str) {
         for transfer in transfers {
             self.edges.push(Edge {
@@ -219,10 +268,7 @@ impl<'a> Walk<'a> {
         children: &[&'a str],
         incoming: Transfers<'a>,
     ) -> Transfers<'a> {
-        let coroutine = node["modifiers"]
-            .as_array()
-            .is_some_and(|modifiers| modifiers.iter().any(|modifier| modifier == "coroutine"));
-        if !coroutine {
+        if !coroutine(node) {
             return self.vertex(id, incoming);
         }
         self.coroutines.push(Coroutine {

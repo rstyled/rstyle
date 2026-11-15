@@ -1892,6 +1892,35 @@ fn a_rust_run_finds_a_value_nothing_reads() {
     assert!(saved_run(&output).join("defects.sarif").is_file());
 }
 
+/// A closure's body is judged in its own flow, so a value stored there that nothing reads is
+/// found as it is in a function. What the closure captures stays quiet, since the function can
+/// read it after the closure runs, and so does a parameter it never reads.
+#[test]
+fn a_rust_run_finds_a_value_nothing_reads_inside_a_closure() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(
+        root.join("src/lib.rs"),
+        "#![allow(unused_assignments)]\n\
+         fn f() -> u8 { 1 }\n\
+         pub fn dead(o: Option<u8>) -> Option<u8> {\n    o.map(|x| {\n        let mut v = x + f();\n        \
+         v = f();\n        v\n    })\n}\n\
+         pub fn held(items: &[u8]) -> u8 {\n    let mut last = 0;\n    \
+         items.iter().for_each(|x| last = *x);\n    last\n}\n\
+         pub fn unread(o: Option<u8>) -> Option<u8> { o.map(|_x| f()) }\n",
+    )
+    .unwrap();
+
+    let output = rust_run(root, &["--filter", "defects", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let unified = report(&output);
+    let rows = unified["defects"]["defects"].as_array().unwrap();
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(rows[0]["rule"], "dead_store");
+    assert_eq!(rows[0]["line"], 5);
+}
+
 /// The lines `taint_flow` reports in a run of a package. Defects don't change the exit code.
 fn taint_lines(root: &Path) -> Vec<u64> {
     let output = rust_run(root, &["--filter", "defects", "--format", "json"]);
@@ -1949,6 +1978,34 @@ fn a_rust_run_follows_input_to_where_its_dangerous_and_a_project_has_the_last_wo
     );
     std::fs::write(root.join("src/lib.rs"), allowed).unwrap();
     assert_eq!(rows(), [5]);
+}
+
+/// A binding that's a closure's own is new each time the closure runs, so a value replaced there
+/// before it's used doesn't reach the use, as in a function. What a closure captures can be written
+/// whenever the closure runs, so input written after a read there still reaches it.
+#[test]
+fn a_rust_run_follows_a_closure_s_own_bindings_by_the_closure_s_flow() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(
+        root.join("src/lib.rs"),
+        "#![allow(unused_assignments)]\n\
+         fn input() -> String { std::env::var(\"Q\").unwrap() }\n\
+         pub fn overwritten(names: &[String]) {\n    names.iter().for_each(|_name| {\n        \
+         let mut q = input();\n        q = String::from(\"safe\");\n        let _ = std::fs::read(q);\n    });\n}\n\
+         pub fn kept(names: &[String]) {\n    names.iter().for_each(|_name| {\n        \
+         let mut q = String::from(\"/tmp/\");\n        q.push_str(&input());\n        let _ = std::fs::read(q);\n    });\n}\n\
+         pub fn written_later(names: &[String]) {\n    let mut q = String::from(\"safe\");\n    \
+         names.iter().for_each(|_name| {\n        let _ = std::fs::read(&q);\n        q = input();\n    });\n}\n",
+    )
+    .unwrap();
+
+    assert_eq!(
+        taint_lines(root),
+        [14, 20],
+        "kept, and what written_later captures"
+    );
 }
 
 /// A crate that runs input in a shell, built each way a `Command` can be, and that runs it where it's

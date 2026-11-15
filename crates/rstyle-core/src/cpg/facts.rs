@@ -1,5 +1,6 @@
 //! FnFacts for the style rules, derived from one bundled unit document.
 
+use super::comments::CommentSyntax;
 use super::dependence::{Closures, Roles, dependence_graph};
 use super::effects::EffectClasses;
 use super::events::{Events, Walk, mutations};
@@ -84,6 +85,7 @@ pub(super) fn derive_holding(
     let measured = complexity_available(&document.coverage);
     let roles = graphs.map(|closures| (Roles::of(&document.producer.namespace), closures));
     let classes = EffectClasses::of(&document.producer.namespace);
+    let comments = CommentSyntax::of(&document.producer.namespace);
     let functions = unit.functions.as_deref().unwrap_or_default();
     // A function whose file lies outside the workspace root has no workspace facts,
     // unless the build wrote it there, as it does when the target directory is elsewhere.
@@ -97,7 +99,11 @@ pub(super) fn derive_holding(
         .iter()
         .filter(inside)
         .map(|function| {
-            let facts = function_facts(function, (&tables, &sources, roles, classes), measured);
+            let facts = function_facts(
+                function,
+                (&tables, &sources, roles, classes),
+                (comments, measured),
+            );
             (function, facts)
         })
         .collect())
@@ -140,7 +146,7 @@ fn complexity_available(coverage: &Coverage) -> bool {
 fn function_facts(
     function: &Function,
     (tables, sources, roles, classes): (&Tables<'_>, &Sources<'_>, Graphs<'_>, &EffectClasses),
-    measured: bool,
+    (comments, measured): (&CommentSyntax, bool),
 ) -> Result<FnFacts, String> {
     let body = Body::new(function)?;
     let walk = Walk::new(&body, tables, sources, classes);
@@ -173,6 +179,7 @@ fn function_facts(
             .between(&signature.span, &function.span)?
             .to_string(),
         preceding_line: sources.preceding_line(&signature.span, line)?,
+        comments: super::comments::lines(function, sources, comments)?,
         mutations,
         calls: events.calls,
         effects: events.effects,
