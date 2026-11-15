@@ -133,6 +133,54 @@ impl<E: Effect + std::fmt::Debug> Entry<E> {
     }
 }
 
+/// How often a member runs the callable it's handed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+pub enum Runs {
+    /// At most once for the call, as `Option::map` runs its closure on the value it holds.
+    AtMostOnce,
+    /// Once per item of a traversal, as a stage or a consumer runs its callback.
+    PerItem,
+}
+
+/// How an operation runs what it's handed: which argument after the receiver is the callable,
+/// when it takes one, and how often that runs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Handed {
+    pub callback: Option<u32>,
+    pub runs: Runs,
+}
+
+/// A member that runs a callable for the call itself, rather than per item of a traversal.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct CallableEntry {
+    /// Why the member runs its callable that often, and does nothing else.
+    #[serde(rename = "basis")]
+    _basis: String,
+    runs: Runs,
+    /// Arguments after the receiver.
+    arity: u32,
+    /// Index among those arguments of the callable.
+    callback: u32,
+    pub(super) operations: Vec<String>,
+}
+
+impl CallableEntry {
+    /// The role, once its callable is one of its arguments and it isn't a traversal's.
+    pub(super) fn handed(&self) -> Result<Handed, String> {
+        if self.callback >= self.arity || self.runs == Runs::PerItem {
+            return Err(format!(
+                "Callable role {:?} with arity {} has callback {}",
+                self.runs, self.arity, self.callback
+            ));
+        }
+        Ok(Handed {
+            callback: Some(self.callback),
+            runs: self.runs,
+        })
+    }
+}
+
 /// What a method measures about its receiver.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 pub enum ExtentRole {

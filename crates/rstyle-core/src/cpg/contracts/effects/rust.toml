@@ -21,7 +21,8 @@
 # implementation runs, and some do more than others: `io::Lines`'s `next` reads. A call is classified by
 # it only where the document names no implementation, as in a generic body, so no trait member is
 # listed in `none`. A provided member, such as `Iterator.map`, is its own implementation where no type
-# overrides it, and `none_without_callback` lists those that only run what they're handed.
+# overrides it, and the library contracts or `none_without_callback` say which only run what they're
+# handed.
 #
 # `none` lists members that are pure for every type they're called with. They don't do IO, touch
 # globals, the environment, the clock or randomness; they take no callable, have no bound through
@@ -488,58 +489,28 @@ none = [
     { exact = "std::process::{impl#54}::from" },                         # `ExitCode` from `u8`
 ]
 
-# `none_without_callback` lists what has no effect of its own but runs what it's handed: the closure
-# or function it's given, and for an iterator's member, the `next` of the iterator it's called on. It's
-# pure where the document names everything it runs: closures written in the calling function, whose own
-# facts hold what they do, and functions, each called from there and read by what it does. Every bound
-# then selects the standard library's own implementation. `items.iter().map(|item| item.id).collect::<Vec<_>>()`
-# is pure whatever `items` holds, since the slice's iterator and `Vec`'s `FromIterator` run nothing of
-# the item's, and `map(helper)` is a call of `helper`. `map` with a function pointer, `max` of items
-# whose `Ord` the workspace implements, or `collect` into a set keyed by a type whose `Hash` it
-# implements, stays unclassified.
+# What has no effect of its own but runs what it's handed is pure where the document names everything
+# it runs: closures written in the calling function, whose own facts hold what they do, and functions,
+# each called from there and read by what it does. Every bound then selects the standard library's own
+# implementation. `items.iter().map(|item| item.id).collect::<Vec<_>>()` is pure whatever `items` holds,
+# since the slice's iterator and `Vec`'s `FromIterator` run nothing of the item's, and `map(helper)` is
+# a call of `helper`. `map` with a function pointer, `max` of items whose `Ord` the workspace
+# implements, or `collect` into a set keyed by a type whose `Hash` it implements, stays unclassified.
+#
+# The library contracts say which members those are, in `runtime_bounds/contracts/rust.toml`: a stage
+# or a consumer of an iteration, which runs its callback per item, and a callable member, such as
+# `Option.map`, which runs its own at most once. A member with one of those roles is read this way
+# without being listed here, and can't be listed here as well. `none_without_callback` lists the rest:
+# members no contract gives a role, and implementations a type overrides a provided member with.
 # Driving an iterator does what the call that made it does, as `.await` does what the call that made
 # the future does: `fs::read_dir`'s entries are read by `read_dir`, not by the `filter_map` over them.
 # A value one drops runs its type's `Drop`, which counts where it's defined, as `Display` does.
 none_without_callback = [
-    { exact = "Iterator.all" },
-    { exact = "Iterator.any" },
     { exact = "Iterator.chain" },
-    { exact = "Iterator.collect" },
-    { exact = "Iterator.copied" },
-    { exact = "Iterator.count" },
-    { exact = "Iterator.enumerate" },
-    { exact = "Iterator.filter" },
-    { exact = "Iterator.filter_map" },
-    { exact = "Iterator.find" },
-    { exact = "Iterator.find_map" },
-    { exact = "Iterator.flat_map" },
     { exact = "Iterator.flatten" },
-    { exact = "Iterator.last" },
-    { exact = "Iterator.map" },
-    { exact = "Iterator.max" },
-    { exact = "Iterator.min" },
-    { exact = "Iterator.rev" },
-    { exact = "Iterator.skip" },
-    { exact = "Iterator.skip_while" },
-    { exact = "Iterator.take" },
-    { exact = "Iterator.take_while" },
     { exact = "Iterator.zip" },
-    { exact = "Option.and_then" },
-    { exact = "Option.filter" },
-    { exact = "Option.is_none_or" },
-    { exact = "Option.is_some_and" },
-    { exact = "Option.map" },
-    { exact = "Option.map_or" },
-    { exact = "Option.ok_or_else" },
-    { exact = "Option.or_else" },
-    { exact = "Option.unwrap_or_else" },
-    { exact = "Result.is_ok_and" },
-    { exact = "Result.map" },
-    { exact = "Result.map_err" },
-    { exact = "Result.unwrap_or_else" },
     { exact = "SliceIter.any" },
     { exact = "SliceIter.find" },
     { exact = "SliceIter.find_map" },
     { exact = "SliceIter.position" },
-    { exact = "bool.then" },
 ]

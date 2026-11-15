@@ -12,6 +12,7 @@ use super::tree::{Body, Tables, generated, line, scope_end};
 use crate::clip::clip;
 use crate::facts::{NodeKind as Kind, Pdg, PdgNode, TyShape};
 use crate::pdg_builder::{GraphBuilder, Lowering};
+use crate::runtime_bounds::contracts::{Contracts, Handed, Runs};
 use crate::versioned::ByNamespace;
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -28,8 +29,6 @@ pub struct Roles {
     namespace: String,
     #[serde(default)]
     views: Vec<String>,
-    #[serde(default)]
-    per_item: Vec<String>,
 }
 
 impl Roles {
@@ -483,13 +482,9 @@ impl<'a> Graph<'_, 'a> {
             {
                 return self.expr(receiver);
             }
-            let per_item = self
-                .roles
-                .per_item
-                .iter()
-                .any(|m| definition.name.ends_with(m.as_str()));
-            if let ([closure], true) = (arguments, per_item)
+            if let [closure] = arguments[..]
                 && closure.kind == NodeKind::Closure
+                && self.loops_over_receiver(node, definition.operation.as_deref())?
             {
                 return self.for_each(node, receiver, closure).map(Some);
             }
@@ -499,6 +494,18 @@ impl<'a> Graph<'_, 'a> {
         self.operands(index, &children, 0)?;
 
         Ok(Some(index))
+    }
+
+    /// Whether the library contracts say a call with one argument is a loop over its receiver: it
+    /// runs that argument once per item, and returns nothing, as `for_each` does. One that
+    /// returns something, as `map` or `max_by` does, is a call whose value is used.
+    fn loops_over_receiver(&self, call: &Node, operation: Option<&str>) -> Result<bool, String> {
+        let handed = operation.and_then(|operation| Contracts::embedded().handed(operation));
+        let per_item = Handed {
+            callback: Some(0),
+            runs: Runs::PerItem,
+        };
+        Ok(handed == Some(per_item) && self.type_kind(call)? == TypeKind::Unit)
     }
 
     /// `head.for_each(|item| body)`: the same iteration as `for item in head { body }`.

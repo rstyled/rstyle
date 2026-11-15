@@ -4,6 +4,7 @@
 //! path table alone.
 
 use crate::facts::{EffectKind, LibraryClass};
+use crate::runtime_bounds::contracts::Contracts;
 use crate::versioned::ByNamespace;
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -108,7 +109,8 @@ impl EffectClasses {
     /// The class of an operation key such as `go:os.WriteFile`, for a call that may call back into
     /// the workspace: the longest entry that starts it, where an exact entry only starts the key it
     /// names, else the file's class for an unlisted call. An entry that needs the call to call
-    /// nothing back leaves it unclassified.
+    /// nothing back leaves it unclassified, and so does a role in the library contracts, which
+    /// says the member only runs what it's handed.
     pub fn class(&self, operation: &str) -> Option<LibraryClass> {
         self.classed(operation, true)
     }
@@ -120,6 +122,10 @@ impl EffectClasses {
     }
 
     fn classed(&self, operation: &str, calls_back: bool) -> Option<LibraryClass> {
+        // A member the library contracts give a role runs only what it's handed.
+        if Contracts::embedded().handed(operation).is_some() {
+            return (!calls_back).then_some(LibraryClass::Pure);
+        }
         let listed = operation
             .char_indices()
             .map(|(start, character)| start + character.len_utf8())
@@ -180,6 +186,11 @@ fn parse(text: &str) -> Result<(String, EffectClasses), String> {
             };
             if entries.insert(key(name), listed).is_some() {
                 return Err(format!("{name} has more than one effect class"));
+            }
+            if Contracts::embedded().handed(&key(name)).is_some() {
+                return Err(format!(
+                    "{name} has an effect class and a role in the library contracts"
+                ));
             }
         }
     }
@@ -429,6 +440,28 @@ mod tests {
         assert_eq!(classes.class_without_callback("x:pkg.Write"), Some(IO));
         let error = parsed("none = [\"pkg.A\"]\nnone_without_callback = [\"pkg.A\"]").unwrap_err();
         assert!(error.contains("pkg.A"), "{error}");
+    }
+
+    #[test]
+    fn a_role_in_the_library_contracts_is_an_entry_that_needs_no_callback() {
+        let classes = EffectClasses::of("rust");
+        // A stage, a consumer and a callable member: none is listed, and each runs what it's handed.
+        for operation in ["rust:Iterator.map", "rust:Iterator.fold", "rust:Option.map"] {
+            assert_eq!(
+                classes.class_without_callback(operation),
+                Some(LibraryClass::Pure),
+                "{operation}"
+            );
+            assert_eq!(classes.class(operation), None, "{operation}");
+        }
+        // The contracts say it once, so the table can't say it too.
+        let listed = "schema = \"rstyle.effect-classes/1\"\nnamespace = \"rust\"\n\
+                      none_without_callback = [{ exact = \"Option.map\" }]";
+        let error = parse(listed).unwrap_err();
+        assert!(
+            error.contains("Option.map has an effect class and a role"),
+            "{error}"
+        );
     }
 
     #[test]
