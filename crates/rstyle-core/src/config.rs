@@ -425,6 +425,9 @@ pub struct ReviewConfig {
     /// the one project Rstyle finds there. A pull request that changes code outside every one
     /// isn't merged automatically.
     pub projects: Vec<String>,
+    /// Once the review posts, investigate the code the pull request changes in a sandbox and
+    /// comment each bug a test reproduces. It never holds the merge.
+    pub investigate: bool,
 }
 
 /// How `algorithmic_complexity` reports a function whose proven loop bound is of degree two or more.
@@ -1124,7 +1127,13 @@ mod tests {
     fn a_review_takes_each_pull_request_setting_off_unless_asked_and_no_baseline_compares_it() {
         let review = Config::parse("").unwrap().review;
         assert!(!review.comment_warnings && !review.status_check && !review.auto_merge);
-        assert!(review.projects.is_empty());
+        assert!(review.projects.is_empty() && !review.investigate);
+        assert!(
+            Config::parse("[review]\ninvestigate = true")
+                .unwrap()
+                .review
+                .investigate
+        );
         let projects = Config::parse("[review]\nprojects = [\".\", \"worker\"]").unwrap();
         assert_eq!(projects.review.projects, [".", "worker"]);
         let config = Config::parse(
