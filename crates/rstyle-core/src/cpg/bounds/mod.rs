@@ -340,33 +340,47 @@ impl<'a> Collector<'_, '_, 'a> {
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
     fn local(&mut self, local: &'a Node, next: u32) -> Result<u32, String> {
         let parts = self.local_parts(local)?;
-        let next = self.declaration_writes(parts.pattern, next)?;
         // Immutable local closures run only where they are directly invoked.
         if let Some(symbol) = self.binding_symbol(parts.pattern)
             && self.closures.contains_key(symbol)
         {
             return Ok(next);
         }
-        if parts.otherwise.is_some() {
-            return Ok(self.unsupported(local, next, "let-else control flow is unmodeled"));
+        let selected = self.local_assignment(local, &parts, next)?;
+        let continuation = match parts.otherwise {
+            Some(otherwise) => {
+                let rejected = self.expr(otherwise, next)?;
+                self.choice((selected, rejected), local)
+            }
+            None => selected,
+        };
+
+        // The initializer runs once before the pattern chooses either continuation.
+        match parts.init {
+            Some(init) => self.expr(init, continuation),
+            None => Ok(continuation),
         }
+    }
+
+    /// Successful pattern selection writes its bindings; failure runs only the else branch.
+    fn local_assignment(
+        &mut self,
+        local: &Node,
+        parts: &Local<'a>,
+        next: u32,
+    ) -> Result<u32, String> {
+        let next = self.declaration_writes(parts.pattern, next)?;
         let variable = self
             .binding_symbol(parts.pattern)
             .and_then(|symbol| self.locals.get(symbol).copied());
 
-        match (variable, parts.init) {
-            (Some(variable), init) => {
-                let value = init.map_or(Value::Unknown, |init| self.value(init));
-                let assignment =
-                    self.node(Action::Assign { variable, value }, Flow::Goto(next), local);
-                match init {
-                    Some(init) => self.expr(init, assignment),
-                    None => Ok(assignment),
-                }
+        Ok(match variable {
+            Some(variable) => {
+                let value = parts.init.map_or(Value::Unknown, |init| self.value(init));
+                self.node(Action::Assign { variable, value }, Flow::Goto(next), local)
             }
-            (None, Some(init)) => self.expr(init, next),
-            (None, None) => Ok(next),
-        }
+            None => next,
+        })
     }
 
     /// The symbol of a binding pattern without a subpattern, whatever its mode.

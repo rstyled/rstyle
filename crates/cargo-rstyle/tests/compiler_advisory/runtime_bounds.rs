@@ -1,5 +1,7 @@
 use super::*;
 
+mod declarations;
+
 pub(crate) const SOURCE: &str = r#"
 #![feature(guard_patterns)]
 pub fn accumulator(n: usize) -> u8 { let mut i = 0; let mut total = 0u8; while i < n { total += 1; i += 1; } total }

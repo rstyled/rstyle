@@ -97,6 +97,12 @@ as a closure's does.
 runs. A pattern holding anything else is unsupported, as is a declaration that writes what a loop's
 length is measured from.
 
+**Refutable declarations.** A declaration with a failure branch, such as Rust's `let-else`, evaluates
+its initializer once, then chooses between binding the pattern and running the failure branch.
+Both paths remain possible: `continue`, `return`, counter writes and calls keep their control and
+cost effects. A failure path that can bypass a counter increment does not establish loop progress.
+Pattern guards, writable reference patterns and hidden cleanup keep their existing restrictions.
+
 **Arguments.** A call evaluates its receiver or callee, then what each argument passes. An argument that
 holds its value under a name, as Python's `print(total, end="")` does, passes that value. One that unpacks
 a sequence or a mapping, as `*items` and `**options` do, is unsupported.
