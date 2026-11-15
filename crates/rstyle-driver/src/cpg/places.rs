@@ -20,19 +20,18 @@ pub fn places<'tcx>(
         .collect()
 }
 
-/// What the bodies of the function's coroutines write and borrow exclusively. Those bodies
-/// run in its control flow, so its accesses need them; they are not its own for its rule
-/// facts, so they are not among its places.
-pub fn coroutine_places<'tcx>(
+/// What the bodies written inside the function write and borrow exclusively: its coroutines',
+/// which run in its control flow, and its closures', which are flows of their own. Its
+/// accesses need them; they are not its own for its rule facts, so they are not among its
+/// places.
+pub fn nested_places<'tcx>(
     tcx: TyCtxt<'tcx>,
     owner: LocalDefId,
     builder: &mut Builder<'_, 'tcx>,
 ) -> Vec<Value> {
-    let coroutines = tcx
-        .nested_bodies_within(owner)
-        .iter()
-        .filter(|nested| tcx.is_coroutine(nested.to_def_id()));
-    let uses: Vec<Use<'tcx>> = coroutines.flat_map(|nested| uses(tcx, nested)).collect();
+    let nested = tcx.nested_bodies_within(owner).iter();
+    let nested = nested.filter(|nested| tcx.is_closure_like(nested.to_def_id()));
+    let uses: Vec<Use<'tcx>> = nested.flat_map(|nested| uses(tcx, nested)).collect();
 
     uses.iter()
         .enumerate()

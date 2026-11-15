@@ -306,7 +306,10 @@ Each function says how far this can be relied on:
 | `approximated` | Holds with the listed reasons, such as a binding that can also change through a borrow |
 | `unknown` | The frontend emits no flow |
 
-A closure's body is opaque and has no flow of its own. A coroutine's, which is all of an `async fn`, runs in place.
+A closure's body runs when the closure is called, so it's a flow of its own, with what it captures written at its
+entry: where it's written is one vertex of the function's flow. Each closure's results are reported under its
+function's, by the closure's node. A frontend that records no flow for closures leaves their bodies opaque. A
+coroutine's body, which is all of an `async fn`, runs in place.
 Unwinding is not a transfer.
 
 ### Merge risk

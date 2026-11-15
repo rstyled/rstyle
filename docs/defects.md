@@ -60,7 +60,7 @@ A store means an assignment to a binding or a declaration's computed initializer
 | --- | --- |
 | `count := 0`, then assigned | A starting value is a choice of style, and drops nothing computed |
 | `var x int`, or a binding a `for` or match makes | Nothing was computed to store |
-| Anything a closure captures | It reads when it's called, whenever that is |
+| Anything a closure captures | It reads when it's called, whenever that is. What a closure declares for itself is judged in the closure's own flow, where a frontend records one, so a store nothing reads there is reported as it is in a function |
 | A binding borrowed mutably, reached by a raw pointer or written in part | What's read isn't only what the name says |
 | A named result | The return reads it |
 | A read flow can't place | It can't be put before or after a store |
@@ -300,6 +300,7 @@ reach a sink or what it returns, and whether it returns input of its own, so a v
 | A call that gives back a reference to what it was called on | Writes what that writes, so `cmd.arg("-c").arg(script)` adds both to `cmd` |
 | A number or a truth value | Holds no input, so `len(input)` and `%d` of one are clean |
 | A value that only decides a branch | Isn't followed: this is about what a value holds |
+| A binding a closure declares for itself | Is followed through the closure's own flow, where a frontend records one, so input replaced there before it's used doesn't reach the use. What a closure captures can be written whenever the closure runs, so every write of it meets every read |
 
 ### What it misses
 
