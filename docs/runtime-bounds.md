@@ -24,6 +24,31 @@ Rows rank by polynomial degree, then logarithmic factors. That's a search heuris
 of runtimes across independent input sizes. `--top` selects rows independently of abstraction scores,
 and JSON keeps the full roster and the selected row indices.
 
+## Coverage in document reports
+
+`rstyle.cpg-runtime-bounds-report/1` rows include `identity`, `compilation`, `function`, `root`,
+`line`, `column` and `test`. Match across captures using compilation and stable identity; function and
+root IDs distinguish occurrences within a capture. Names and paths alone are not unique. Duplicate
+compilation/identity keys remain distinct rows and cannot supply an unambiguous composed summary.
+
+The additive `coverage` object always counts the full input before document-report `--top` selection.
+Its maps omit zero counts:
+
+- `roster` separates authored functions from non-function bodies, generated code and unavailable records.
+  Bounds rows and the other coverage maps cover authored functions only.
+- `capture`, `local` and `composed` keep unavailable capture and unknown, partial, budget-exceeded or
+  absent results separate from proven results.
+- `proven_local_loops` separates owners without modeled loops, constant loop work and input-dependent
+  loop work. `proven_composed_loops` separates zero, constant and input-dependent loop work through callees.
+  A zero composed bound does not say whether the owner contains a modeled loop.
+- `library_steps` counts complete versus opaque library bounds independently of the composed verdict.
+  A complete library bound can be zero when there are no library calls; it does not prove whole runtime.
+
+`input_complete` requires captured bounds for every authored function and no unavailable roster records,
+including those outside `--top`. It describes capture availability, not proof success: captured programs
+may still yield unknown or partial results. These counts add no proofs, do not count every latent blocker,
+and describe only the supplied input roster, not functions absent from the capture.
+
 ## In the check run
 
 When bounds run alongside `check`, each function with a proven bound of degree two or more is a
