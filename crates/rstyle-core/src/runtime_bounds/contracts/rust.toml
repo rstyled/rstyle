@@ -287,3 +287,8 @@ operations = ["Vec.len", "slice.len", "str.len"]
 basis = "Yields shared references to each element of a contiguous buffer once, in order"
 role = "Traversal"
 operations = ["slice.iter"]
+
+[[extent]]
+basis = "Traverses immutable UTF-8 str contents with no callable arguments: bytes yields exactly the byte length; chars and char_indices yield at most one scalar per byte; lines yields at most one shared string per byte and none for empty input. Yielded primitives and shared strings have no owning cleanup"
+role = "Traversal"
+operations = ["str.chars", "str.bytes", "str.char_indices", "str.lines"]

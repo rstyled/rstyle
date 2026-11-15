@@ -113,6 +113,16 @@ accepted only when its type facts preserve the element type. Callback loops stil
 Owned or writable arrays, unknown constant-generic lengths, custom iteration, computed receivers and
 lengths outside the target pointer width retain conservative handling.
 
+Resolved inherent standard `str.chars`, `str.bytes`, `str.char_indices` and `str.lines`
+sources use the same shared traversal model. Their receiver must be a stable shared
+string place; its extent is UTF-8 byte length. `bytes` yields exactly that many items,
+while Unicode scalar and line iteration yield at most that many, including zero for an
+empty string. The resulting loop bound retains the receiver's actual formal or local
+provenance. Adapter callbacks, their invocation counts, and owning yielded-value cleanup
+still pass through the existing chain checks. Generic pattern sources such as `split`,
+custom methods, computed receivers and owned `String` dereference are not covered by
+these four contracts.
+
 **Collections.** Resolved collection length queries and traversal adapters are abstracted and excluded
 from call counts. Ordinary body calls can have unknown cost while preserving a bound on a private scalar
 counter.
