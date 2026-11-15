@@ -397,7 +397,8 @@ expression: facts
       {
         "callee": "std::iter::Iterator::copied",
         "line": 21,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "core::slice::iter",
@@ -7031,7 +7032,8 @@ expression: facts
       {
         "callee": "std::result::Result::map_err",
         "line": 75,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "core::str::parse",

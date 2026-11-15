@@ -309,11 +309,13 @@ impl<'a> Walk<'a> {
             return Ok(Some(LibraryClass::Pure));
         }
         let calls_back = callee.reference.calls_back.as_ref();
-        Ok(if calls_back.is_some_and(|calls_back| !calls_back.value) {
-            self.classes.class_without_callback(operation)
-        } else {
-            self.classes.class(operation)
-        })
+        Ok(
+            if calls_back.is_some_and(|calls_back| !calls_back.runs_other_code()) {
+                self.classes.class_without_callback(operation)
+            } else {
+                self.classes.class(operation)
+            },
+        )
     }
 
     /// Whether the contract keeps this call's effect in a buffer, by an argument's type. The

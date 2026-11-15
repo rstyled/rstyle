@@ -1,7 +1,6 @@
 //! Standard-library identity by crate number, never by crate or path spelling.
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::{CrateNum, DefId};
-use rustc_middle::ty::GenericArgKind;
 use rustc_middle::ty::{self, Ty};
 use rustc_span::sym;
 
@@ -18,12 +17,24 @@ pub(crate) fn sysroot(tcx: ty::TyCtxt<'_>, krate: CrateNum) -> bool {
         .any(|item| item.krate == krate)
 }
 
-/// Built only from primitives and standard-library types.
-pub(crate) fn standard_type<'tcx>(tcx: ty::TyCtxt<'tcx>, ty: Ty<'tcx>) -> bool {
-    ty.walk().all(|part| match part.kind() {
-        GenericArgKind::Type(ty) => standard_kind(tcx, ty),
-        _ => true,
-    })
+/// The types `ty` is built from, leaving out a closure written in `owner`, when there is one, and
+/// what it's built from: its signature and captures are the owner's own, and so is what it does.
+fn parts<'tcx>(tcx: ty::TyCtxt<'tcx>, owner: Option<DefId>, ty: Ty<'tcx>) -> Vec<Ty<'tcx>> {
+    let mut walker = ty.walk();
+    let mut found = Vec::new();
+    while let Some(part) = walker.next() {
+        let Some(ty) = part.as_type() else {
+            continue;
+        };
+        if let ty::Closure(closure, _) = ty.kind()
+            && Some(tcx.typeck_root_def_id(*closure)) == owner
+        {
+            walker.skip_current_subtree();
+            continue;
+        }
+        found.push(ty);
+    }
+    found
 }
 
 fn standard_kind<'tcx>(tcx: ty::TyCtxt<'tcx>, ty: Ty<'tcx>) -> bool {
@@ -47,25 +58,25 @@ fn standard_kind<'tcx>(tcx: ty::TyCtxt<'tcx>, ty: Ty<'tcx>) -> bool {
 
 /// A standard callee may run workspace code through callable arguments or trait bounds
 /// on workspace types, such as `PartialEq::ne`, `Into::into` or `sort` on workspace items.
+/// With an `owner`, a closure written there isn't counted: its body is the owner's own.
 pub(crate) fn calls_back<'tcx>(
     tcx: ty::TyCtxt<'tcx>,
+    owner: Option<DefId>,
     callee: DefId,
     arguments: ty::GenericArgsRef<'tcx>,
 ) -> bool {
     let callable = arguments.types().any(|ty| {
-        ty.walk().any(|part| {
-            part.as_type().is_some_and(|ty| {
-                matches!(
-                    ty.kind(),
-                    ty::Closure(..)
-                        | ty::FnDef(..)
-                        | ty::FnPtr(..)
-                        | ty::Dynamic(..)
-                        | ty::Param(_)
-                        | ty::Alias(..)
-                        | ty::Coroutine(..)
-                )
-            })
+        parts(tcx, owner, ty).into_iter().any(|ty| {
+            matches!(
+                ty.kind(),
+                ty::Closure(..)
+                    | ty::FnDef(..)
+                    | ty::FnPtr(..)
+                    | ty::Dynamic(..)
+                    | ty::Param(_)
+                    | ty::Alias(..)
+                    | ty::Coroutine(..)
+            )
         })
     });
     let sized = tcx.lang_items().sized_trait();
@@ -77,7 +88,10 @@ pub(crate) fn calls_back<'tcx>(
             .into_iter()
             .filter_map(|clause| clause.skip_norm_wip().as_trait_clause())
             .filter(|bound| Some(bound.def_id()) != sized)
-            .any(|bound| !standard_type(tcx, bound.self_ty().skip_binder()))
+            .any(|bound| {
+                let parts = parts(tcx, owner, bound.self_ty().skip_binder());
+                !parts.into_iter().all(|ty| standard_kind(tcx, ty))
+            })
 }
 
 /// Contract namespace of this frontend's operation keys.

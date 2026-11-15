@@ -2306,6 +2306,55 @@ fn risk_reads_a_new_pure_standard_call_as_classified_and_a_trait_call_as_not() {
     assert!(!called.contains("first"), "{called}");
 }
 
+/// A closure written in the function is the function's own code, so a standard member that only runs
+/// it, as `Option::map` or `Iterator::filter` does, adds no call nothing classifies. One handed a
+/// function of the workspace runs other code, and stays unclassified.
+#[test]
+fn risk_reads_a_closure_written_here_as_this_function_s_code() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let helper = "pub fn helper(x: &u8) -> u8 { *x }\n";
+    let base = saved_run_of(
+        root,
+        &format!(
+            "{helper}pub fn f(o: Option<u8>, v: &[u8]) -> usize {{ v.len() + usize::from(o.is_some()) }}\n"
+        ),
+    );
+    let closures = saved_run_of(
+        root,
+        &format!(
+            "{helper}pub fn f(o: Option<u8>, v: &[u8]) -> usize {{\n    \
+            let kept: Vec<u8> = v.iter().map(|x| x + 1).filter(|x| *x > 1).collect();\n    \
+            kept.len() + usize::from(o.map(|x| x + 1).is_some_and(|x| x > 2))\n}}\n"
+        ),
+    );
+
+    let rated = report(&risk(&base, &closures));
+    assert_eq!(rated["risk"], "low", "{rated}");
+    assert_eq!(
+        rated["changes"][0]["calls_unclassified"],
+        serde_json::json!([]),
+        "{rated}"
+    );
+
+    let named = saved_run_of(
+        root,
+        &format!(
+            "{helper}pub fn f(o: Option<u8>, v: &[u8]) -> usize {{ v.iter().map(helper).count() + usize::from(o.is_some()) }}\n"
+        ),
+    );
+    let rated = report(&risk(&base, &named));
+    assert_eq!(rated["risk"], "unknown", "{rated}");
+    assert!(
+        rated["changes"][0]["calls_unclassified"]
+            .to_string()
+            .contains("map"),
+        "{rated}"
+    );
+}
+
 /// `.await` polls the body of the `async fn` it awaits, which the call that made the future already
 /// reads, and `?` converts the error with the workspace's `From` or with none at all, so an async
 /// function that awaits and propagates adds no call nothing classifies.
@@ -2360,9 +2409,12 @@ fn risk_reads_an_exact_entry_as_only_the_member_it_names() {
         "{change}"
     );
 
+    // A function of the workspace is other code, where a closure written here would be this one's.
     let callable = saved_run_of(
         root,
-        &format!("{signature} {{ v.push(1); a.is_some_and(|x| x > 0) }}\n"),
+        &format!(
+            "fn positive(x: u8) -> bool {{ x > 0 }}\n{signature} {{ v.push(1); a.is_some_and(positive) }}\n"
+        ),
     );
     let rated = report(&risk(&pure, &callable));
     assert_eq!(rated["risk"], "unknown", "{rated}");

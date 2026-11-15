@@ -20,7 +20,8 @@
 # A trait's own member is keyed by the trait (`Clone.clone`, `Iterator.next`) and stands for whichever
 # implementation runs, and some do more than others: `io::Lines`'s `next` reads. A call is classified by
 # it only where the document names no implementation, as in a generic body, so no trait member is
-# listed here.
+# listed in `none`. A provided member, such as `Iterator.map`, is its own implementation where no type
+# overrides it, and `none_without_callback` lists those that only run what they're handed.
 #
 # `none` lists members that are pure for every type they're called with. They don't do IO, touch
 # globals, the environment, the clock or randomness; they take no callable, have no bound through
@@ -485,4 +486,52 @@ none = [
     { exact = "std::path::{impl#20}::next" },                            # `path::Components`
     { exact = "std::process::{impl#39}::from" },                         # `Stdio` from `io::Stderr`
     { exact = "std::process::{impl#54}::from" },                         # `ExitCode` from `u8`
+]
+
+# `none_without_callback` lists what has no effect of its own but runs what it's handed: the closure
+# it's given, and for an iterator's member, the `next` of the iterator it's called on. It's pure where
+# the document says the call calls nothing of the workspace's back but closures written in the calling
+# function, whose own facts hold what they do, and every bound is on a standard type. `v.iter().map(|x| x + 1).collect::<Vec<_>>()` is pure,
+# and `map` with a function of the workspace, or `collect` into a workspace type, stays unclassified.
+# Driving an iterator does what the call that made it does, as `.await` does what the call that made
+# the future does: `fs::read_dir`'s entries are read by `read_dir`, not by the `filter_map` over them.
+# A value one drops runs its type's `Drop`, which counts where it's defined, as `Display` does.
+none_without_callback = [
+    { exact = "Iterator.all" },
+    { exact = "Iterator.any" },
+    { exact = "Iterator.chain" },
+    { exact = "Iterator.collect" },
+    { exact = "Iterator.copied" },
+    { exact = "Iterator.enumerate" },
+    { exact = "Iterator.filter" },
+    { exact = "Iterator.filter_map" },
+    { exact = "Iterator.find" },
+    { exact = "Iterator.find_map" },
+    { exact = "Iterator.flat_map" },
+    { exact = "Iterator.flatten" },
+    { exact = "Iterator.map" },
+    { exact = "Iterator.rev" },
+    { exact = "Iterator.skip" },
+    { exact = "Iterator.skip_while" },
+    { exact = "Iterator.take" },
+    { exact = "Iterator.take_while" },
+    { exact = "Iterator.zip" },
+    { exact = "Option.and_then" },
+    { exact = "Option.filter" },
+    { exact = "Option.is_none_or" },
+    { exact = "Option.is_some_and" },
+    { exact = "Option.map" },
+    { exact = "Option.map_or" },
+    { exact = "Option.ok_or_else" },
+    { exact = "Option.or_else" },
+    { exact = "Option.unwrap_or_else" },
+    { exact = "Result.is_ok_and" },
+    { exact = "Result.map" },
+    { exact = "Result.map_err" },
+    { exact = "Result.unwrap_or_else" },
+    { exact = "SliceIter.any" },
+    { exact = "SliceIter.find" },
+    { exact = "SliceIter.find_map" },
+    { exact = "SliceIter.position" },
+    { exact = "bool.then" },
 ]

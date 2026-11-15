@@ -1250,9 +1250,13 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             None => (callee, args),
         };
         if compiler::standard(self.tcx, runs) {
-            let value = super::sysroot::calls_back(self.tcx, runs, runs_args);
+            let value = super::sysroot::calls_back(self.tcx, None, runs, runs_args);
             record["calls_back"] = json!({"value": value,
                 "reason": "callable arguments, or bounds on types outside the standard library"});
+            let owner = Some(self.owner.to_def_id());
+            if value && !super::sysroot::calls_back(self.tcx, owner, runs, runs_args) {
+                record["calls_back"]["own_closures"] = json!(true);
+            }
         }
 
         record

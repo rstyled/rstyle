@@ -759,6 +759,17 @@ pub struct InstanceSignature {
 pub struct CallsBack {
     pub value: bool,
     pub reason: String,
+    /// What it calls back is only closures written in the calling function, whose own facts hold
+    /// what they do. Bounds still count it as calling back, since a closure runs once per item.
+    #[serde(default)]
+    pub own_closures: bool,
+}
+
+impl CallsBack {
+    /// Whether it runs workspace code its caller's facts don't already hold.
+    pub fn runs_other_code(&self) -> bool {
+        self.value && !self.own_closures
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
