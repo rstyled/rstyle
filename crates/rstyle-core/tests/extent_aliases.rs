@@ -590,6 +590,10 @@ fn with_caller(mut document: Value) -> Value {
     for definition in document["unit"]["definitions"].as_array_mut().unwrap() {
         if definition["id"] == "def:count" {
             definition["compilation"] = compilation.clone();
+            definition["callable"] = json!({
+                "parameters":["type:slice_ref"], "result":"type:u32",
+                "generics":0, "modifiers":[]
+            });
         }
     }
     document["unit"]["functions"]

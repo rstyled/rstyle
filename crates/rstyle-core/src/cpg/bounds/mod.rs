@@ -2,6 +2,7 @@
 //! Runtime bounds). The lowering is backward: each construct is lowered so that it
 //! continues at `next`, and returns its entry node.
 
+mod arguments;
 mod calls;
 mod canonical;
 mod chains;

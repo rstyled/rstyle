@@ -4,7 +4,7 @@ use super::super::model::{Dispatch, Node, NodeKind};
 use super::Collector;
 use super::chains::{Callback, evaluated};
 use super::extent::run_once;
-use crate::runtime_bounds::{Action, Argument, Callee, Condition, Flow, Value};
+use crate::runtime_bounds::{Action, Callee, Condition, Flow, Value};
 
 type Lowered = Result<u32, String>;
 
@@ -116,19 +116,7 @@ impl<'a> Collector<'_, '_, 'a> {
             None => "indirect call".into(),
         };
         let (target, operation) = self.call_target(expression, callee);
-        let mut inputs: Vec<Argument> = arguments
-            .iter()
-            .map(|argument| self.argument(argument))
-            .collect::<Result<_, _>>()?;
-        // The value a call of a type makes is its function's receiver, which no argument passes.
-        if self
-            .facts
-            .type_call(expression, callee)
-            .and_then(|function| function.callable.as_ref())
-            .is_some_and(|callable| callable.receiver.is_some())
-        {
-            inputs.insert(0, Argument::Opaque);
-        }
+        let inputs = self.summary_arguments(expression)?;
         let action = Action::Call {
             callee: name,
             target,
@@ -227,7 +215,6 @@ impl<'a> Collector<'_, '_, 'a> {
     }
 
     fn method_invocation(&mut self, expression: &'a Node, next: u32) -> Lowered {
-        let inputs = self.evaluated_by(expression)?;
         let callee = self
             .facts
             .reference(expression)
@@ -240,13 +227,16 @@ impl<'a> Collector<'_, '_, 'a> {
         let action = Action::Call {
             callee,
             target,
-            arguments: inputs
-                .iter()
-                .map(|input| self.argument(input))
-                .collect::<Result<_, _>>()?,
+            arguments: self.summary_arguments(expression)?,
             may_modify: false,
             operation,
         };
+        self.method_entry(expression, action, next)
+    }
+
+    /// Build the receiver and written argument evaluation before the method's call action.
+    fn method_entry(&mut self, expression: &'a Node, action: Action, next: u32) -> Lowered {
+        let inputs = self.evaluated_by(expression)?;
         let call = self.node(action, Flow::Goto(next), expression);
         let entry = self.arguments(&inputs[1..], call)?;
 
