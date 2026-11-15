@@ -1,6 +1,6 @@
 //! `for` loops over primitive unsigned ranges and stable shared slices.
 
-use super::super::model::{Node, NodeKind};
+use super::super::model::{Node, NodeKind, Origin};
 use super::Collector;
 use super::extent::iteration_receiver;
 use super::facts::Facts;
@@ -222,12 +222,20 @@ pub(super) fn for_head<'a>(
         return Ok(None);
     }
     let wrapper = facts.body.child(expression, 1)?;
-    let head = facts
+    let generated_for = wrapper.synthetic
+        && wrapper.provenance.origin == Origin::Desugaring
+        && wrapper.provenance.construct.as_deref() == Some("for");
+    if !generated_for {
+        return Ok(Some(wrapper));
+    }
+    let mut sources = facts
         .sources(wrapper)?
         .into_iter()
-        .rev()
-        .find(|child| !child.synthetic)
-        .unwrap_or(wrapper);
+        .filter(|child| !child.synthetic);
+    let head = match (sources.next(), sources.next()) {
+        (Some(head), None) => head,
+        _ => wrapper,
+    };
 
     Ok(Some(head))
 }

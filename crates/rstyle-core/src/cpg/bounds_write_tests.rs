@@ -134,7 +134,7 @@ fn values_written(program: &Value, name: &str) -> Vec<Value> {
 
 #[test]
 fn writes_to_primitive_scratch_values_preserve_the_input_scan() {
-    for kind in ["bool", "char", "float", "unit"] {
+    for kind in ["bool", "char", "float", "unit", "string"] {
         input_scan(&Fixture::new(kind).row());
     }
 }
@@ -279,7 +279,6 @@ fn aggregate_reference_and_missing_type_writes_stay_unknown() {
         "pointer",
         "opaque",
         "integer",
-        "string",
     ] {
         assert!(
             Fixture::new(kind).row()["result"].get("Unknown").is_some(),
