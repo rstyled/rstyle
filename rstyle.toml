@@ -3,6 +3,11 @@
 
 exclude = ["target/**"]
 
+# What Rstyle's GitHub app does on a pull request, read from the base branch, so a pull request
+# can't change it for itself.
+[review]
+comment_warnings = true   # comment inline on new warnings too, not only count them
+
 [fn_length]
 max_lines = 50            # code lines: blank, `//` and `/* */` lines are not counted
 
