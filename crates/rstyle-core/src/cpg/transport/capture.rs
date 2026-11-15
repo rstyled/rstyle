@@ -126,8 +126,7 @@ pub fn read_manifest_bytes(directory: &Path) -> Result<Vec<u8>, String> {
 }
 
 fn checksum(bytes: &[u8]) -> Result<String, String> {
-    let mut observed = Observed::default();
-    observed.update(bytes).map_err(|error| error.to_string())?;
+    let observed = Observed::of(bytes).map_err(|error| error.to_string())?;
     Ok(observed.checksum())
 }
 

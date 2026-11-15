@@ -69,9 +69,7 @@ impl Report {
     }
 
     pub(super) fn outside_scope(&self) -> impl Iterator<Item = crate::compiler::FunctionKey> + '_ {
-        self.source_scope
-            .iter()
-            .flat_map(|scope| scope.outside_scope_functions.iter().copied())
+        SourceScope::outside(self.source_scope.as_ref())
     }
 
     pub(super) fn render(&self) -> String {

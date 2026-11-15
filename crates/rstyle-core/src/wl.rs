@@ -42,7 +42,6 @@ pub fn combine(acc: u64, value: u64) -> u64 {
 struct CallSummary {
     calls: usize,
     forwarding_shape: bool,
-    opaque_closure: bool,
 }
 
 impl CallSummary {
@@ -55,7 +54,6 @@ impl CallSummary {
         Self {
             calls: self.calls + usize::from(node.kind == NodeKind::Call),
             forwarding_shape: self.forwarding_shape && forwarding,
-            opaque_closure: self.opaque_closure || node.kind == NodeKind::Closure,
         }
     }
 }
@@ -219,8 +217,6 @@ pub struct Wl {
     pub calls: usize,
     /// Only parameter/return glue and calls with recorded identities; not semantic purity.
     pub(crate) forwarding_shape: bool,
-    /// Ordinary closure bodies are absent even when every recorded node aligns.
-    pub(crate) opaque_closure: bool,
     pub diameter: usize,
 }
 
@@ -230,7 +226,6 @@ impl Wl {
             CallSummary {
                 calls: 0,
                 forwarding_shape: true,
-                opaque_closure: false,
             },
             CallSummary::observe,
         );
@@ -244,7 +239,6 @@ impl Wl {
             hists: rounds.iter().map(|colors| histogram(colors)).collect(),
             calls: calls.calls,
             forwarding_shape: calls.forwarding_shape,
-            opaque_closure: calls.opaque_closure,
             diameter: diameter(&g),
             rounds,
             graph: g,

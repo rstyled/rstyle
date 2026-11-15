@@ -162,9 +162,8 @@ when template/member node coverage is partial. Preserve unmatched behavior when
 considering a helper. Full coverage or no recorded substitutions establishes
 neither an exact source clone nor semantic equivalence; aligned nodes need not
 be one extractable source fragment. Ranking and candidate selection are unchanged.
-Helper and generic candidates also warn when a retained graph contains an opaque
-ordinary closure. Even full graph coverage does not compare closure bodies or
-captures; inspect their contracts before extracting shared code.
+A closure's body is part of its function's graph, so what two closures call or
+read is compared like the rest of their functions.
 
 Workflow: take the top candidates, open each `sites` entry, confirm the parallel bodies really mean the same thing, then extract the trait or generic fn. A candidate is a hint, not a verdict: low `lift_milli` (common signature) or effect-mismatch counter-evidence means be skeptical, and support 2 is thin evidence. Opt out with `// rstyle-allow(abstraction): reason` above the function. Oracle for evaluation: `--hide-implements Trait` pretends the trait is not implemented. Findings are deterministic; compiler captures are saved under `target/rstyle/runs/` and can be reevaluated with `--replay-run PATH`.
 

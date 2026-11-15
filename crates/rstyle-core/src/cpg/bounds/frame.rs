@@ -6,7 +6,7 @@ use super::calls::Parameter;
 use super::extent::{
     Place, extent_receiver, extent_type, has_role, is_method, iteration_receiver, place, run_once,
 };
-use super::facts::Facts;
+use super::facts::{Facts, referent};
 use crate::advisory::runtime_bounds::{MAX_NODES, MAX_VARIABLES};
 use crate::runtime_bounds::contracts::ExtentRole;
 use crate::wording::{Message, Wording};
@@ -442,14 +442,8 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
                 .is_some_and(|inner| self.integer_reference(inner))
     }
 
-    fn integer_reference(&self, mut ty: &'a super::super::model::Type) -> bool {
-        while ty.kind == TypeKind::Reference {
-            match ty.target.as_deref().and_then(|id| self.facts.type_of(id)) {
-                Some(inner) => ty = inner,
-                None => return false,
-            }
-        }
-        ty.kind == TypeKind::Integer
+    fn integer_reference(&self, ty: &'a super::super::model::Type) -> bool {
+        referent(self.facts, ty).is_some_and(|ty| ty.kind == TypeKind::Integer)
     }
 
     // Callbacks are admitted only where lowering can resolve every invocation: any closure an

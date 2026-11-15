@@ -4,7 +4,8 @@
 use super::*;
 
 /// The facts core derives, frozen from the driver's own extraction when the two were
-/// proven equal over this fixture and rstyle's workspace: one record per function.
+/// proven equal over this fixture and rstyle's workspace: one record per function. Each graph
+/// has since gained the bodies of the closures its function writes.
 #[test]
 fn the_derivation_keeps_the_frozen_rule_facts() {
     let (_dir, out) = emitted();

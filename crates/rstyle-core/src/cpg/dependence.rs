@@ -56,31 +56,18 @@ impl Roles {
     }
 }
 
-/// How a graph holds the closures its function writes.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Closures {
-    /// One node each, as pattern mining reads them: its candidates, and the ledger that names
-    /// them, were found without the bodies.
-    #[default]
-    Opaque,
-    /// With its body under its node, as a comparison reads them, since a change inside a
-    /// closure is a change to the function that wrote it.
-    Bodies,
-}
-
 /// The dependence graph of one function body.
 pub fn dependence_graph(
     body: &Body<'_>,
     tables: &Tables<'_>,
     sources: &Sources<'_>,
-    (roles, closures): (&Roles, Closures),
+    roles: &Roles,
 ) -> Result<Pdg, String> {
     let mut graph = Graph {
         body,
         tables,
         sources,
         roles,
-        closures,
         graph: GraphBuilder::default(),
         binds: BTreeMap::new(),
         declared: body
@@ -100,7 +87,6 @@ struct Graph<'b, 'a> {
     tables: &'b Tables<'a>,
     sources: &'b Sources<'a>,
     roles: &'b Roles,
-    closures: Closures,
     graph: GraphBuilder,
     /// The graph node each symbol is bound to.
     binds: BTreeMap<&'a str, usize>,
@@ -300,17 +286,15 @@ impl<'a> Graph<'_, 'a> {
         })
     }
 
-    /// A closure's body is its function's own code, so a graph that holds it has it under the
-    /// closure's node, with each parameter bound to that node, as a loop's pattern is to the
-    /// loop, and what it returns, as the function's own body does. What the body captures links
-    /// to where the function bound it, as any other use does. A coroutine's body, which is all
-    /// of an `async fn`, is held the same way. A graph that leaves bodies out has the node alone.
+    /// A closure's body is its function's own code, so the graph has it under the closure's
+    /// node, with each parameter bound to that node, as a loop's pattern is to the loop, and
+    /// what it returns, as the function's own body does. What the body captures links to where
+    /// the function bound it, as any other use does. A coroutine's body, which is all of an
+    /// `async fn`, is held the same way.
     // rstyle-allow(mutation_per_target): the graph accumulates nodes and edges in self by design
     fn closure(&mut self, node: &'a Node) -> Result<usize, String> {
         let index = self.graph.add(self.typed(Kind::Closure, node)?);
-        let held = self.closures == Closures::Bodies;
-        let parts = &self.body.children(node)?[..];
-        let parts = if held { parts } else { &[] };
+        let parts = self.body.children(node)?;
         let parameters = parts.len().saturating_sub(1);
         for parameter in &parts[..parameters] {
             self.bind(parameter, index)?;
