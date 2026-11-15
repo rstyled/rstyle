@@ -7,7 +7,9 @@ exclude = ["target/**"]
 # can't change it for itself.
 [review]
 comment_warnings = true   # comment inline on new warnings too, not only count them
-status_check = true       # post an "Rstyle" status check: green when nothing holds the PR
+# Temporary: the local review runner creates and completes App checks for incoming PRs.
+# Restore true before stopping the runner to hand new checks back to hosted reviews.
+status_check = false
 
 [fn_length]
 max_lines = 50            # code lines: blank, `//` and `/* */` lines are not counted

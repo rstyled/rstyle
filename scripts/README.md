@@ -76,11 +76,23 @@ stays unchanged, and compute and report storage are local.
 with its actual verdict, after verifying the PR's base and head are unchanged.
 This requires the App credential in a private file named by
 `RSTYLE_REVIEW_GITHUB_TOKEN_FILE`: its installation token, or JSON containing
-`app_id` and PEM `private_key`. GitHub only lets the owning App update its checks.
+`app_id` and PEM `private_key` or a `private_key_file` path. GitHub only lets the
+owning App update its checks. If no check exists, publication creates one.
 Without that credential, the full review is saved locally and reports
 `publication: "needs_app_token"`. Publication uses GitHub; Cua, Cloudflare and
 D1 stay outside the local review path. See the MCP repository's README for
 progress, storage, retry and publication details.
+
+For incoming PRs and new commits, use the MCP repository's
+`scripts/local-review-watch.py` runner. It checks open PRs every minute, starts
+the full review through local stdio MCP, and posts results and App checks as
+work completes. It creates checks even while this repository's hosted
+`status_check` is false. Failed analysis needs action and is retried; it cannot
+pass a check. Cached reviews are reused without duplicate comments. Its README
+documents the configuration and `start`, `status` and `stop` commands.
+Keep the runner active for the temporary local-review period, then restore
+`status_check = true` before stopping it. Hosted background compute and storage
+are independent of that status switch.
 
 For the exact existing CI style gates locally, run `scripts/ci-style.py` as
 described below; the individual check/pattern tools use their normal analyzer
