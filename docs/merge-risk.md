@@ -90,8 +90,9 @@ called with, such as `slice::iter` and `std::mem::swap`. A trait method's call i
 element's `clone`, and a call that runs the workspace's own implementation is no library call. `?` on a `Result` is read
 by the `From` conversion it runs, and `.await` on an `async fn`'s future by the body it polls. A
 closure written in the function is that function's own code, so `opt.map(|x| x + 1)` and
-`v.iter().filter(..).collect::<Vec<_>>()` are pure, while `map(helper)` with a workspace function stays
-unclassified. A bound is read by the implementation it selects, as a call is: iterating a slice of a
+`v.iter().filter(..).collect::<Vec<_>>()` are pure. A function it's handed is called from there, so
+`map(helper)` calls `helper` and `map(fs::read)` reads, while a value only known where it's called,
+such as a function pointer, stays unclassified. A bound is read by the implementation it selects, as a call is: iterating a slice of a
 workspace type runs nothing of the type's, and `max()` over it runs the type's `Ord`. That call, a function like `std::cmp::max`, which runs the caller's `Ord`, and any other
 crate's function count until [`side_effects.paths`](style-checks.md) or a rule here names them. Python's lists the
 standard library, and a builtin such as `len` only counts as pure where the frontend says the call runs none of the

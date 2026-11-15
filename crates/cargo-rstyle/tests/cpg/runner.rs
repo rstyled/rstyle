@@ -2307,28 +2307,22 @@ fn risk_reads_a_new_pure_standard_call_as_classified_and_a_trait_call_as_not() {
 }
 
 /// A closure written in the function is the function's own code, so a standard member that only runs
-/// it, as `Option::map` or `Iterator::filter` does, adds no call nothing classifies. One handed a
-/// function of the workspace runs other code, and stays unclassified.
+/// it, as `Option::map` or `Iterator::filter` does, adds no call nothing classifies.
 #[test]
 fn risk_reads_a_closure_written_here_as_this_function_s_code() {
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path();
     a_package_in(root);
     std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
-    let helper = "pub fn helper(x: &u8) -> u8 { *x }\n";
     let base = saved_run_of(
         root,
-        &format!(
-            "{helper}pub fn f(o: Option<u8>, v: &[u8]) -> usize {{ v.len() + usize::from(o.is_some()) }}\n"
-        ),
+        "pub fn f(o: Option<u8>, v: &[u8]) -> usize { v.len() + usize::from(o.is_some()) }\n",
     );
     let closures = saved_run_of(
         root,
-        &format!(
-            "{helper}pub fn f(o: Option<u8>, v: &[u8]) -> usize {{\n    \
-            let kept: Vec<u8> = v.iter().map(|x| x + 1).filter(|x| *x > 1).collect();\n    \
-            kept.len() + usize::from(o.map(|x| x + 1).is_some_and(|x| x > 2))\n}}\n"
-        ),
+        "pub fn f(o: Option<u8>, v: &[u8]) -> usize {\n    \
+        let kept: Vec<u8> = v.iter().map(|x| x + 1).filter(|x| *x > 1).collect();\n    \
+        kept.len() + usize::from(o.map(|x| x + 1).is_some_and(|x| x > 2))\n}\n",
     );
 
     let rated = report(&risk(&base, &closures));
@@ -2338,14 +2332,75 @@ fn risk_reads_a_closure_written_here_as_this_function_s_code() {
         serde_json::json!([]),
         "{rated}"
     );
+}
 
-    let named = saved_run_of(
+/// What the handed-function tests share: a constructor, a function of the workspace's, and a
+/// signature with a function pointer.
+const HANDED: &str = "pub struct Id(pub u8);\npub fn helper(x: &u8) -> u8 { *x }\n\
+    pub fn f(v: &[u8], names: &[&str], p: fn(&u8) -> u8) -> usize";
+
+/// A function a standard member is handed runs where the member does, so it's called from there.
+/// One of the workspace's gains a caller, a constructor runs nothing, and a standard function is
+/// read by what it does, as an interface's member is by the implementation it selects, so the
+/// member that runs them adds no call nothing classifies.
+#[test]
+fn risk_reads_a_function_a_standard_member_is_handed_as_called_there() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let base = saved_run_of(root, &format!("{HANDED} {{ v.len() + names.len() }}\n"));
+    let handed = saved_run_of(
         root,
         &format!(
-            "{helper}pub fn f(o: Option<u8>, v: &[u8]) -> usize {{ v.iter().map(helper).count() + usize::from(o.is_some()) }}\n"
+            "{} {{\n    \
+            let ids: Vec<Id> = v.iter().map(helper).filter(|x| *x > 1).map(Id).collect();\n    \
+            let named = names.iter().map(ToString::to_string).count();\n    \
+            ids.len() + named + names.iter().copied().map(str::len).count()\n}}\n",
+            HANDED.replace("{ *x }", "{ *x + 1 }")
         ),
     );
-    let rated = report(&risk(&base, &named));
+
+    let rated = report(&risk(&base, &handed));
+    assert_eq!(rated["risk"], "low", "{rated}");
+    let change = |name: &str| {
+        let changes = rated["changes"].as_array().unwrap();
+        changes
+            .iter()
+            .find(|change| change["name"] == name)
+            .unwrap()
+    };
+    assert_eq!(
+        change("f")["calls_unclassified"],
+        serde_json::json!([]),
+        "{rated}"
+    );
+    assert_eq!(change("helper")["callers"], 1, "{rated}");
+}
+
+/// A standard function a member is handed does what it does there, as `fs::read` reads. A value
+/// only known where it's called, such as a function pointer, could be any code, and the member
+/// that runs it stays unclassified.
+#[test]
+fn risk_reads_a_handed_function_by_what_it_does_and_a_pointer_as_unknown() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let base = saved_run_of(root, &format!("{HANDED} {{ v.len() + names.len() }}\n"));
+    let read = saved_run_of(
+        root,
+        &format!("{HANDED} {{ v.len() + names.iter().copied().map(std::fs::read).count() }}\n"),
+    );
+    let rated = report(&risk(&base, &read));
+    let gained = rated["changes"][0]["effects_gained"].to_string();
+    assert!(gained.contains("std::fs::read"), "{rated}");
+
+    let pointer = saved_run_of(
+        root,
+        &format!("{HANDED} {{ v.iter().map(p).count() + names.len() }}\n"),
+    );
+    let rated = report(&risk(&base, &pointer));
     assert_eq!(rated["risk"], "unknown", "{rated}");
     assert!(
         rated["changes"][0]["calls_unclassified"]
@@ -2460,11 +2515,12 @@ fn risk_reads_an_exact_entry_as_only_the_member_it_names() {
         "{change}"
     );
 
-    // A function of the workspace is other code, where a closure written here would be this one's.
+    // A value only known where it's called is other code, where a closure written here would be
+    // this function's.
     let callable = saved_run_of(
         root,
         &format!(
-            "fn positive(x: u8) -> bool {{ x > 0 }}\n{signature} {{ v.push(1); a.is_some_and(positive) }}\n"
+            "static POSITIVE: fn(u8) -> bool = |x| x > 0;\n{signature} {{ v.push(1); a.is_some_and(POSITIVE) }}\n"
         ),
     );
     let rated = report(&risk(&pure, &callable));

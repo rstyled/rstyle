@@ -20,26 +20,6 @@ pub(crate) fn sysroot(tcx: ty::TyCtxt<'_>, krate: CrateNum) -> bool {
         .any(|item| item.krate == krate)
 }
 
-/// The types `ty` is built from, leaving out a closure written in `owner`, when there is one, and
-/// what it's built from: its signature and captures are the owner's own, and so is what it does.
-fn parts<'tcx>(tcx: ty::TyCtxt<'tcx>, owner: Option<DefId>, ty: Ty<'tcx>) -> Vec<Ty<'tcx>> {
-    let mut walker = ty.walk();
-    let mut found = Vec::new();
-    while let Some(part) = walker.next() {
-        let Some(ty) = part.as_type() else {
-            continue;
-        };
-        if let ty::Closure(closure, _) = ty.kind()
-            && Some(tcx.typeck_root_def_id(*closure)) == owner
-        {
-            walker.skip_current_subtree();
-            continue;
-        }
-        found.push(ty);
-    }
-    found
-}
-
 fn standard_kind<'tcx>(tcx: ty::TyCtxt<'tcx>, ty: Ty<'tcx>) -> bool {
     match ty.kind() {
         ty::Adt(definition, _) => sysroot(tcx, definition.did().krate),
@@ -59,51 +39,89 @@ fn standard_kind<'tcx>(tcx: ty::TyCtxt<'tcx>, ty: Ty<'tcx>) -> bool {
     }
 }
 
-/// A standard callee may run workspace code through callable arguments, or through an
-/// implementation one of its bounds selects, such as `PartialEq::ne`, `Into::into` or `sort` on
-/// workspace items. With `own_closures` left out, a closure written in the `owner` isn't counted:
-/// its body is the owner's own.
-pub(crate) fn calls_back<'tcx>(
-    tcx: ty::TyCtxt<'tcx>,
-    (owner, own_closures): (LocalDefId, bool),
-    callee: DefId,
-    arguments: ty::GenericArgsRef<'tcx>,
-) -> bool {
-    let own = (!own_closures).then(|| owner.to_def_id());
-    let callable = arguments.types().any(|ty| {
-        parts(tcx, own, ty).into_iter().any(|ty| {
-            matches!(
-                ty.kind(),
-                ty::Closure(..)
-                    | ty::FnDef(..)
+/// What a standard callee runs besides its own code.
+#[derive(Default)]
+pub(crate) struct Ran<'tcx> {
+    /// Closures written in the function that calls it, whose bodies are that function's own.
+    pub closures: Vec<DefId>,
+    /// Functions it's handed, each with the arguments it's handed with.
+    pub functions: Vec<(DefId, ty::GenericArgsRef<'tcx>)>,
+    /// Whether it can run anything else: a value only known where it's called, or an
+    /// implementation a bound selects from outside the standard library.
+    pub unnamed: bool,
+}
+
+impl<'tcx> Ran<'tcx> {
+    /// Whether it runs only its own code.
+    pub fn nothing(&self) -> bool {
+        self.closures.is_empty() && self.functions.is_empty() && !self.unnamed
+    }
+
+    /// Reads the callables a type argument holds. A closure written in the `owner` is named, and
+    /// what it's built from is left out: its signature and captures are the owner's own. A
+    /// function item is named with its arguments, which are read on.
+    fn handed(&mut self, tcx: ty::TyCtxt<'tcx>, owner: DefId, ty: Ty<'tcx>) {
+        let mut walker = ty.walk();
+        while let Some(part) = walker.next() {
+            match part.as_type().map(|ty| *ty.kind()) {
+                Some(ty::Closure(closure, _)) if tcx.typeck_root_def_id(closure) == owner => {
+                    walker.skip_current_subtree();
+                    let new = !self.closures.contains(&closure);
+                    self.closures.extend(new.then_some(closure));
+                }
+                Some(ty::FnDef(function, arguments)) => {
+                    let handed = (function, arguments.skip_binder());
+                    let new = !self.functions.contains(&handed);
+                    self.functions.extend(new.then_some(handed));
+                }
+                Some(
+                    ty::Closure(..)
                     | ty::FnPtr(..)
                     | ty::Dynamic(..)
                     | ty::Param(_)
                     | ty::Alias(..)
-                    | ty::Coroutine(..)
-            )
-        })
-    });
+                    | ty::Coroutine(..),
+                ) => self.unnamed = true,
+                _ => {}
+            }
+        }
+    }
+}
+
+/// A standard callee may run other code through callable arguments, or through an implementation
+/// one of its bounds selects, such as `PartialEq::ne`, `Into::into` or `sort` on workspace items.
+pub(crate) fn ran<'tcx>(
+    tcx: ty::TyCtxt<'tcx>,
+    owner: LocalDefId,
+    callee: DefId,
+    arguments: ty::GenericArgsRef<'tcx>,
+) -> Ran<'tcx> {
+    let mut ran = Ran::default();
+    for ty in arguments.types() {
+        ran.handed(tcx, owner.to_def_id(), ty);
+    }
     let mut bounds = Bounds {
         tcx,
         environment: ty::TypingEnv::post_analysis(tcx, owner),
-        own,
+        owner: owner.to_def_id(),
         seen: HashSet::new(),
     };
-    callable || !bounds.standard(callee, arguments)
+    ran.unnamed = ran.unnamed || !bounds.standard(callee, arguments);
+    ran
 }
 
 /// The implementations a call's bounds select, each read once.
 struct Bounds<'tcx> {
     tcx: ty::TyCtxt<'tcx>,
     environment: ty::TypingEnv<'tcx>,
-    /// The function whose closures are its own code, when they aren't counted.
-    own: Option<DefId>,
+    /// The function the call is written in.
+    owner: DefId,
     seen: HashSet<ty::TraitRef<'tcx>>,
 }
 
 impl<'tcx> Bounds<'tcx> {
-    /// Whether every bound of `item` selects only the standard library's code.
+    /// Whether every bound of `item` selects only the standard library's code, or a callable the
+    /// call's arguments name.
     fn standard(&mut self, item: DefId, arguments: ty::GenericArgsRef<'tcx>) -> bool {
         let clauses = self.tcx.clauses_of(item).instantiate(self.tcx, arguments);
         clauses
@@ -128,7 +146,7 @@ impl<'tcx> Bounds<'tcx> {
     /// runs what its own bounds select, so `Iter<Item>: Iterator` runs nothing of `Item`'s, and
     /// `Vec<Item>: Clone` runs `Item`'s `clone`. A trait with no function to call selects no
     /// code. One the compiler implements runs what the type is built from, and calling a closure
-    /// runs the closure.
+    /// or a function item runs what the arguments already name.
     fn implemented_by_standard(&mut self, bound: ty::TraitRef<'tcx>) -> bool {
         let tcx = self.tcx;
         if !declares_functions(tcx, bound.def_id) || !self.seen.insert(bound) {
@@ -139,12 +157,20 @@ impl<'tcx> Bounds<'tcx> {
                 self.standard(found.impl_def_id, found.args)
             }
             Ok(ImplSource::Builtin(..)) => {
-                let own = self.own.filter(|_| tcx.is_fn_trait(bound.def_id));
-                let parts = parts(tcx, own, bound.self_ty());
-                parts.into_iter().all(|ty| standard_kind(tcx, ty))
+                let receiver = bound.self_ty();
+                let called = tcx.is_fn_trait(bound.def_id) && self.named(receiver);
+                let mut parts = receiver.walk().filter_map(|part| part.as_type());
+                called || parts.all(|ty| standard_kind(tcx, ty))
             }
             _ => false,
         }
+    }
+
+    /// Whether the arguments name this callable: a closure of the owner's, or a function item.
+    fn named(&self, callable: Ty<'tcx>) -> bool {
+        let owner = |closure| self.tcx.typeck_root_def_id(closure) == self.owner;
+        let kind = *callable.kind();
+        matches!(kind, ty::FnDef(..)) || matches!(kind, ty::Closure(closure, _) if owner(closure))
     }
 }
 

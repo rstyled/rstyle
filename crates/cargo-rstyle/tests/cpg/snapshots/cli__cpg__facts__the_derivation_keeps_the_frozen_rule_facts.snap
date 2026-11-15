@@ -387,12 +387,14 @@ expression: facts
       {
         "callee": "std::iter::Iterator::collect",
         "line": 21,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::iter::Iterator::map",
         "line": 21,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::iter::Iterator::copied",
@@ -419,7 +421,20 @@ expression: facts
       }
     ],
     "effects": [],
-    "edges": [],
+    "edges": [
+      {
+        "callee": "lowered::graphs::half",
+        "line": 21,
+        "dynamic": false,
+        "args": []
+      },
+      {
+        "callee": "lowered::graphs::half",
+        "line": 21,
+        "dynamic": false,
+        "args": []
+      }
+    ],
     "mutated_types": [],
     "sig": null,
     "pdg": {

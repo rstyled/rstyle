@@ -489,13 +489,14 @@ none = [
 ]
 
 # `none_without_callback` lists what has no effect of its own but runs what it's handed: the closure
-# it's given, and for an iterator's member, the `next` of the iterator it's called on. It's pure where
-# the document says the call calls nothing of the workspace's back but closures written in the calling
-# function, whose own facts hold what they do, and every bound selects the standard library's own
-# implementation. `items.iter().map(|item| item.id).collect::<Vec<_>>()` is pure whatever `items` holds,
-# since the slice's iterator and `Vec`'s `FromIterator` run nothing of the item's. `map` with a function
-# of the workspace, `max` of items whose `Ord` the workspace implements, or `collect` into a set keyed
-# by a type whose `Hash` it implements, stays unclassified.
+# or function it's given, and for an iterator's member, the `next` of the iterator it's called on. It's
+# pure where the document names everything it runs: closures written in the calling function, whose own
+# facts hold what they do, and functions, each called from there and read by what it does. Every bound
+# then selects the standard library's own implementation. `items.iter().map(|item| item.id).collect::<Vec<_>>()`
+# is pure whatever `items` holds, since the slice's iterator and `Vec`'s `FromIterator` run nothing of
+# the item's, and `map(helper)` is a call of `helper`. `map` with a function pointer, `max` of items
+# whose `Ord` the workspace implements, or `collect` into a set keyed by a type whose `Hash` it
+# implements, stays unclassified.
 # Driving an iterator does what the call that made it does, as `.await` does what the call that made
 # the future does: `fs::read_dir`'s entries are read by `read_dir`, not by the `filter_map` over them.
 # A value one drops runs its type's `Drop`, which counts where it's defined, as `Display` does.

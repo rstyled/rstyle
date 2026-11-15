@@ -7,6 +7,7 @@
 //! lowering's pattern; the lowering's temporaries are left out.
 
 use super::compiler;
+use super::sysroot::Ran;
 use super::unit::Unit;
 use rustc_hir::def::{DefKind, Res};
 use rustc_hir::def_id::LocalDefId;
@@ -1256,16 +1257,57 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         record
     }
 
-    /// Whether a standard callee may run workspace code, and whether that's only closures written
-    /// in this function, whose own facts hold what they do.
-    fn calls_back(&self, runs: hir::def_id::DefId, args: ty::GenericArgsRef<'tcx>) -> Value {
-        let value = super::sysroot::calls_back(self.tcx, (self.owner, true), runs, args);
-        let mut record = json!({"value": value,
+    /// Whether a standard callee may run other code, and what, when all of it can be named:
+    /// closures written in this function, whose own facts hold what they do, and functions it's
+    /// handed.
+    fn calls_back(&mut self, runs: hir::def_id::DefId, args: ty::GenericArgsRef<'tcx>) -> Value {
+        let ran = super::sysroot::ran(self.tcx, self.owner, runs, args);
+        let mut record = json!({"value": !ran.nothing(),
             "reason": "callable arguments, or bounds that select code outside the standard library"});
-        if value && !super::sysroot::calls_back(self.tcx, (self.owner, false), runs, args) {
-            record["own_closures"] = json!(true);
+        if let Some(named) = self.named(&ran) {
+            record["runs"] = json!(named);
         }
         record
+    }
+
+    /// Everything a standard callee runs besides its own code, when it runs something and all of
+    /// it can be named.
+    fn named(&mut self, ran: &Ran<'tcx>) -> Option<Vec<Value>> {
+        (!ran.unnamed && !ran.nothing()).then_some(())?;
+        let mut named = Vec::new();
+        for closure in &ran.closures {
+            let node = self.tcx.local_def_id_to_hir_id(closure.expect_local());
+            named.push(json!({"kind": "closure", "id": self.id(node)}));
+        }
+        for &(function, arguments) in &ran.functions {
+            let definition = self.handed(function, arguments)?;
+            named.push(json!({"kind": "definition", "id": definition}));
+        }
+        Some(named)
+    }
+
+    /// The definition a function handed to a standard callee runs: the implementation an
+    /// interface member selects, as a call to it would. None when selection finds none, or when
+    /// it's the standard library's and runs other code in turn, which nothing here names.
+    fn handed(
+        &mut self,
+        function: hir::def_id::DefId,
+        arguments: ty::GenericArgsRef<'tcx>,
+    ) -> Option<String> {
+        let member = self
+            .tcx
+            .opt_associated_item(function)
+            .and_then(|item| item.trait_container(self.tcx));
+        let (runs, args) = match member {
+            Some(_) => {
+                let instance = self.selection(function, arguments)?;
+                (instance.def_id(), instance.args)
+            }
+            None => (function, arguments),
+        };
+        let own = !compiler::standard(self.tcx, runs)
+            || super::sysroot::ran(self.tcx, self.owner, runs, args).nothing();
+        own.then(|| self.unit.definition(runs))
     }
 
     /// The selected implementation's own arguments, when there are any and all are types.

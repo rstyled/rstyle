@@ -9,6 +9,7 @@ pub(in crate::compiler) struct Consumers {
 }
 
 impl Consumers {
+    // rstyle-allow(side_effect_density): IO boundary: reads the review file before anything is published
     pub(in crate::compiler) fn new(ctx: &Context<'_>) -> Result<Self, String> {
         let store = review::workflow::load(ctx.args.review_file.as_deref())?;
         let compiler_advisory = crate::compiler::advisory::evaluate(ctx, store.as_ref())?;
