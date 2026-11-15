@@ -23,7 +23,6 @@ const MADE: &str = include_str!("testdata/type-call-py.cpg.json");
 
 const DEMAND: Demand = Demand {
     graphs: false,
-    closures: crate::cpg::records::Closures::Opaque,
     bounds: true,
     flow: false,
     defects: false,

@@ -6,7 +6,7 @@ use super::calls::Parameter;
 use super::extent::{
     Place, extent_receiver, extent_type, has_role, is_method, iteration_receiver, place, run_once,
 };
-use super::facts::Facts;
+use super::facts::{Facts, referent};
 use crate::advisory::runtime_bounds::{MAX_NODES, MAX_VARIABLES};
 use crate::runtime_bounds::contracts::ExtentRole;
 use crate::wording::{Message, Wording};
@@ -442,18 +442,12 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
                 .is_some_and(|inner| self.integer_reference(inner))
     }
 
-    fn integer_reference(&self, mut ty: &'a super::super::model::Type) -> bool {
-        while ty.kind == TypeKind::Reference {
-            match ty.target.as_deref().and_then(|id| self.facts.type_of(id)) {
-                Some(inner) => ty = inner,
-                None => return false,
-            }
-        }
-        ty.kind == TypeKind::Integer
+    fn integer_reference(&self, ty: &'a super::super::model::Type) -> bool {
+        referent(self.facts, ty).is_some_and(|ty| ty.kind == TypeKind::Integer)
     }
 
     // Callbacks are admitted only where lowering can resolve every invocation: any closure an
-    // iteration member is handed, the one a function or member runs at most once for the call,
+    // iteration member is handed, those a function or member runs at most one of for the call,
     // and one written where it's called.
     fn admit_callbacks(&mut self, expression: &'a Node) -> Visited {
         if expression.kind != NodeKind::Call {
@@ -461,15 +455,15 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
         }
         let method = is_method(self.facts, expression);
         let iterating = method && iteration_member(self.facts, expression);
-        let once = run_once(self.facts, expression);
+        let once = run_once(self.facts, expression).unwrap_or_default();
         // The first child is the receiver, or the callee of a call in function form.
-        let admitted = |index: usize| match index.checked_sub(1) {
-            Some(argument) => iterating || once == Some(argument),
+        let admitted = |index: u32| match index.checked_sub(1) {
+            Some(argument) => iterating || once.contains(&argument),
             None => !method,
         };
         let children = self.facts.body.children(expression)?;
-        let handed = children.iter().enumerate();
-        for (_, child) in handed.filter(|(index, _)| admitted(*index)) {
+        let handed = children.iter().zip(0u32..);
+        for (child, _) in handed.filter(|(_, index)| admitted(*index)) {
             if child.kind == NodeKind::Closure {
                 self.callbacks.insert(child.id.as_str());
             }

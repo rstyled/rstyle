@@ -6,7 +6,7 @@ use crate::cpg::load_config;
 use crate::{Cli, Format};
 use rstyle_core::config::Config;
 use rstyle_core::cpg::keep_records;
-use rstyle_core::cpg::records::{Closures, Demand};
+use rstyle_core::cpg::records::Demand;
 use rstyle_core::merge_risk::{self, Snapshot, SourceFiles};
 use std::path::{Path, PathBuf};
 
@@ -58,7 +58,6 @@ fn pull_request_url(value: &str) -> Result<String, String> {
 
 const DEMAND: Demand = Demand {
     graphs: true,
-    closures: Closures::Bodies,
     bounds: false,
     flow: true,
     defects: false,

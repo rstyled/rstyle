@@ -201,6 +201,15 @@ impl<'a> Facts<'_, 'a> {
     }
 }
 
+/// What a reference refers to, through any number of references: a type that isn't one is
+/// itself, and one whose target isn't recorded is nothing.
+pub fn referent<'t>(facts: &Facts<'_, 't>, mut ty: &'t Type) -> Option<&'t Type> {
+    while ty.kind == TypeKind::Reference {
+        ty = facts.type_of(ty.target.as_deref()?)?;
+    }
+    Some(ty)
+}
+
 /// A shared reference, through any number of shared references.
 pub fn shared_target<'t>(facts: &Facts<'_, 't>, mut ty: &'t Type) -> Option<&'t Type> {
     while ty.kind == TypeKind::Reference {

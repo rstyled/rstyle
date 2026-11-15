@@ -33,9 +33,6 @@ pub fn namespaced<T: DeserializeOwned + Namespaced>(
     Ok((file.namespace().to_owned(), file))
 }
 
-/// Reads a data file into its namespace and what it holds.
-type ParseFile<T> = fn(&str) -> Result<(String, T), String>;
-
 /// Data read once from files compiled into the engine, one per frontend namespace.
 pub struct ByNamespace<T: 'static> {
     files: OnceLock<BTreeMap<String, T>>,
@@ -50,11 +47,12 @@ impl<T: Default> ByNamespace<T> {
         }
     }
 
-    /// A namespace's data, or `T::default()` for a namespace without a file.
+    /// A namespace's data, or `T::default()` for a namespace without a file. `parse` reads a
+    /// file into its namespace and what it holds.
     pub fn of(
         &'static self,
         namespace: &str,
-        (texts, parse): (&[&str], ParseFile<T>),
+        (texts, parse): (&[&str], impl Fn(&str) -> Result<(String, T), String>),
     ) -> &'static T {
         let files = self.files.get_or_init(|| {
             texts
@@ -65,6 +63,18 @@ impl<T: Default> ByNamespace<T> {
         files
             .get(namespace)
             .unwrap_or_else(|| self.none.get_or_init(T::default))
+    }
+}
+
+impl<T: Default + DeserializeOwned + Namespaced> ByNamespace<T> {
+    /// A namespace's data among files that each name their schema and their namespace, read
+    /// as `schema`: the schema they must name, and what to call a file that names another.
+    pub fn named(
+        &'static self,
+        namespace: &str,
+        (texts, schema): (&[&str], (&str, &str)),
+    ) -> &'static T {
+        self.of(namespace, (texts, |text| namespaced(text, schema)))
     }
 }
 

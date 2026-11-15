@@ -133,20 +133,21 @@ impl<E: Effect + std::fmt::Debug> Entry<E> {
     }
 }
 
-/// How often a member runs the callable it's handed.
+/// How often a member runs a callable it's handed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 pub enum Runs {
-    /// At most once for the call, as `Option::map` runs its closure on the value it holds.
+    /// At most once for the call, as `Option::map` runs its closure on the value it holds. A
+    /// member handed several callables runs at most one of them, as `map_or_else` does.
     AtMostOnce,
     /// Once per item of a traversal, as a stage or a consumer runs its callback.
     PerItem,
 }
 
-/// How an operation runs what it's handed: which argument after the receiver is the callable,
-/// when it takes one, and how often that runs.
+/// How an operation runs what it's handed: which arguments after the receiver are callables,
+/// in argument order, and how often it runs one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Handed {
-    pub callback: Option<u32>,
+pub struct Handed<'a> {
+    pub callbacks: &'a [u32],
     pub runs: Runs,
 }
 
@@ -154,28 +155,38 @@ pub struct Handed {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct CallableEntry {
-    /// Why the member runs its callable that often, and does nothing else.
+    /// Why the member runs a callable that often, and does nothing else.
     #[serde(rename = "basis")]
     _basis: String,
     runs: Runs,
     /// Arguments after the receiver.
     arity: u32,
-    /// Index among those arguments of the callable.
-    callback: u32,
+    /// Indexes among those arguments of the callables, in argument order.
+    callbacks: Vec<u32>,
     pub(super) operations: Vec<String>,
 }
 
+/// A callable member's role, as its entry declares it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Callable {
+    pub(super) callbacks: Vec<u32>,
+    pub(super) runs: Runs,
+}
+
 impl CallableEntry {
-    /// The role, once its callable is one of its arguments and it isn't a traversal's.
-    pub(super) fn handed(&self) -> Result<Handed, String> {
-        if self.callback >= self.arity || self.runs == Runs::PerItem {
+    /// The role, once its callables are arguments of the member, each named once, and it isn't
+    /// a traversal's.
+    pub(super) fn callable(&self) -> Result<Callable, String> {
+        let placed = self.callbacks.iter().all(|index| *index < self.arity);
+        let ordered = self.callbacks.is_sorted_by(|one, next| one < next);
+        if self.callbacks.is_empty() || !placed || !ordered || self.runs == Runs::PerItem {
             return Err(format!(
-                "Callable role {:?} with arity {} has callback {}",
-                self.runs, self.arity, self.callback
+                "Callable role {:?} with arity {} has callbacks {:?}",
+                self.runs, self.arity, self.callbacks
             ));
         }
-        Ok(Handed {
-            callback: Some(self.callback),
+        Ok(Callable {
+            callbacks: self.callbacks.clone(),
             runs: self.runs,
         })
     }

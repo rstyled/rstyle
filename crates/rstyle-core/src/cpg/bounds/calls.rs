@@ -4,7 +4,7 @@
 use super::super::model::{Definition, Node, RefStatus, Type, TypeKind};
 use super::Collector;
 use super::extent::Place;
-use super::facts::is_shared_reference;
+use super::facts::{is_shared_reference, referent};
 use crate::runtime_bounds::{Argument, Callee, Extent, Formal, Integer, Measure, Root, Value};
 use crate::wording::Message;
 
@@ -247,14 +247,9 @@ impl<'a> Collector<'_, '_, 'a> {
     }
 
     // Only the dereferenced type's own impl runs; `Vec<Workspace>` derefs through std.
-    fn workspace_adt(&self, mut ty: &'a Type) -> bool {
-        while ty.kind == TypeKind::Reference {
-            match ty.target.as_deref().and_then(|id| self.facts.type_of(id)) {
-                Some(target) => ty = target,
-                None => return false,
-            }
-        }
-        self.nominal(ty)
+    fn workspace_adt(&self, ty: &'a Type) -> bool {
+        referent(self.facts, ty)
+            .and_then(|ty| self.nominal(ty))
             .is_some_and(|definition| !definition.standard)
     }
 

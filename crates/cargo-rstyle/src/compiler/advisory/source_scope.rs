@@ -9,6 +9,15 @@ pub(super) struct SourceScope {
 }
 
 impl SourceScope {
+    /// The functions outside a selected population; none when no population was selected.
+    pub(super) fn outside(
+        scope: Option<&Self>,
+    ) -> impl Iterator<Item = crate::compiler::FunctionKey> + '_ {
+        scope
+            .into_iter()
+            .flat_map(|scope| scope.outside_scope_functions.iter().copied())
+    }
+
     pub(super) fn render(&self, unavailable: usize) -> String {
         format!(
             "Authored function scope: {} generated functions outside scope; {unavailable} applicable inputs unavailable.\n",

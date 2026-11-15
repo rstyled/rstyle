@@ -109,6 +109,9 @@ pub fn local_map(n: usize) -> bool { let mut map = std::collections::BTreeMap::n
 pub fn once_callback(xs: &[usize], ys: &[usize], o: Option<usize>) -> usize { let mut t = 0; for x in xs { t += o.map(|v| { let mut s = v; for y in ys { s += *y; } s }).unwrap_or(*x); } t }
 pub fn once_default(xs: &[usize], ys: &[usize], o: Option<usize>) -> usize { o.map_or(ys.iter().copied().sum(), |v| { let mut s = v; for x in xs { s += *x; } s }) }
 pub fn once_written(xs: &[usize], o: Option<usize>) -> usize { let mut seen = 0; for _ in xs { let _ = o.map(|_| seen += 1); } seen }
+pub fn once_either(xs: &[usize], m: usize, o: Option<usize>) -> usize { o.map_or_else(|| { let mut s = 0; for x in xs { s += *x; } s }, |v| { let mut s = v; for _ in 0..m { s += 1; } s }) }
+pub fn once_either_function(xs: &[usize], r: Result<usize, usize>) -> usize { r.map_or_else(|e| { let mut s = e; for x in xs { s += *x; } s }, counted) }
+pub fn once_either_pointer(xs: &[usize], o: Option<usize>, f: fn() -> usize) -> usize { o.map_or_else(f, |v| { let mut s = v; for x in xs { s += *x; } s }) }
 "#;
 
 const DROPS: &str = r#"
@@ -226,6 +229,8 @@ fn assert_known_bounds(rows: &[Value]) {
         ("mutable_receiver", 3),
         ("once_callback", 12),
         ("once_default", 6),
+        ("once_either", 8),
+        ("once_either_function", 3),
     ] {
         let row = named_row(rows, name);
         let bound: rstyle_core::runtime_bounds::Bound =
@@ -267,14 +272,7 @@ fn assert_callbacks(rows: &[Value]) {
         ("bounded_prefix", "score", 3),
     ] {
         let assessment = &named_row(rows, name)["result"]["Proven"];
-        let calls = assessment["calls"].as_array().unwrap();
-        let call = calls
-            .iter()
-            .find(|call| call["callee"].as_str().unwrap().ends_with(callee))
-            .unwrap_or_else(|| panic!("{name}: {assessment}"));
-        let count: rstyle_core::runtime_bounds::Bound =
-            serde_json::from_value(call["count"].clone()).unwrap();
-        assert_eq!(value(&count), expected, "{name}: {count:?}");
+        assert_eq!(calls_of(assessment, callee), expected, "{name}");
         assert!(
             assessment["loops"][0]["source"]["evidence"]
                 .as_str()
@@ -283,6 +281,20 @@ fn assert_callbacks(rows: &[Value]) {
             "{name}: {assessment}"
         );
     }
+    // A function handed beside a closure is called where the member runs one of the two.
+    let either = &named_row(rows, "once_either_function")["result"]["Proven"];
+    assert_eq!(calls_of(either, "counted"), 1);
+}
+
+fn calls_of(assessment: &Value, callee: &str) -> u64 {
+    let calls = assessment["calls"].as_array().unwrap();
+    let call = calls
+        .iter()
+        .find(|call| call["callee"].as_str().unwrap().ends_with(callee))
+        .unwrap_or_else(|| panic!("{callee}: {assessment}"));
+    let count: rstyle_core::runtime_bounds::Bound =
+        serde_json::from_value(call["count"].clone()).unwrap();
+    value(&count)
 }
 
 // Summaries substitute caller argument bounds; local counts stay separately reported.
@@ -483,6 +495,7 @@ fn assert_unknown(rows: &[Value]) {
         "ordered_collect",
         "boxed_callback",
         "once_written",
+        "once_either_pointer",
     ] {
         let row = named_row(rows, name);
         assert!(row["result"].get("Unknown").is_some(), "{name}: {row}");

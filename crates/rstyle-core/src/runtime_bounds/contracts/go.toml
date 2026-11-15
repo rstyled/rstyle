@@ -4,8 +4,8 @@
 # method's receiver type between them, as in `sync.Once.Do`.
 #
 # Callable roles say how a function or method runs what it's handed: `runs` how often, `arity` the
-# argument count after the receiver or the callee, and `callback` the index of the callable among
-# them. Every other argument is evaluated before it, and the member does nothing else. Runtime
+# argument count after the receiver or the callee, and `callbacks` the indexes of the callables
+# among them. Every other argument is evaluated before it, and the member does nothing else. Runtime
 # bounds read one that runs its callable at most once as a branch around the callable.
 
 schema = "rstyle.library-contracts/1"
@@ -15,5 +15,5 @@ namespace = "go"
 basis = "Runs the function the first time it's called on this Once, and returns when that call has"
 runs = "AtMostOnce"
 arity = 1
-callback = 0
+callbacks = [0]
 operations = ["sync.Once.Do"]

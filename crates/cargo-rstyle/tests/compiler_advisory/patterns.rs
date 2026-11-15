@@ -7,11 +7,11 @@ mod routing;
 use super::*;
 
 mod baseline;
+mod closure_bodies;
 mod completed_effects;
 mod completeness;
 mod forwarded_pipelines;
 mod independent;
-mod opaque_closures;
 mod reviews;
 mod selection;
 mod workspace;

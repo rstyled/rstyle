@@ -7341,6 +7341,31 @@ expression: facts
           "line": 75
         },
         {
+          "kind": "macro",
+          "ty": {
+            "adt": {
+              "id": "alloc::string::String",
+              "args": []
+            }
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": "format",
+          "lit_kind": null,
+          "detail": "",
+          "line": 75
+        },
+        {
+          "kind": "return",
+          "ty": null,
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 75
+        },
+        {
           "kind": "iterate",
           "ty": {
             "tuple": [
@@ -7762,13 +7787,13 @@ expression: facts
       "edges": [
         {
           "from": 0,
-          "to": 7,
+          "to": 9,
           "kind": "data",
           "arg_pos": 0
         },
         {
           "from": 0,
-          "to": 12,
+          "to": 14,
           "kind": "data",
           "arg_pos": 0
         },
@@ -7780,7 +7805,7 @@ expression: facts
         },
         {
           "from": 2,
-          "to": 19,
+          "to": 21,
           "kind": "data",
           "arg_pos": 0
         },
@@ -7803,32 +7828,26 @@ expression: facts
           "arg_pos": 1
         },
         {
-          "from": 6,
-          "to": 8,
-          "kind": "ctrl",
-          "arg_pos": 0
-        },
-        {
-          "from": 6,
-          "to": 9,
-          "kind": "data",
-          "arg_pos": 0
-        },
-        {
-          "from": 6,
-          "to": 9,
-          "kind": "ctrl",
-          "arg_pos": 0
-        },
-        {
-          "from": 6,
-          "to": 10,
-          "kind": "data",
-          "arg_pos": 0
-        },
-        {
-          "from": 7,
+          "from": 5,
           "to": 6,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 5,
+          "to": 6,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 5,
+          "to": 7,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 6,
+          "to": 7,
           "kind": "data",
           "arg_pos": 0
         },
@@ -7839,38 +7858,56 @@ expression: facts
           "arg_pos": 0
         },
         {
+          "from": 8,
+          "to": 11,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 8,
+          "to": 11,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 8,
+          "to": 12,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
           "from": 9,
           "to": 8,
           "kind": "data",
           "arg_pos": 0
         },
         {
-          "from": 11,
-          "to": 13,
-          "kind": "data",
+          "from": 10,
+          "to": 12,
+          "kind": "ctrl",
           "arg_pos": 0
         },
         {
-          "from": 12,
-          "to": 11,
+          "from": 11,
+          "to": 10,
           "kind": "data",
           "arg_pos": 0
         },
         {
           "from": 13,
-          "to": 21,
+          "to": 15,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 14,
+          "to": 13,
           "kind": "data",
           "arg_pos": 0
         },
         {
           "from": 15,
-          "to": 14,
-          "kind": "data",
-          "arg_pos": 0
-        },
-        {
-          "from": 16,
-          "to": 15,
+          "to": 23,
           "kind": "data",
           "arg_pos": 0
         },
@@ -7882,7 +7919,7 @@ expression: facts
         },
         {
           "from": 18,
-          "to": 22,
+          "to": 17,
           "kind": "data",
           "arg_pos": 0
         },
@@ -7894,13 +7931,25 @@ expression: facts
         },
         {
           "from": 20,
-          "to": 19,
+          "to": 24,
           "kind": "data",
-          "arg_pos": 1
+          "arg_pos": 0
         },
         {
           "from": 21,
           "to": 20,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 22,
+          "to": 21,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 23,
+          "to": 22,
           "kind": "data",
           "arg_pos": 0
         }
@@ -8081,6 +8130,40 @@ expression: facts
         {
           "kind": "closure",
           "ty": "other",
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "",
+          "line": 90
+        },
+        {
+          "kind": "op",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": null,
+          "detail": "+",
+          "line": 90
+        },
+        {
+          "kind": "lit",
+          "ty": {
+            "prim": "u32"
+          },
+          "callee_id": null,
+          "callee_sig": null,
+          "macro_name": null,
+          "lit_kind": "int",
+          "detail": "1",
+          "line": 90
+        },
+        {
+          "kind": "return",
+          "ty": null,
           "callee_id": null,
           "callee_sig": null,
           "macro_name": null,
@@ -8288,13 +8371,7 @@ expression: facts
         },
         {
           "from": 0,
-          "to": 8,
-          "kind": "data",
-          "arg_pos": 0
-        },
-        {
-          "from": 0,
-          "to": 12,
+          "to": 11,
           "kind": "data",
           "arg_pos": 0
         },
@@ -8306,30 +8383,60 @@ expression: facts
         },
         {
           "from": 0,
-          "to": 17,
+          "to": 18,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 0,
+          "to": 20,
           "kind": "data",
           "arg_pos": 0
         },
         {
           "from": 1,
-          "to": 14,
+          "to": 17,
           "kind": "data",
           "arg_pos": 0
         },
         {
           "from": 3,
-          "to": 16,
-          "kind": "data",
-          "arg_pos": 0
-        },
-        {
-          "from": 5,
           "to": 4,
           "kind": "data",
           "arg_pos": 0
         },
         {
-          "from": 6,
+          "from": 3,
+          "to": 4,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 5,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 6,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 3,
+          "to": 19,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 4,
+          "to": 6,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 5,
           "to": 4,
           "kind": "data",
           "arg_pos": 1
@@ -8342,38 +8449,8 @@ expression: facts
         },
         {
           "from": 9,
-          "to": 19,
+          "to": 7,
           "kind": "data",
-          "arg_pos": 0
-        },
-        {
-          "from": 10,
-          "to": 9,
-          "kind": "data",
-          "arg_pos": 0
-        },
-        {
-          "from": 10,
-          "to": 14,
-          "kind": "ctrl",
-          "arg_pos": 0
-        },
-        {
-          "from": 10,
-          "to": 15,
-          "kind": "ctrl",
-          "arg_pos": 0
-        },
-        {
-          "from": 10,
-          "to": 16,
-          "kind": "ctrl",
-          "arg_pos": 1
-        },
-        {
-          "from": 10,
-          "to": 17,
-          "kind": "ctrl",
           "arg_pos": 1
         },
         {
@@ -8384,15 +8461,45 @@ expression: facts
         },
         {
           "from": 12,
-          "to": 11,
+          "to": 22,
           "kind": "data",
           "arg_pos": 0
         },
         {
           "from": 13,
-          "to": 11,
+          "to": 12,
           "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 13,
+          "to": 17,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 13,
+          "to": 18,
+          "kind": "ctrl",
+          "arg_pos": 0
+        },
+        {
+          "from": 13,
+          "to": 19,
+          "kind": "ctrl",
           "arg_pos": 1
+        },
+        {
+          "from": 13,
+          "to": 20,
+          "kind": "ctrl",
+          "arg_pos": 1
+        },
+        {
+          "from": 14,
+          "to": 13,
+          "kind": "data",
+          "arg_pos": 0
         },
         {
           "from": 15,
@@ -8401,14 +8508,26 @@ expression: facts
           "arg_pos": 0
         },
         {
-          "from": 17,
-          "to": 16,
+          "from": 16,
+          "to": 14,
+          "kind": "data",
+          "arg_pos": 1
+        },
+        {
+          "from": 18,
+          "to": 17,
           "kind": "data",
           "arg_pos": 0
         },
         {
-          "from": 18,
-          "to": 9,
+          "from": 20,
+          "to": 19,
+          "kind": "data",
+          "arg_pos": 0
+        },
+        {
+          "from": 21,
+          "to": 12,
           "kind": "data",
           "arg_pos": 1
         }
