@@ -63,11 +63,27 @@ Current rstyle has no `clones` subcommand; the MCP server must include the fix
 that makes that command optional at startup. Older analyzers that support it
 also expose `rstyle_clones`.
 
-This native adapter exposes Rust analysis. Hosted `rstyle_review` (base/head
-comparison, merge risk, inline GitHub comments), investigations, remote job
-history and saved-result retrieval remain hosted features. For the exact
-existing CI style gates locally, run `scripts/ci-style.py` as described below;
-the stdio tools use their normal analyzer options rather than CI's gate options.
+For a full PR review, call `rstyle_review` with the PR's `pull` URL, `path` to
+this checkout, and `publish: false`. It checks the pinned base and head in a
+separate local clone with the hosted runner's `check,patterns,bounds` filters,
+compares their saved runs for merge risk, and renders the same review and inline
+suggestions. Repeat the call while it returns `running`; completed scans are
+reused. Python 3.11+, Git and a signed-in `gh` are required. The user's checkout
+stays unchanged, and compute and report storage are local.
+
+`publish: true` posts that review to GitHub and finishes pending `Rstyle` checks
+with its actual verdict, after verifying the PR's base and head are unchanged.
+This requires the App credential in a private file named by
+`RSTYLE_REVIEW_GITHUB_TOKEN_FILE`: its installation token, or JSON containing
+`app_id` and PEM `private_key`. GitHub only lets the owning App update its checks.
+Without that credential, the full review is saved locally and reports
+`publication: "needs_app_token"`. Publication uses GitHub; Cua, Cloudflare and
+D1 stay outside the local review path. See the MCP repository's README for
+progress, storage, retry and publication details.
+
+For the exact existing CI style gates locally, run `scripts/ci-style.py` as
+described below; the individual check/pattern tools use their normal analyzer
+options rather than CI's gate options.
 
 ## Labeled-example evaluation (`rust_refactoring_examples/`)
 
