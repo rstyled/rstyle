@@ -78,17 +78,21 @@ impl<'tcx> Ran<'tcx> {
                     let new = !self.functions.contains(&handed);
                     self.functions.extend(new.then_some(handed));
                 }
-                Some(
-                    ty::Closure(..)
-                    | ty::FnPtr(..)
-                    | ty::Dynamic(..)
-                    | ty::Param(_)
-                    | ty::Alias(..)
-                    | ty::Coroutine(..),
-                ) => self.unnamed = true,
-                _ => {}
+                Some(kind) => self.unnamed = self.unnamed || holds_unnamed(kind),
+                None => {}
             }
         }
+    }
+}
+
+/// Whether a type holds a callable nothing here names: one only known where it's called, or
+/// hidden behind an `impl Trait`. A type parameter of the owner's, or a type one of its bounds
+/// names, holds only what a bound of the callee's can reach, and the bounds are read for that.
+fn holds_unnamed(kind: ty::TyKind<'_>) -> bool {
+    match kind {
+        ty::Closure(..) | ty::FnPtr(..) | ty::Dynamic(..) | ty::Coroutine(..) => true,
+        ty::Alias(_, alias) => matches!(alias.kind, ty::AliasTyKind::Opaque { .. }),
+        _ => false,
     }
 }
 

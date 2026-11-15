@@ -2531,6 +2531,72 @@ fn risk_reads_a_bound_by_the_implementation_it_selects() {
     );
 }
 
+/// A call in a generic function is read as it is anywhere else when the type parameter doesn't
+/// decide what runs. A slice's iterator is the same code whatever it yields, a closure written
+/// there is still the function's own, and `?` on a `Result` converts its error with none at all.
+#[test]
+fn risk_reads_a_call_in_a_generic_function_by_what_selection_settles() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let signature =
+        "pub fn f<T: Copy, E>(items: &[T], o: Option<T>, r: Result<T, E>) -> Result<usize, E>";
+    let base = saved_run_of(
+        root,
+        &format!("{signature} {{ Ok(items.len() + usize::from(o.is_some() && r.is_ok())) }}\n"),
+    );
+    let chained = saved_run_of(
+        root,
+        &format!(
+            "{signature} {{\n    \
+            let kept: Vec<T> = items.iter().map(|item| *item).filter(|_| r.is_ok()).collect();\n    \
+            let first = o.map(|item| item).is_some_and(|_| true);\n    \
+            r?;\n    \
+            Ok(kept.len() + usize::from(first))\n}}\n"
+        ),
+    );
+
+    let rated = report(&risk(&base, &chained));
+    assert_eq!(rated["risk"], "low", "{rated}");
+    assert_eq!(
+        rated["changes"][0]["calls_unclassified"],
+        serde_json::json!([]),
+        "{rated}"
+    );
+}
+
+/// What a bound of the function's own decides is code only known where the function is called:
+/// the `parse` of a `T: FromStr`, the `map` of an `I: Iterator`, and the `clone` a slice of
+/// `T: Clone` runs for each item. Those stay unclassified.
+#[test]
+fn risk_leaves_what_a_type_parameter_decides_unclassified() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let signature = "pub fn f<T: Clone + std::str::FromStr, I: Iterator<Item = u8>>\
+        (items: &[T], text: &str, more: I) -> usize";
+    let base = saved_run_of(
+        root,
+        &format!("{signature} {{ items.len() + more.count() }}\n"),
+    );
+    let unclassified = |body: &str| {
+        let head = saved_run_of(root, &format!("{signature} {{ {body} }}\n"));
+        let rated = report(&risk(&base, &head));
+        assert_eq!(rated["risk"], "unknown", "{rated}");
+        rated["changes"][0]["calls_unclassified"].to_string()
+    };
+
+    let parsed =
+        unclassified("items.len() + more.count() + usize::from(text.parse::<T>().is_ok())");
+    assert!(parsed.contains("parse"), "{parsed}");
+    let mapped = unclassified("items.len() + more.map(|byte| byte + 1).count()");
+    assert!(mapped.contains("map"), "{mapped}");
+    let cloned = unclassified("items.to_vec().len() + more.count()");
+    assert!(cloned.contains("to_vec"), "{cloned}");
+}
+
 /// `.await` polls the body of the `async fn` it awaits, which the call that made the future already
 /// reads, and `?` converts the error with the workspace's `From` or with none at all, so an async
 /// function that awaits and propagates adds no call nothing classifies.

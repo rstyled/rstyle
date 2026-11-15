@@ -1220,10 +1220,16 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             .tcx
             .opt_associated_item(callee)
             .and_then(|item| item.trait_container(self.tcx));
+        // An interface member runs the implementation static selection finds, if any. One whose
+        // arguments name a type parameter depends on it only when selection needs to know it:
+        // `T::fmt` does, and a slice iterator's `next` is the same code whatever it yields.
+        let open = args.has_infer() || args.has_escaping_bound_vars();
+        let selected = trait_item
+            .filter(|_| !open)
+            .and_then(|_| self.selection(callee, args));
+        let unsettled = selected.is_none() && (open || args.has_non_region_param());
         let types: Vec<String> = args.types().map(|ty| self.unit.ty(ty)).collect();
-        let mut record = if trait_item.is_some()
-            && (args.has_non_region_param() || args.has_infer() || args.has_escaping_bound_vars())
-        {
+        let mut record = if trait_item.is_some() && unsettled {
             json!({"status": "dependent", "dispatch": dispatch, "via": declared, "bounds": []})
         } else {
             json!({"status": "resolved", "dispatch": dispatch,
@@ -1232,23 +1238,17 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         if !types.is_empty() {
             record["instance_arguments"] = json!(types);
         }
-        if record["status"] == "dependent" {
-            return record;
-        }
-        // An interface member runs the implementation static selection finds, if any.
-        let (runs, runs_args) = match trait_item {
-            Some(_) => match self.selection(callee, args) {
-                Some(instance) => {
-                    let selected = self.unit.definition(instance.def_id());
-                    record["selected"] = json!({"kind": "definition", "id": selected});
-                    if let Some(types) = self.selected_arguments(instance.args) {
-                        record["selected_arguments"] = json!(types);
-                    }
-                    (instance.def_id(), instance.args)
+        let (runs, runs_args) = match (trait_item, selected) {
+            (Some(_), Some(instance)) => {
+                let selected = self.unit.definition(instance.def_id());
+                record["selected"] = json!({"kind": "definition", "id": selected});
+                if let Some(types) = self.selected_arguments(instance.args) {
+                    record["selected_arguments"] = json!(types);
                 }
-                None => return record,
-            },
-            None => (callee, args),
+                (instance.def_id(), instance.args)
+            }
+            (Some(_), None) => return record,
+            (None, _) => (callee, args),
         };
         if compiler::standard(self.tcx, runs) {
             self.calls_back(&mut record, runs, runs_args);
