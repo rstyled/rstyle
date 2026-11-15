@@ -1,7 +1,7 @@
 use super::*;
 
-fn offsets(source: &str, language: &str) -> Vec<usize> {
-    ordinary(scan(source, vec![], language))
+fn offsets(source: &str, namespace: &str) -> Vec<usize> {
+    ordinary(scan(source, vec![], CommentSyntax::of(namespace)))
 }
 
 fn ordinary(comments: Vec<(usize, CommentKind)>) -> Vec<usize> {
@@ -20,20 +20,29 @@ fn ordinary_line_and_nested_block_comments_are_reported_once() {
 
 #[test]
 fn documentation_and_tool_directives_stay_allowed() {
-    for source in [
-        "/// docs\n//! module\n/** docs */\n/*! module */",
-        "//go:noinline\n//nolint:unused\n/* NOLINT */\n// rstyle-allow(comments): required",
-        "// clang-format off\n// rustfmt::skip",
-    ] {
-        assert!(offsets(source, "rust").is_empty(), "{source}");
-    }
-    assert!(
-        offsets(
+    for (source, namespace) in [
+        (
+            "/// docs\n//! module\n/** docs */\n/*! module */\n// rustfmt::skip",
+            "rust",
+        ),
+        (
+            "//go:noinline\n//nolint:unused\n// rstyle-allow(comments): required",
+            "go",
+        ),
+        ("/// docs\n/* NOLINT */\n// clang-format off", "cxx"),
+        (
             "# noqa\n# type: ignore\n# fmt: off\n# pyright: ignore",
-            "python"
-        )
-        .is_empty()
-    );
+            "py",
+        ),
+    ] {
+        assert!(
+            offsets(source, namespace).is_empty(),
+            "{namespace}: {source}"
+        );
+    }
+    // A directive is its own language's: `//go:noinline` is an ordinary comment in Rust.
+    assert_eq!(offsets("//go:noinline\n/* NOLINT */", "rust"), [0, 14]);
+    assert_eq!(offsets("/// not documentation in Go", "go"), [0]);
     assert_eq!(offsets("//// ordinary\n/*** ordinary */", "rust"), [0, 14]);
 }
 
@@ -42,20 +51,32 @@ fn compiler_literal_spans_protect_strings_and_docstrings() {
     let source = "r###\"// not a comment /* either */\"### // ordinary";
     let end = source.find(" // ordinary").unwrap();
     assert_eq!(
-        ordinary(scan(source, std::iter::once(0..end).collect(), "rust")),
+        ordinary(scan(
+            source,
+            std::iter::once(0..end).collect(),
+            CommentSyntax::of("rust")
+        )),
         [end + 1]
     );
     let source = "\"\"\"# docstring\n# still a string\"\"\"\n# ordinary";
     let end = source.find("\n# ordinary").unwrap();
     assert_eq!(
-        ordinary(scan(source, std::iter::once(0..end).collect(), "python")),
+        ordinary(scan(
+            source,
+            std::iter::once(0..end).collect(),
+            CommentSyntax::of("py")
+        )),
         [end + 1]
     );
 }
 
 #[test]
 fn comment_syntax_depends_on_the_language() {
-    assert_eq!(offsets("a // b # ordinary", "python"), [7]);
+    assert_eq!(offsets("a // b # ordinary", "py"), [7]);
+    assert!(
+        offsets("// a\n# b", "java").is_empty(),
+        "a namespace without a file has no comments"
+    );
     assert!(offsets("#include <x>\n//go:noinline", "go").is_empty());
     assert_eq!(offsets("/* outer /* not nested */ // tail", "go"), [0, 26]);
     assert_eq!(offsets("/* unfinished", "cxx"), [0]);
@@ -90,15 +111,26 @@ fn empty_blocks_and_unicode_comments_remain_ordinary() {
 #[test]
 fn documentation_and_directive_categories_survive_capture() {
     assert_eq!(
-        scan("/// docs\n// fmt: off\n// ordinary", vec![], "rust"),
+        scan(
+            "/// docs\n// rustfmt::skip\n// ordinary",
+            vec![],
+            CommentSyntax::of("rust")
+        ),
         [
             (0, CommentKind::Documentation),
             (9, CommentKind::ToolDirective),
-            (21, CommentKind::Ordinary)
+            (26, CommentKind::Ordinary)
         ]
     );
     assert_eq!(
-        scan("#!tool\n# ordinary", vec![], "python"),
+        scan("#!tool\n# ordinary", vec![], CommentSyntax::of("py")),
         [(0, CommentKind::ToolDirective), (7, CommentKind::Ordinary)]
     );
+}
+
+#[test]
+fn every_embedded_syntax_file_reads() {
+    for namespace in ["rust", "go", "cxx", "py"] {
+        assert!(!CommentSyntax::of(namespace).line.is_empty(), "{namespace}");
+    }
 }

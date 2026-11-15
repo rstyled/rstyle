@@ -170,16 +170,21 @@ The shown policies are the defaults. The usual configuration is just `[strict_st
 Each policy accepts only `"allow"` or `"forbid"`. `functions` controls ordinary comments in captured functions;
 `documentation` and `tool_directives` override that base policy for their respective categories. Thus
 `functions = "allow"` with `documentation = "forbid"` reports documentation comments while allowing ordinary ones.
-Documentation comment forms are `///`, `//!`, `/**` and `/*!`. Python docstrings remain string literals.
-Captures keep comment categories, so changing these policies does not require recompilation.
+How each language writes comments is data, one file per frontend namespace in
+[`contracts/comments`](../crates/rstyle-core/src/cpg/contracts/comments): its line and block markers, whether blocks
+nest, which openings document, and its tools' directive prefixes. A language with no file there has no comments to
+report, and adding one needs no code. Rust and C++ document with `///`, `//!`, `/**` and `/*!`; Go and Python never
+do in a function body, and Python docstrings remain string literals. Captures keep comment categories, so changing
+these policies does not require recompilation.
 
 The compiler's literal spans protect strings, raw strings and character literals containing comment markers.
 Comments in nested functions and closures belong to their own captures. Rust block comments can nest; Go and C++
 block comments do not.
 
-Recognized directive prefixes (leading whitespace ignored): `go:`, `line `, `rstyle-allow(`, `nolint`, `lint:`,
-`NOLINT`, `noinspection`, `type:`, `noqa`, `pyright:`, `mypy:`, `pylint:`, `isort:`, `yapf:`, `fmt:`, `rustfmt::`,
-`clang-format`, or `!` (shebang). Other directive spellings are not inferred from prose.
+A directive is its own language's, read after the comment's opening and any space: `rustfmt::` in Rust; `go:`,
+`line `, `nolint` and `lint:` in Go; `NOLINT` and `clang-format` in C and C++; `!` (a shebang), `type:`, `noqa`,
+`pyright:`, `mypy:`, `pylint:`, `isort:`, `yapf:` and `fmt:` in Python; and `rstyle-allow(` and `noinspection` in all
+four. Other directive spellings are not inferred from prose.
 For an intentional exception, use `// rstyle-allow(comments): reason` above the function. This explicit suppression
 still works when any comment policy is `"forbid"`.
 

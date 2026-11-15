@@ -1,43 +1,139 @@
 //! Comment categories in captured function source. Literal spans come from the compiler,
 //! so raw strings, escapes and comment markers in strings need no second language lexer.
+//! How a language writes its comments is data, one file per frontend namespace under
+//! `contracts/comments`, so a language needs a file here and no code.
 
 use super::model::{Function, NodeKind};
 use super::source::Sources;
 use crate::facts::{CommentKind, SourceComment};
+use crate::versioned::ByNamespace;
+use serde::Deserialize;
 use std::ops::Range;
 
-const DIRECTIVES: &[&str] = &[
-    "go:",
-    "line ",
-    "rstyle-allow(",
-    "nolint",
-    "lint:",
-    "NOLINT",
-    "noinspection",
-    "type:",
-    "noqa",
-    "pyright:",
-    "mypy:",
-    "pylint:",
-    "isort:",
-    "yapf:",
-    "fmt:",
-    "rustfmt::",
-    "clang-format",
-    "!",
+const SCHEMA: &str = "rstyle.comment-syntax/1";
+const EMBEDDED: &[&str] = &[
+    include_str!("contracts/comments/rust.toml"),
+    include_str!("contracts/comments/go.toml"),
+    include_str!("contracts/comments/cxx.toml"),
+    include_str!("contracts/comments/py.toml"),
 ];
+
+/// How one namespace writes comments. A namespace without a file has none, so nothing in its
+/// functions reads as one.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CommentSyntax {
+    schema: String,
+    namespace: String,
+    /// What starts a comment that runs to the end of its line.
+    line: Vec<String>,
+    #[serde(default)]
+    block: Option<Block>,
+    /// Openings of a comment that documents, matched from its first character.
+    documentation: Vec<String>,
+    /// Openings that read as ordinary though they start like documentation: `////`.
+    ordinary: Vec<String>,
+    /// What a tool's comment starts with, after its opening and any space.
+    directives: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Block {
+    open: String,
+    close: String,
+    /// Whether a block opened inside a block needs its own close, as Rust's do.
+    nested: bool,
+}
+
+impl CommentSyntax {
+    pub fn of(namespace: &str) -> &'static CommentSyntax {
+        static SYNTAX: ByNamespace<CommentSyntax> = ByNamespace::empty();
+        SYNTAX.of(namespace, (EMBEDDED, parse))
+    }
+
+    /// The end and category of a comment at the start of `rest`, `at` into `source`.
+    fn comment_at(&self, source: &str, at: usize) -> Option<(usize, CommentKind)> {
+        let rest = &source[at..];
+        let (opening, end) = match self
+            .block
+            .as_ref()
+            .filter(|block| rest.starts_with(&block.open))
+        {
+            Some(block) => (
+                &block.open,
+                self.block_end(source, at + block.open.len(), block),
+            ),
+            None => {
+                let opening = self
+                    .line
+                    .iter()
+                    .find(|marker| rest.starts_with(marker.as_str()))?;
+                (
+                    opening,
+                    rest.find('\n').map_or(source.len(), |end| at + end),
+                )
+            }
+        };
+        let comment = &source[at..end];
+        Some((end, self.kind(comment, &comment[opening.len()..])))
+    }
+
+    fn kind(&self, comment: &str, text: &str) -> CommentKind {
+        let starts = |openings: &[String]| {
+            openings
+                .iter()
+                .any(|opening| comment.starts_with(opening.as_str()))
+        };
+        let text = text.trim_start();
+        if starts(&self.documentation) && !starts(&self.ordinary) {
+            CommentKind::Documentation
+        } else if self
+            .directives
+            .iter()
+            .any(|prefix| text.starts_with(prefix.as_str()))
+        {
+            CommentKind::ToolDirective
+        } else {
+            CommentKind::Ordinary
+        }
+    }
+
+    fn block_end(&self, source: &str, mut at: usize, block: &Block) -> usize {
+        let mut depth = 1;
+        while at < source.len() {
+            let rest = &source[at..];
+            if rest.starts_with(&block.close) {
+                depth -= 1;
+                at += block.close.len();
+                if depth == 0 {
+                    return at;
+                }
+            } else if block.nested && rest.starts_with(&block.open) {
+                depth += 1;
+                at += block.open.len();
+            } else {
+                at += rest.chars().next().map_or(1, char::len_utf8);
+            }
+        }
+        at
+    }
+}
+
+fn parse(text: &str) -> Result<(String, CommentSyntax), String> {
+    let syntax: CommentSyntax = crate::versioned::parse(
+        text,
+        (SCHEMA, "comment syntax"),
+        |syntax: &CommentSyntax| &syntax.schema,
+    )?;
+    Ok((syntax.namespace.clone(), syntax))
+}
 
 pub fn lines(
     function: &Function,
     sources: &Sources<'_>,
-    language: &str,
+    syntax: &CommentSyntax,
 ) -> Result<Vec<SourceComment>, String> {
-    if !matches!(
-        language,
-        "rust" | "go" | "cxx" | "cpp" | "c++" | "py" | "python"
-    ) {
-        return Ok(Vec::new());
-    }
     let span = &function.signature.span;
     let source = sources.between(span, &function.span)?;
     let mut literals: Vec<_> = function
@@ -62,7 +158,7 @@ pub fn lines(
         .collect();
     literals.sort_by_key(|span| span.start);
     let first_line = sources.location(span)?.0;
-    Ok(scan(source, literals, language)
+    Ok(scan(source, literals, syntax)
         .into_iter()
         .map(|(offset, kind)| SourceComment {
             line: first_line
@@ -75,9 +171,12 @@ pub fn lines(
         .collect())
 }
 
-fn scan(source: &str, literals: Vec<Range<usize>>, language: &str) -> Vec<(usize, CommentKind)> {
+fn scan(
+    source: &str,
+    literals: Vec<Range<usize>>,
+    syntax: &CommentSyntax,
+) -> Vec<(usize, CommentKind)> {
     let mut slot = 0;
-    let python = matches!(language, "py" | "python");
     let mut found = Vec::new();
     let mut at = 0;
     while at < source.len() {
@@ -86,79 +185,15 @@ fn scan(source: &str, literals: Vec<Range<usize>>, language: &str) -> Vec<(usize
         }
         let next = if let Some(span) = literals.get(slot).filter(|span| span.start <= at) {
             span.end
-        } else if let Some((end, kind)) = comment_at(source, at, python, language == "rust") {
+        } else if let Some((end, kind)) = syntax.comment_at(source, at) {
             found.push((at, kind));
             end
         } else {
-            at + 1
+            at + source[at..].chars().next().map_or(1, char::len_utf8)
         };
         at = next;
     }
     found
-}
-
-/// End and syntax category of a comment at this offset.
-fn comment_at(source: &str, at: usize, python: bool, nested: bool) -> Option<(usize, CommentKind)> {
-    let rest = &source.as_bytes()[at..];
-    let width = if python && rest.starts_with(b"#") {
-        1
-    } else if !python && (rest.starts_with(b"//") || rest.starts_with(b"/*")) {
-        2
-    } else {
-        return None;
-    };
-    let block = rest.starts_with(b"/*");
-    let end = if block {
-        block_end(source, at + width, nested)
-    } else {
-        source[at..].find('\n').map_or(source.len(), |end| at + end)
-    };
-    let text = &source[at + width..end];
-    let kind = if documentation(text, block, python) {
-        CommentKind::Documentation
-    } else if directive(text) {
-        CommentKind::ToolDirective
-    } else {
-        CommentKind::Ordinary
-    };
-    Some((end, kind))
-}
-
-fn documentation(text: &str, block: bool, python: bool) -> bool {
-    if python || (block && text == "*/") {
-        return false;
-    }
-    if text.starts_with('!') {
-        return true;
-    }
-    let marker = if block { '*' } else { '/' };
-    text.starts_with(marker) && !text[1..].starts_with(marker)
-}
-
-fn directive(text: &str) -> bool {
-    let text = text.trim_start();
-    DIRECTIVES.iter().any(|prefix| text.starts_with(prefix))
-}
-
-fn block_end(source: &str, mut at: usize, nested: bool) -> usize {
-    let bytes = source.as_bytes();
-    let mut depth = 1;
-    while at < bytes.len() {
-        let rest = &bytes[at..];
-        if rest.starts_with(b"*/") {
-            depth -= 1;
-            if depth == 0 {
-                return at + 2;
-            }
-            at += 2;
-        } else if nested && rest.starts_with(b"/*") {
-            depth += 1;
-            at += 2;
-        } else {
-            at += 1;
-        }
-    }
-    at
 }
 
 #[cfg(test)]
