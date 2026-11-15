@@ -1892,6 +1892,35 @@ fn a_rust_run_finds_a_value_nothing_reads() {
     assert!(saved_run(&output).join("defects.sarif").is_file());
 }
 
+/// A closure's body is judged in its own flow, so a value stored there that nothing reads is
+/// found as it is in a function. What the closure captures stays quiet, since the function can
+/// read it after the closure runs, and so does a parameter it never reads.
+#[test]
+fn a_rust_run_finds_a_value_nothing_reads_inside_a_closure() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(
+        root.join("src/lib.rs"),
+        "#![allow(unused_assignments)]\n\
+         fn f() -> u8 { 1 }\n\
+         pub fn dead(o: Option<u8>) -> Option<u8> {\n    o.map(|x| {\n        let mut v = x + f();\n        \
+         v = f();\n        v\n    })\n}\n\
+         pub fn held(items: &[u8]) -> u8 {\n    let mut last = 0;\n    \
+         items.iter().for_each(|x| last = *x);\n    last\n}\n\
+         pub fn unread(o: Option<u8>) -> Option<u8> { o.map(|_x| f()) }\n",
+    )
+    .unwrap();
+
+    let output = rust_run(root, &["--filter", "defects", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let unified = report(&output);
+    let rows = unified["defects"]["defects"].as_array().unwrap();
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(rows[0]["rule"], "dead_store");
+    assert_eq!(rows[0]["line"], 5);
+}
+
 /// The lines `taint_flow` reports in a run of a package. Defects don't change the exit code.
 fn taint_lines(root: &Path) -> Vec<u64> {
     let output = rust_run(root, &["--filter", "defects", "--format", "json"]);

@@ -18,6 +18,7 @@ use super::source::Sources;
 use super::tree::{Body, Tables};
 use serde::Serialize;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 /// One thing a rule found in a function.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -44,12 +45,13 @@ pub enum Examined {
     Unknown(String),
 }
 
-/// What a rule reads of one function.
+/// What a rule reads of one flow of a function: its own, or that of a closure written in it,
+/// which shares the function's tree.
 struct Reading<'a> {
     function: &'a Function,
     flow: Flow<'a>,
-    body: Body<'a>,
-    parents: HashMap<&'a str, &'a Node>,
+    body: Rc<Body<'a>>,
+    parents: Rc<HashMap<&'a str, &'a Node>>,
     /// Which writes reach each vertex.
     reaching: Reaching<'a>,
     /// Each write with each read it reaches: where it's written, where it's read, what.
@@ -74,12 +76,15 @@ pub fn examine(
             flow,
             reaching,
             dependence,
-            body: Body::new(function)?,
-            parents: parents(function),
+            body: Rc::new(Body::new(function)?),
+            parents: Rc::new(parents(function)),
             tables,
             sources,
         };
         let mut defects = dead_store::find(&reading)?;
+        for closure in closures(&reading) {
+            defects.extend(dead_store::find(&closure)?);
+        }
         defects.extend(identical_branches::find(&reading)?);
         Ok(Examined::Read {
             defects,
@@ -89,6 +94,27 @@ pub fn examine(
         })
     });
     read.unwrap_or_else(Examined::Unknown)
+}
+
+/// A reading of each closure the function records a flow for. A closure's body runs when it's
+/// called, so what's stored and read there is judged in its own flow, where what it captures is
+/// written at the entry.
+fn closures<'r, 'a: 'r>(reading: &'r Reading<'a>) -> impl Iterator<Item = Reading<'a>> + 'r {
+    let function = reading.function;
+    let flows = function.cfg.closures.iter().filter_map(Flow::of_closure);
+    flows.map(move |flow| {
+        let reaching = Reaching::of(function, &flow);
+        Reading {
+            function,
+            dependence: reaching.data_dependence(),
+            reaching,
+            flow,
+            body: Rc::clone(&reading.body),
+            parents: Rc::clone(&reading.parents),
+            tables: reading.tables,
+            sources: reading.sources,
+        }
+    })
 }
 
 fn parents(function: &Function) -> HashMap<&str, &Node> {
