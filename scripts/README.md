@@ -21,13 +21,14 @@ have been removed from this checkout; recorded evidence remains in Git history.
 | `test.sh` | `scripts/test.sh [cargo test args]` runs `cargo test --workspace --locked` against a shared `CARGO_TARGET_DIR` (default `~/.cache/rstyle/target`) so worktrees don't rebuild dependencies. |
 | `test_codenet.py` | `python3 scripts/test_codenet.py` tests `codenet_sample.py` on a fake package (needs cargo). |
 
-## Local MCP while the hosted check is bypassed
+## Local MCP and temporary hosted check bypass
 
-`rstyle.toml` temporarily sets `[review] status_check = false`, so the GitHub App
-stops creating new `Rstyle` checks once that setting reaches the base branch.
-The `.github/workflows/ci.yml` jobs, including self-checks and patterns, stay as
-they are. Restore `status_check = true` to resume App checks. This setting does
-not cancel existing checks or disable the App's background reviews and storage.
+To temporarily stop new hosted `Rstyle` checks, set `[review] status_check = false`
+in `rstyle.toml`. The setting takes effect once it reaches the base branch.
+Restore `status_check = true` after finishing the local reviews to resume App
+checks. The `.github/workflows/ci.yml` jobs, including self-checks and patterns,
+stay as they are. This setting does not cancel existing checks or disable the
+App's background reviews and storage.
 The local review can complete existing App checks with the owning App's
 credential, as described below; a local report alone does not finish them.
 
