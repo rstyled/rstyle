@@ -1,0 +1,10 @@
+# How Rust writes comments, for the `comments` rule. A comment is matched from its first character,
+# so `documentation` and `ordinary` name whole openings: `////` is an ordinary comment, though it
+# starts with `///`. `directives` are read after the opening and any space: `// rustfmt::skip`.
+schema = "rstyle.comment-syntax/1"
+namespace = "rust"
+line = ["//"]
+block = { open = "/*", close = "*/", nested = true }
+documentation = ["///", "//!", "/**", "/*!"]
+ordinary = ["////", "/***", "/**/"]
+directives = ["rstyle-allow(", "rustfmt::", "noinspection"]
