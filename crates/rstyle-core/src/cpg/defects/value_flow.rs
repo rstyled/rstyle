@@ -7,9 +7,9 @@
 
 use super::super::model::{
     Access, AccessMode, Definition, DefinitionKind, Node, NodeKind, RefStatus, Scope, TargetKind,
-    TypeKind,
+    Type, TypeKind,
 };
-use super::super::tree::{self, Argument};
+use super::super::tree::{self, Argument, Tables};
 use super::Reading;
 use super::ignored_result::{declared_callee, returns_its_receiver};
 use crate::paths::strip_generics;
@@ -70,6 +70,26 @@ pub struct Hop {
     pub to: End,
 }
 
+/// A library's named type, as a contract names it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NamedType {
+    pub identity: String,
+    pub name: String,
+    pub operation: Option<String>,
+}
+
+/// A parameter declared as a library's named type, looked through pointers, which a contract can
+/// say is input, as Go's `*http.Request` is to a handler.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TypedParameter {
+    /// Numbered as a call's arguments are: a receiver is 0.
+    pub position: usize,
+    /// The parameter and its type as they're written, as `r *net/http.Request` is.
+    pub written: String,
+    pub line: usize,
+    pub ty: NamedType,
+}
+
 /// Where a function's values go, in its frontend's namespace.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ValueFlows {
@@ -78,6 +98,7 @@ pub struct ValueFlows {
     pub namespace: String,
     pub calls: Vec<FlowCall>,
     pub hops: Vec<Hop>,
+    pub parameters: Vec<TypedParameter>,
 }
 
 /// Where in a call a value can end: a position, when it's known, the element of a list written out
@@ -237,12 +258,26 @@ impl<'a> Graph<'a> {
     fn add_node(&mut self, node: &'a Node) -> Result<(), String> {
         let children = self.reading.body.children(node)?;
         self.add_values(node, &children)?;
+        self.add_ends(node, &children)
+    }
 
+    /// Where a value can end at a node: a match's arms, a call's arguments, a map's key.
+    fn add_ends(&mut self, node: &'a Node, children: &[&'a Node]) -> Result<(), String> {
         match node.kind {
-            NodeKind::Match => self.add_match(node, &children),
+            NodeKind::Match => self.add_match(node, children),
             NodeKind::Call => self.add_call(node),
+            NodeKind::Assignment => self.add_map_store(node),
             _ => Ok(()),
         }
+    }
+
+    /// A store at a map's key is where the key ends, as an argument to a call named `map key`.
+    fn add_map_store(&mut self, node: &'a Node) -> Result<(), String> {
+        if let Some((index, key)) = map_store(self.reading, node)? {
+            self.arguments
+                .insert(&index.id, vec![(Some(0), None, key.id.as_str())]);
+        }
+        Ok(())
     }
 
     fn add_values(&mut self, node: &'a Node, children: &[&'a Node]) -> Result<(), String> {
@@ -434,6 +469,46 @@ fn parameter_symbols<'a>(reading: &Reading<'a>) -> Vec<(usize, &'a str)> {
     receiver.chain(parameters).enumerate().collect()
 }
 
+/// The library's named type a type is, looked through pointers and references.
+fn library_type<'a>(tables: &Tables<'a>, ty: &str) -> Option<&'a Definition> {
+    let pointee = |at: &&'a Type| tables.ty(at.target.as_deref()?).ok();
+    let mut chain = std::iter::successors(tables.ty(ty).ok(), pointee).take(POINTER_DEPTH);
+    let named = chain.find(|at| !matches!(at.kind, TypeKind::Pointer | TypeKind::Reference))?;
+    let definition = tables.named_definition(named.definition.as_deref())?;
+    (definition.scope == Scope::Library).then_some(definition)
+}
+
+/// Each parameter declared as a library's named type, numbered as a call's arguments are.
+fn typed_parameters(reading: &Reading<'_>) -> Result<Vec<TypedParameter>, String> {
+    let signature = &reading.function.signature;
+    let receiver = signature
+        .receiver
+        .iter()
+        .map(|it| (&it.symbol, &it.ty, None));
+    let parameters = signature.parameters.iter();
+    let parameters = parameters.map(|it| (&it.symbol, &it.ty, it.span.as_ref()));
+
+    let mut typed = Vec::new();
+    for (position, (symbol, ty, span)) in receiver.chain(parameters).enumerate() {
+        let Some(definition) = library_type(reading.tables, ty) else {
+            continue;
+        };
+        let name = &reading.body.symbol(symbol)?.name;
+        let spelling = &reading.tables.ty(ty)?.spelling;
+        typed.push(TypedParameter {
+            position,
+            written: format!("{name} {spelling}"),
+            line: reading.sources.location(span.unwrap_or(&signature.span))?.0,
+            ty: NamedType {
+                identity: definition.stable_identity.clone(),
+                name: strip_generics(&definition.name),
+                operation: definition.operation.clone(),
+            },
+        });
+    }
+    Ok(typed)
+}
+
 /// The nodes whose value a caller gets: what's returned, what a body ends with, and what's written
 /// to a result that has a name.
 fn returned_nodes<'a>(reading: &Reading<'a>) -> Result<Vec<&'a str>, String> {
@@ -604,7 +679,59 @@ fn flow_call_at(reading: &Reading<'_>, node: &Node) -> Result<Option<FlowCall>, 
     variable_read(reading, node, definition).map(Some)
 }
 
-/// Each call that can start or end a flow, and each read of a library's variable, by its node.
+/// What a store at a map's key is called, as a sink names it. No function can be.
+pub const MAP_KEY: &str = "map key";
+
+/// Whether a node reads a binding of the function's own, which ends when the call does.
+fn is_local(reading: &Reading<'_>, node: &Node) -> bool {
+    let target = reading
+        .body
+        .reference(&node.id)
+        .and_then(|it| it.target.as_ref());
+    let symbol = target.filter(|it| it.kind == TargetKind::Symbol);
+    let symbol = symbol.and_then(|it| reading.body.symbol(it.id.as_deref()?).ok());
+    symbol.is_some_and(|it| it.kind == "local")
+}
+
+/// The index an assignment stores at, and its key, where what's indexed is a map that outlives
+/// the call, as a field, a parameter or a package's variable does: `m[k] = v`.
+fn map_store<'a>(
+    reading: &Reading<'a>,
+    node: &Node,
+) -> Result<Option<(&'a Node, &'a Node)>, String> {
+    if node.kind != NodeKind::Assignment {
+        return Ok(None);
+    }
+    let children = reading.body.children(node)?;
+    let index = children.first().copied();
+    let Some(index) = index.filter(|it| it.kind == NodeKind::IndexAccess) else {
+        return Ok(None);
+    };
+    let operands = reading.body.children(index)?;
+    let map = operands.first().filter(|map| !is_local(reading, map));
+    let ty = map.and_then(|map| map.ty.as_deref());
+    let is_map = ty.and_then(|id| reading.tables.ty(id).ok());
+    let is_map = is_map.is_some_and(|ty| ty.kind == TypeKind::Map);
+    Ok(operands.get(1).filter(|_| is_map).map(|&key| (index, key)))
+}
+
+/// A store at a map's key, as a flow sees it: a call that's handed the key.
+fn map_key_store(reading: &Reading<'_>, index: &Node) -> Result<FlowCall, String> {
+    Ok(FlowCall {
+        identity: MAP_KEY.into(),
+        selected: MAP_KEY.into(),
+        name: MAP_KEY.into(),
+        operation: None,
+        line: tree::line(reading.sources, index)?,
+        literals: Vec::new(),
+        named: Vec::new(),
+        lists: Vec::new(),
+        strings: Vec::new(),
+    })
+}
+
+/// Each call that can start or end a flow, each read of a library's variable, and each store at a
+/// map's key, by its node.
 fn flow_calls<'a>(
     reading: &Reading<'a>,
 ) -> Result<(Vec<FlowCall>, HashMap<&'a str, usize>), String> {
@@ -615,6 +742,10 @@ fn flow_calls<'a>(
         if let Some(call) = flow_call_at(reading, node)? {
             positions.insert(node.id.as_str(), calls.len());
             calls.push(call);
+        }
+        if let Some((index, _)) = map_store(reading, node)? {
+            positions.insert(index.id.as_str(), calls.len());
+            calls.push(map_key_store(reading, index)?);
         }
     }
     Ok((calls, positions))
@@ -748,5 +879,6 @@ pub(super) fn of<'a>(
         namespace: namespace.to_owned(),
         calls,
         hops: hops.into_iter().collect(),
+        parameters: typed_parameters(reading)?,
     })
 }

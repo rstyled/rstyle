@@ -567,6 +567,10 @@ pub struct TaintSink {
     pub arguments: Vec<usize>,
     pub risk: String,
     pub cwe: Option<String>,
+    /// The only input that's dangerous here, each by its source call or a parameter's type, which
+    /// starts a flow for this sink alone. None means any input.
+    #[serde(default)]
+    pub sources: Vec<String>,
 }
 
 /// What a project adds to the sources and sinks a frontend's models name, each callee by its

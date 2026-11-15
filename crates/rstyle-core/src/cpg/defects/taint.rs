@@ -9,7 +9,7 @@ mod builder;
 
 use self::builder::ShellCode;
 use super::Defect;
-use super::value_flow::{End, FlowCall, Start, ValueFlows};
+use super::value_flow::{End, FlowCall, NamedType, Start, TypedParameter, ValueFlows};
 use crate::config::TaintConfig;
 use crate::versioned::ByNamespace;
 use serde::Deserialize;
@@ -74,6 +74,20 @@ struct Sink {
     /// program alone. A list that isn't written out can't be counted, so it's neither.
     #[serde(default)]
     argv: bool,
+    /// The only input that's dangerous here, each by its source call or a parameter's type, which
+    /// starts a flow for this sink alone. None means any input.
+    #[serde(default)]
+    sources: Vec<String>,
+}
+
+/// A type a parameter of is input in every part, where the function is handed the other type too:
+/// a request is a handler's input when it has a response to write, and not when it's a client's.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InputParameter {
+    #[serde(rename = "type")]
+    ty: String,
+    with: String,
 }
 
 /// Where input comes from and goes, for one frontend namespace.
@@ -86,6 +100,8 @@ pub struct Models {
     namespace: String,
     #[serde(default)]
     sources: Vec<String>,
+    #[serde(default)]
+    parameters: Vec<InputParameter>,
     #[serde(default)]
     sinks: Vec<Sink>,
     #[serde(default)]
@@ -111,12 +127,29 @@ impl crate::versioned::Namespaced for Models {
 
 /// Whether a key names this call: by its operation, its name or its identity.
 fn names(key: &str, call: &FlowCall) -> bool {
-    let operation = call.operation.as_deref();
+    named_by(key, (&call.name, &call.identity, call.operation.as_deref()))
+}
+
+/// Whether a key names a definition by its operation, with or without its namespace, its name or
+/// its identity.
+fn named_by(key: &str, (name, identity, operation): (&str, &str, Option<&str>)) -> bool {
     let without_namespace = operation.and_then(|operation| operation.split_once(':'));
-    key == call.name
-        || key == call.identity
+    key == name
+        || key == identity
         || operation == Some(key)
         || without_namespace.is_some_and(|(_, operation)| operation == key)
+}
+
+/// Whether a model says this parameter is input, given the function's other parameters.
+fn is_input(models: &Models, parameter: &TypedParameter, flows: &ValueFlows) -> bool {
+    let typed = |key: &str, ty: &NamedType| {
+        named_by(key, (&ty.name, &ty.identity, ty.operation.as_deref()))
+    };
+    let handed = |key: &str| flows.parameters.iter().any(|other| typed(key, &other.ty));
+    let models = models.parameters.iter();
+    models
+        .filter(|model| typed(&model.ty, &parameter.ty))
+        .any(|model| handed(&model.with))
 }
 
 /// The base of a path, which is how a program names a shell.
@@ -197,18 +230,43 @@ fn dangerous(sink: &Sink, call: &FlowCall, at: (usize, Option<usize>)) -> bool {
 }
 
 /// A sink's risk and what it's called, wherever it's defined.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Risk {
     risk: String,
     cwe: Option<String>,
+    /// The only input it's dangerous to, by source; none means any.
+    only: Vec<String>,
 }
 
 impl Risk {
+    fn of(sink: &Sink) -> Self {
+        Self {
+            risk: sink.risk.clone(),
+            cwe: Some(sink.cwe.clone()),
+            only: sink.sources.clone(),
+        }
+    }
+
     fn text(&self) -> String {
         match &self.cwe {
             Some(cwe) => format!("{}, {cwe}", self.risk),
             None => self.risk.clone(),
         }
+    }
+
+    /// Whether input from here is dangerous to it: any that's input everywhere, unless it names
+    /// its own sources.
+    fn admits(&self, origin: &Origin) -> bool {
+        let source = &origin.source;
+        let source = (
+            source.name.as_str(),
+            source.identity.as_str(),
+            source.operation.as_deref(),
+        );
+        if self.only.is_empty() {
+            return origin.everywhere;
+        }
+        self.only.iter().any(|key| named_by(key, source))
     }
 }
 
@@ -222,9 +280,19 @@ impl Reader<'_> {
         !self.project.ignored.iter().any(|key| names(key, call))
     }
 
-    fn is_source(&self, models: &Models, call: &FlowCall) -> bool {
-        let keys = models.sources.iter().chain(&self.project.sources);
-        self.counts(call) && keys.into_iter().any(|key| names(key, call))
+    /// Whether a call's result is input: to every sink, or only to the sinks that name it.
+    fn source_kind(&self, models: &Models, call: &FlowCall) -> Option<bool> {
+        if !self.counts(call) {
+            return None;
+        }
+        let general = models.sources.iter().chain(&self.project.sources);
+        if general.into_iter().any(|key| names(key, call)) {
+            return Some(true);
+        }
+        let modeled = models.sinks.iter().flat_map(|sink| &sink.sources);
+        let project = self.project.sinks.iter().flat_map(|sink| &sink.sources);
+        let scoped = modeled.chain(project).any(|key| names(key, call));
+        scoped.then_some(false)
     }
 
     /// A project's sanitizers, and a model's unless the project ignores them.
@@ -233,34 +301,35 @@ impl Reader<'_> {
         (modeled && self.counts(call)) || self.project.sanitizers.iter().any(|key| names(key, call))
     }
 
-    fn risk_at(
+    /// Each way an argument is dangerous, a model's before a project's: a sink that's dangerous
+    /// to some input and not the rest leaves room for another that names the rest.
+    fn risks_at(
         &self,
         models: &Models,
         call: &FlowCall,
         (position, element): (usize, Option<usize>),
-    ) -> Option<Risk> {
+    ) -> Vec<Risk> {
         if !self.counts(call) {
-            return None;
+            return Vec::new();
         }
         let modeled = models
             .sinks
             .iter()
             .filter(|sink| sink.callees.iter().any(|key| names(key, call)))
-            .find(|sink| dangerous(sink, call, (position, element)))
+            .filter(|sink| dangerous(sink, call, (position, element)))
+            .map(Risk::of);
+        let project = self
+            .project
+            .sinks
+            .iter()
+            .filter(|sink| sink.callees.iter().any(|key| names(key, call)))
+            .filter(|sink| sink.arguments.contains(&position))
             .map(|sink| Risk {
                 risk: sink.risk.clone(),
-                cwe: Some(sink.cwe.clone()),
-            });
-        modeled.or_else(|| {
-            let sinks = self.project.sinks.iter();
-            let named = sinks
-                .filter(|sink| sink.callees.iter().any(|key| names(key, call)))
-                .find(|sink| sink.arguments.contains(&position));
-            named.map(|sink| Risk {
-                risk: sink.risk.clone(),
                 cwe: sink.cwe.clone(),
-            })
-        })
+                only: sink.sources.clone(),
+            });
+        modeled.chain(project).collect()
     }
 }
 
@@ -270,10 +339,30 @@ struct Origin {
     name: String,
     path: String,
     line: usize,
+    /// The source call, or the parameter's type, as a sink names its own sources.
+    source: NamedType,
+    /// Whether it's input to every sink, or only to those that name it.
+    everywhere: bool,
+}
+
+impl Origin {
+    fn of_call(call: &FlowCall, path: &str, everywhere: bool) -> Self {
+        Self {
+            name: call.name.clone(),
+            path: path.to_owned(),
+            line: call.line,
+            source: NamedType {
+                identity: call.identity.clone(),
+                name: call.name.clone(),
+                operation: call.operation.clone(),
+            },
+            everywhere,
+        }
+    }
 }
 
 /// A place a value turns dangerous, in whichever function holds it.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct SinkSite {
     function: usize,
     line: usize,
@@ -288,8 +377,9 @@ struct Summary {
     returns_input: Option<Origin>,
     /// Which parameters reach what it returns.
     passes: BTreeSet<usize>,
-    /// Which parameters reach a sink, and which one.
-    sinks: BTreeMap<usize, SinkSite>,
+    /// Which parameters reach a sink, and each one, since a sink can be dangerous to some input
+    /// and not the rest.
+    sinks: BTreeMap<usize, BTreeSet<SinkSite>>,
 }
 
 /// One function's flows, and what a report says of where it is.
@@ -378,8 +468,8 @@ impl Solver<'_> {
         walk
     }
 
-    /// The sink an argument reaches, here or in the callee's body.
-    fn sink_at(&self, at: usize, reached: Reached) -> Option<SinkSite> {
+    /// The sinks an argument reaches: the call it's given to, or those in the callee's body.
+    fn sinks_at(&self, at: usize, reached: Reached) -> BTreeSet<SinkSite> {
         let (call, position, element) = reached;
         let flows = &self.functions[at].flows;
         let called = &flows.calls[call];
@@ -387,38 +477,52 @@ impl Solver<'_> {
 
         let code = self.shell_code[at].get(&reached);
         let code = code.filter(|_| self.reader.counts(called)).cloned();
-        let risk = self.reader.risk_at(models, called, (position, element));
-        if let Some(risk) = risk.or(code) {
-            return Some(SinkSite {
+        let mut risks = self.reader.risks_at(models, called, (position, element));
+        risks.extend(code);
+        if !risks.is_empty() {
+            let site = |risk| SinkSite {
                 function: at,
                 line: called.line,
                 name: called.name.clone(),
                 risk,
-            });
+            };
+            return risks.into_iter().map(site).collect();
         }
-        self.callee_summary(called)?.sinks.get(&position).cloned()
+        let summary = self.callee_summary(called);
+        let sites = summary.and_then(|summary| summary.sinks.get(&position));
+        sites.cloned().unwrap_or_default()
     }
 
-    /// Each call that starts a flow of input here: a source, or a call that returns one's.
+    /// Each call that starts a flow of input here: a source, or a call that returns one's. A
+    /// parameter of a type a model calls input starts one too.
     fn input_starts(&self, at: usize) -> Vec<(Start, Origin)> {
         let function = &self.functions[at];
         let models = Models::of(&function.flows.namespace);
+        // A source starts input even where it cleans what it's handed, as a response is new input
+        // and not the request that asked for it.
         let starts = function.flows.calls.iter().enumerate();
-        starts
-            .filter(|(_, call)| !self.reader.is_sanitizer(models, call))
-            .filter_map(|(index, call)| {
-                let origin = if self.reader.is_source(models, call) {
-                    Origin {
-                        name: call.name.clone(),
-                        path: function.path.clone(),
-                        line: call.line,
-                    }
-                } else {
-                    self.callee_summary(call)?.returns_input.clone()?
+        let calls = starts.filter_map(|(index, call)| {
+            let origin = match self.reader.source_kind(models, call) {
+                Some(everywhere) => Origin::of_call(call, &function.path, everywhere),
+                None if self.reader.is_sanitizer(models, call) => return None,
+                None => self.callee_summary(call)?.returns_input.clone()?,
+            };
+            Some((Start::Result(index), origin))
+        });
+        let parameters = function.flows.parameters.iter();
+        let parameters = parameters
+            .filter(|parameter| is_input(models, parameter, &function.flows))
+            .map(|parameter| {
+                let origin = Origin {
+                    name: parameter.written.clone(),
+                    path: function.path.clone(),
+                    line: parameter.line,
+                    source: parameter.ty.clone(),
+                    everywhere: true,
                 };
-                Some((Start::Result(index), origin))
-            })
-            .collect()
+                (Start::Parameter(parameter.position), origin)
+            });
+        calls.chain(parameters).collect()
     }
 
     fn summary_of(&self, at: usize) -> Summary {
@@ -440,9 +544,11 @@ impl Solver<'_> {
                 summary.passes.insert(position);
             }
             let sinks = walk.arguments.iter();
-            let sink = sinks.filter_map(|&reached| self.sink_at(at, reached));
-            if let Some(site) = sink.min_by_key(|site| (site.function, site.line)) {
-                summary.sinks.insert(position, site);
+            let sites: BTreeSet<SinkSite> = sinks
+                .flat_map(|&reached| self.sinks_at(at, reached))
+                .collect();
+            if !sites.is_empty() {
+                summary.sinks.insert(position, sites);
             }
         }
         summary
@@ -469,7 +575,8 @@ impl Solver<'_> {
         for (start, origin) in self.input_starts(at) {
             let walk = self.walk(flows, &[start]);
             let sinks = walk.arguments.iter();
-            for site in sinks.filter_map(|&reached| self.sink_at(at, reached)) {
+            let sites = sinks.flat_map(|&reached| self.sinks_at(at, reached));
+            for site in sites.filter(|site| site.risk.admits(&origin)) {
                 found.push((site, origin.clone()));
             }
         }
@@ -524,16 +631,14 @@ pub fn find(functions: &[FunctionFlows], project: &TaintConfig) -> Vec<Finding> 
     };
     solver.solve();
 
+    // One finding a sink, from the first input that reaches it: a call's before a parameter's.
     let mut found: BTreeMap<(usize, usize, String), Finding> = BTreeMap::new();
     for at in 0..functions.len() {
         for (site, origin) in solver.findings_in(at) {
-            let finding = finding(functions, site, &origin);
-            let key = (
-                finding.function,
-                finding.defect.line,
-                finding.defect.message.clone(),
-            );
-            found.entry(key).or_insert(finding);
+            let key = (site.function, site.line, site.name.clone());
+            found
+                .entry(key)
+                .or_insert_with(|| finding(functions, site, &origin));
         }
     }
     found.into_values().collect()
