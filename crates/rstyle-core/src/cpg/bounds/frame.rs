@@ -453,16 +453,16 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
     }
 
     // Callbacks are admitted only where lowering can resolve every invocation: any closure an
-    // iteration member is handed, and the one a member runs at most once for the call.
+    // iteration member is handed, and those a member runs at most one of for the call.
     fn admit_callbacks(&mut self, expression: &'a Node) -> Visited {
         if !is_method(self.facts, expression) {
             return Ok(());
         }
         let iterating = iteration_member(self.facts, expression);
-        let once = run_once(self.facts, expression);
+        let once = run_once(self.facts, expression).unwrap_or_default();
         let arguments = &self.facts.body.children(expression)?[1..];
-        let handed = arguments.iter().enumerate();
-        for (_, argument) in handed.filter(|(index, _)| iterating || once == Some(*index)) {
+        let handed = arguments.iter().zip(0u32..);
+        for (argument, _) in handed.filter(|(_, index)| iterating || once.contains(index)) {
             if argument.kind == NodeKind::Closure {
                 self.callbacks.insert(argument.id.as_str());
             }

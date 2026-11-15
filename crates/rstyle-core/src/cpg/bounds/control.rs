@@ -177,28 +177,36 @@ impl<'a> Collector<'_, '_, 'a> {
 
     /// A member that runs what it's handed at most once for the call, as `Option::map` runs its
     /// closure: the receiver and every other argument are evaluated, and then the callable
-    /// runs or it doesn't. The member does nothing else, so it adds no call of its own. `None`
-    /// keeps ordinary call lowering, where a callable nothing here resolves stays unknown.
+    /// runs or it doesn't. One handed several, as `map_or_else` is, runs at most one of them.
+    /// The member does nothing else, so it adds no call of its own. `None` keeps ordinary call
+    /// lowering, where a callable nothing here resolves stays unknown.
     fn run_once(&mut self, expression: &'a Node, next: u32) -> Result<Option<u32>, String> {
         let inputs = self.facts.body.children(expression)?;
-        let index = run_once(self.facts, expression);
-        let handed = index.and_then(|index| Some((index, *inputs.get(index + 1)?)));
-        let Some((index, callback)) =
-            handed.and_then(|(index, argument)| Some((index, self.callback(argument)?)))
-        else {
+        let Some(indexes) = run_once(self.facts, expression) else {
             return Ok(None);
         };
-        let either = self.ran_or_not(callback, expression, next)?;
-        let others: Vec<&'a Node> = evaluated(&inputs[1..], Some(index as u32)).collect();
+        let handed = indexes.iter().map(|index| {
+            let argument = inputs.get(*index as usize + 1)?;
+            self.callback(argument)
+        });
+        let Some(callbacks) = handed.collect::<Option<Vec<_>>>() else {
+            return Ok(None);
+        };
+        let either = self.ran_or_not(&callbacks, expression, next)?;
+        let others: Vec<&'a Node> = evaluated(&inputs[1..], indexes).collect();
         let entry = self.arguments(&others, either)?;
 
         self.expr(inputs[0], entry).map(Some)
     }
 
-    /// A branch that runs the callable and goes on, or goes on without it.
-    fn ran_or_not(&mut self, callback: Callback<'a>, at: &'a Node, next: u32) -> Lowered {
-        let ran = self.invoke(callback, at, next)?;
-        Ok(self.choice((ran, next), at))
+    /// Branches that each run one of the callables and go on, or go on without any.
+    fn ran_or_not(&mut self, callbacks: &[Callback<'a>], at: &'a Node, next: u32) -> Lowered {
+        let mut either = next;
+        for callback in callbacks.iter().rev() {
+            let ran = self.invoke(*callback, at, next)?;
+            either = self.choice((ran, either), at);
+        }
+        Ok(either)
     }
 
     fn method_invocation(&mut self, expression: &'a Node, next: u32) -> Lowered {

@@ -2340,6 +2340,51 @@ fn risk_reads_a_closure_a_result_s_member_runs_as_this_function_s_code() {
     );
 }
 
+/// A member handed two callables that runs one of them, as `map_or_else` does, is read as one
+/// handed a single callable is: both closures are the function's own code, and what either does is
+/// what the function does.
+#[test]
+fn risk_reads_both_closures_of_a_member_that_runs_one_of_them() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let signature = "pub fn f(o: Option<u8>, r: Result<u8, u8>) -> usize";
+    let base = saved_run_of(
+        root,
+        &format!("{signature} {{ usize::from(o.is_some() && r.is_ok()) }}\n"),
+    );
+    let either = |missing: &str| {
+        format!(
+            "{signature} {{\n    \
+            o.map_or_else(|| {missing}, |x| usize::from(x))\n        \
+            + r.map_or_else(|e| usize::from(e), |x| usize::from(x))\n}}\n"
+        )
+    };
+
+    let rated = report(&risk(&base, &saved_run_of(root, &either("0"))));
+    assert_eq!(rated["risk"], "low", "{rated}");
+    assert_eq!(
+        rated["changes"][0]["calls_unclassified"],
+        serde_json::json!([]),
+        "{rated}"
+    );
+
+    let exits = saved_run_of(root, &either("std::process::exit(1)"));
+    let rated = report(&risk(&base, &exits));
+    let change = &rated["changes"][0];
+    assert_eq!(
+        change["calls_unclassified"],
+        serde_json::json!([]),
+        "{rated}"
+    );
+    assert_eq!(
+        change["effects_gained"],
+        serde_json::json!([{ "kind": "io", "label": "std::process::exit" }]),
+        "{rated}"
+    );
+}
+
 /// A closure written in the function is the function's own code, so a standard member that only runs
 /// it, as `Option::map` or `Iterator::filter` does, adds no call nothing classifies.
 #[test]

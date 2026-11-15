@@ -543,7 +543,7 @@ impl<'a> Graph<'_, 'a> {
     fn loops_over_receiver(&self, call: &Node, operation: Option<&str>) -> Result<bool, String> {
         let handed = operation.and_then(|operation| Contracts::embedded().handed(operation));
         let per_item = Handed {
-            callback: Some(0),
+            callbacks: &[0],
             runs: Runs::PerItem,
         };
         Ok(handed == Some(per_item) && self.type_kind(call)? == TypeKind::Unit)
