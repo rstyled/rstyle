@@ -387,17 +387,20 @@ expression: facts
       {
         "callee": "std::iter::Iterator::collect",
         "line": 21,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::iter::Iterator::map",
         "line": 21,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "std::iter::Iterator::copied",
         "line": 21,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "core::slice::iter",
@@ -418,7 +421,20 @@ expression: facts
       }
     ],
     "effects": [],
-    "edges": [],
+    "edges": [
+      {
+        "callee": "lowered::graphs::half",
+        "line": 21,
+        "dynamic": false,
+        "args": []
+      },
+      {
+        "callee": "lowered::graphs::half",
+        "line": 21,
+        "dynamic": false,
+        "args": []
+      }
+    ],
     "mutated_types": [],
     "sig": null,
     "pdg": {
@@ -7031,7 +7047,8 @@ expression: facts
       {
         "callee": "std::result::Result::map_err",
         "line": 75,
-        "dynamic": false
+        "dynamic": false,
+        "library": "pure"
       },
       {
         "callee": "core::str::parse",

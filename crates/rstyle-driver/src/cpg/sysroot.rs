@@ -1,9 +1,11 @@
 //! Standard-library identity by crate number, never by crate or path spelling.
 use rustc_hir::def::DefKind;
-use rustc_hir::def_id::{CrateNum, DefId};
-use rustc_middle::ty::GenericArgKind;
+use rustc_hir::def_id::{CrateNum, DefId, LocalDefId};
+use rustc_middle::traits::ImplSource;
 use rustc_middle::ty::{self, Ty};
-use rustc_span::sym;
+use rustc_span::{Symbol, sym};
+use rustc_type_ir::elaborate::supertrait_def_ids;
+use std::collections::HashSet;
 
 /// `core`, `alloc` or `std`, identified by the crates defining their lang and diagnostic items.
 pub(crate) fn sysroot(tcx: ty::TyCtxt<'_>, krate: CrateNum) -> bool {
@@ -16,14 +18,6 @@ pub(crate) fn sysroot(tcx: ty::TyCtxt<'_>, krate: CrateNum) -> bool {
         .into_iter()
         .flatten()
         .any(|item| item.krate == krate)
-}
-
-/// Built only from primitives and standard-library types.
-pub(crate) fn standard_type<'tcx>(tcx: ty::TyCtxt<'tcx>, ty: Ty<'tcx>) -> bool {
-    ty.walk().all(|part| match part.kind() {
-        GenericArgKind::Type(ty) => standard_kind(tcx, ty),
-        _ => true,
-    })
 }
 
 fn standard_kind<'tcx>(tcx: ty::TyCtxt<'tcx>, ty: Ty<'tcx>) -> bool {
@@ -45,39 +39,199 @@ fn standard_kind<'tcx>(tcx: ty::TyCtxt<'tcx>, ty: Ty<'tcx>) -> bool {
     }
 }
 
-/// A standard callee may run workspace code through callable arguments or trait bounds
-/// on workspace types, such as `PartialEq::ne`, `Into::into` or `sort` on workspace items.
-pub(crate) fn calls_back<'tcx>(
+/// What a standard callee runs besides its own code.
+#[derive(Default)]
+pub(crate) struct Ran<'tcx> {
+    /// Closures written in the function that calls it, whose bodies are that function's own.
+    pub closures: Vec<DefId>,
+    /// Functions it's handed, each with the arguments it's handed with.
+    pub functions: Vec<(DefId, ty::GenericArgsRef<'tcx>)>,
+    /// Whether it can run anything else: a value only known where it's called, or an
+    /// implementation a bound selects from outside the standard library.
+    pub unnamed: bool,
+    /// What it drives that `std` itself implements: the `next` of an iterator, or the `read` of
+    /// a reader. `core` and `alloc` can't reach the operating system, so only one of these can
+    /// do more than compute.
+    pub driven: Vec<DefId>,
+}
+
+impl<'tcx> Ran<'tcx> {
+    /// Whether it runs only its own code.
+    pub fn nothing(&self) -> bool {
+        self.closures.is_empty() && self.functions.is_empty() && !self.unnamed
+    }
+
+    /// Reads the callables a type argument holds. A closure written in the `owner` is named, and
+    /// what it's built from is left out: its signature and captures are the owner's own. A
+    /// function item is named with its arguments, which are read on.
+    fn handed(&mut self, tcx: ty::TyCtxt<'tcx>, owner: DefId, ty: Ty<'tcx>) {
+        let mut walker = ty.walk();
+        while let Some(part) = walker.next() {
+            match part.as_type().map(|ty| *ty.kind()) {
+                Some(ty::Closure(closure, _)) if tcx.typeck_root_def_id(closure) == owner => {
+                    walker.skip_current_subtree();
+                    let new = !self.closures.contains(&closure);
+                    self.closures.extend(new.then_some(closure));
+                }
+                Some(ty::FnDef(function, arguments)) => {
+                    let handed = (function, arguments.skip_binder());
+                    let new = !self.functions.contains(&handed);
+                    self.functions.extend(new.then_some(handed));
+                }
+                Some(kind) => self.unnamed = self.unnamed || holds_unnamed(kind),
+                None => {}
+            }
+        }
+    }
+}
+
+/// Whether a type holds a callable nothing here names: one only known where it's called, or
+/// hidden behind an `impl Trait`. A type parameter of the owner's, or a type one of its bounds
+/// names, holds only what a bound of the callee's can reach, and the bounds are read for that.
+fn holds_unnamed(kind: ty::TyKind<'_>) -> bool {
+    match kind {
+        ty::Closure(..) | ty::FnPtr(..) | ty::Dynamic(..) | ty::Coroutine(..) => true,
+        ty::Alias(_, alias) => matches!(alias.kind, ty::AliasTyKind::Opaque { .. }),
+        _ => false,
+    }
+}
+
+/// A standard callee may run other code through callable arguments, or through an implementation
+/// one of its bounds selects, such as `PartialEq::ne`, `Into::into` or `sort` on workspace items.
+pub(crate) fn ran<'tcx>(
     tcx: ty::TyCtxt<'tcx>,
+    owner: LocalDefId,
     callee: DefId,
     arguments: ty::GenericArgsRef<'tcx>,
-) -> bool {
-    let callable = arguments.types().any(|ty| {
-        ty.walk().any(|part| {
-            part.as_type().is_some_and(|ty| {
-                matches!(
-                    ty.kind(),
-                    ty::Closure(..)
-                        | ty::FnDef(..)
-                        | ty::FnPtr(..)
-                        | ty::Dynamic(..)
-                        | ty::Param(_)
-                        | ty::Alias(..)
-                        | ty::Coroutine(..)
-                )
-            })
-        })
-    });
-    let sized = tcx.lang_items().sized_trait();
-    callable
-        || tcx
-            .clauses_of(callee)
-            .instantiate(tcx, arguments)
+) -> Ran<'tcx> {
+    let mut ran = Ran::default();
+    for ty in arguments.types() {
+        ran.handed(tcx, owner.to_def_id(), ty);
+    }
+    let mut bounds = Bounds {
+        tcx,
+        environment: ty::TypingEnv::post_analysis(tcx, owner),
+        owner: owner.to_def_id(),
+        seen: HashSet::new(),
+        driven: Vec::new(),
+    };
+    let iterating = iterator_member(tcx, callee);
+    ran.unnamed = ran.unnamed || !bounds.standard((callee, arguments), iterating);
+    ran.driven = bounds.driven;
+    ran
+}
+
+/// The implementations a call's bounds select, each read once.
+struct Bounds<'tcx> {
+    tcx: ty::TyCtxt<'tcx>,
+    environment: ty::TypingEnv<'tcx>,
+    /// The function the call is written in.
+    owner: DefId,
+    seen: HashSet<ty::TraitRef<'tcx>>,
+    /// What each iterator in `std` a bound selected defines, and each reader one runs.
+    driven: Vec<DefId>,
+}
+
+impl<'tcx> Bounds<'tcx> {
+    /// Whether every bound of `item` selects only the standard library's code, or a callable the
+    /// call's arguments name. The bounds are `iterating` when they're an iterator's: the
+    /// callee's, when it's a member of `Iterator`, or those of an implementation of it.
+    fn standard(
+        &mut self,
+        (item, arguments): (DefId, ty::GenericArgsRef<'tcx>),
+        iterating: bool,
+    ) -> bool {
+        let clauses = self.tcx.clauses_of(item).instantiate(self.tcx, arguments);
+        clauses
             .clauses
             .into_iter()
             .filter_map(|clause| clause.skip_norm_wip().as_trait_clause())
-            .filter(|bound| Some(bound.def_id()) != sized)
-            .any(|bound| !standard_type(tcx, bound.self_ty().skip_binder()))
+            .map(|bound| bound.map_bound(|bound| bound.trait_ref))
+            .all(|bound| self.selects_standard(bound, iterating))
+    }
+
+    /// A bound on an associated type is on the type it names, as `Self::Item: Ord` is on the
+    /// item's. One that names none here could select anything.
+    fn selects_standard(&mut self, bound: ty::PolyTraitRef<'tcx>, iterating: bool) -> bool {
+        let bound = self.tcx.instantiate_bound_regions_with_erased(bound);
+        let bound = ty::Unnormalized::new_wip(bound);
+        let named = self
+            .tcx
+            .try_normalize_erasing_regions(self.environment, bound);
+        named.is_ok_and(|bound| self.implemented_by_standard(bound, iterating))
+    }
+
+    /// A bound is read by the implementation it selects, as a call is. The standard library's
+    /// runs what its own bounds select, so `Iter<Item>: Iterator` runs nothing of `Item`'s, and
+    /// `Vec<Item>: Clone` runs `Item`'s `clone`. A trait with no function to call selects no
+    /// code. One the compiler implements runs what the type is built from, and calling a closure
+    /// or a function item runs what the arguments already name.
+    fn implemented_by_standard(&mut self, bound: ty::TraitRef<'tcx>, iterating: bool) -> bool {
+        let tcx = self.tcx;
+        if !declares_functions(tcx, bound.def_id) || !self.seen.insert(bound) {
+            return true;
+        }
+        match tcx.codegen_select_candidate(self.environment.as_query_input(bound)) {
+            Ok(ImplSource::UserDefined(found)) if sysroot(tcx, found.impl_def_id.krate) => {
+                let iterating = iterating || tcx.is_diagnostic_item(sym::Iterator, bound.def_id);
+                let pulled = driven(tcx, bound.def_id, found.impl_def_id);
+                self.driven.extend(pulled.into_iter().filter(|_| iterating));
+                self.standard((found.impl_def_id, found.args), iterating)
+            }
+            Ok(ImplSource::Builtin(..)) => {
+                let receiver = bound.self_ty();
+                let called = tcx.is_fn_trait(bound.def_id) && self.named(receiver);
+                let mut parts = receiver.walk().filter_map(|part| part.as_type());
+                called || parts.all(|ty| standard_kind(tcx, ty))
+            }
+            _ => false,
+        }
+    }
+
+    /// Whether the arguments name this callable: a closure of the owner's, or a function item.
+    fn named(&self, callable: Ty<'tcx>) -> bool {
+        let owner = |closure| self.tcx.typeck_root_def_id(closure) == self.owner;
+        let kind = *callable.kind();
+        matches!(kind, ty::FnDef(..)) || matches!(kind, ty::Closure(closure, _) if owner(closure))
+    }
+}
+
+/// Whether the callee is a member of `Iterator`: the trait's own, or an implementation's.
+fn iterator_member(tcx: ty::TyCtxt<'_>, callee: DefId) -> bool {
+    let item = tcx.opt_associated_item(callee);
+    let member = item.and_then(|item| item.trait_item_def_id());
+    let declared = tcx.trait_of_assoc(member.unwrap_or(callee));
+    declared.is_some_and(|declared| tcx.is_diagnostic_item(sym::Iterator, declared))
+}
+
+/// What an implementation in `std` runs when a call drives it: the functions it defines for the
+/// trait, as an iterator's `next` or a reader's `read`. `std` is the crate that defines
+/// `HashMap`. The same traits' implementations in `core` and `alloc`, such as a slice's iterator
+/// or a `BufReader` around some reader, only compute, and run what their own bounds select. A
+/// reader counts where an iterator runs it, as `io::Lines` runs its reader's `read`: a call that
+/// only takes a reader, as `BufReader::new` does, wraps it and reads nothing.
+fn driven(tcx: ty::TyCtxt<'_>, implemented: DefId, implementation: DefId) -> Vec<DefId> {
+    let std = tcx.get_diagnostic_item(sym::HashMap).map(|item| item.krate);
+    let pulled = ["Iterator", "IoRead", "IoBufRead"]
+        .into_iter()
+        .any(|name| tcx.is_diagnostic_item(Symbol::intern(name), implemented));
+    if Some(implementation.krate) != std || !pulled {
+        return Vec::new();
+    }
+    let defined = tcx.impl_item_implementor_ids(implementation);
+    let members = tcx.associated_items(implemented).in_definition_order();
+    members
+        .filter(|item| item.is_fn())
+        .filter_map(|item| defined.get(&item.def_id).copied())
+        .collect()
+}
+
+/// Whether the trait, or one it requires, declares a function an implementation defines.
+fn declares_functions(tcx: ty::TyCtxt<'_>, declared: DefId) -> bool {
+    supertrait_def_ids(tcx, declared).any(|required| {
+        let mut items = tcx.associated_items(required).in_definition_order();
+        items.any(|item| item.is_fn())
+    })
 }
 
 /// Contract namespace of this frontend's operation keys.

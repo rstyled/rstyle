@@ -20,7 +20,9 @@
 # A trait's own member is keyed by the trait (`Clone.clone`, `Iterator.next`) and stands for whichever
 # implementation runs, and some do more than others: `io::Lines`'s `next` reads. A call is classified by
 # it only where the document names no implementation, as in a generic body, so no trait member is
-# listed here.
+# listed in `none`. A provided member, such as `Iterator.map`, is its own implementation where no type
+# overrides it, and the library contracts or `none_without_callback` say which only run what they're
+# handed.
 #
 # `none` lists members that are pure for every type they're called with. They don't do IO, touch
 # globals, the environment, the clock or randomness; they take no callable, have no bound through
@@ -56,6 +58,16 @@
 
 schema = "rstyle.effect-classes/1"
 namespace = "rust"
+
+# What `std` implements for an iterator or a reader that reads as it's driven. A call written to one
+# of these is io by its path already. These are for the call that drives one it was handed, as
+# `entries.count()` drives a `ReadDir`, and `lines.count()` a `File` behind a `BufReader`.
+io = [
+    { exact = "File.read" },
+    { exact = "FsReadDir.next" },
+    { exact = "Stdin.read" },
+    { exact = "StdinLock.fill_buf" },
+]
 
 # There's no `unlisted`. A Rust library call with no entry is any other standard member or free
 # function, or a call into another crate, and stays unclassified: density doesn't count it, and a
@@ -485,4 +497,33 @@ none = [
     { exact = "std::path::{impl#20}::next" },                            # `path::Components`
     { exact = "std::process::{impl#39}::from" },                         # `Stdio` from `io::Stderr`
     { exact = "std::process::{impl#54}::from" },                         # `ExitCode` from `u8`
+]
+
+# What has no effect of its own but runs what it's handed is pure where the document names everything
+# it runs: closures written in the calling function, whose own facts hold what they do, and functions,
+# each called from there and read by what it does. Every bound then selects the standard library's own
+# implementation. `items.iter().map(|item| item.id).collect::<Vec<_>>()` is pure whatever `items` holds,
+# since the slice's iterator and `Vec`'s `FromIterator` run nothing of the item's, and `map(helper)` is
+# a call of `helper`. `map` with a function pointer, `max` of items whose `Ord` the workspace
+# implements, or `collect` into a set keyed by a type whose `Hash` it implements, stays unclassified.
+#
+# The library contracts say which members those are, in `runtime_bounds/contracts/rust.toml`: a stage
+# or a consumer of an iteration, which runs its callback per item, and a callable member, such as
+# `Option.map`, which runs its own at most once. A member with one of those roles is read this way
+# without being listed here, and can't be listed here as well. `none_without_callback` lists the rest:
+# members no contract gives a role, and implementations a type overrides a provided member with.
+# Driving an iterator does what its `next` does, wherever it was made: `fs::read_dir` opens the
+# directory, and the `count` over its entries reads them. The document names what `std` itself
+# implements for each iterator or reader a call drives, and `io` below lists those that read. An
+# adapter in `core` or `alloc` only computes, and runs what it wraps: `io::Lines` reads through its
+# reader's `read`. A stage, such as `filter_map`, only wraps, so the call that drives it reads.
+# A value one drops runs its type's `Drop`, which counts where it's defined, as `Display` does.
+none_without_callback = [
+    { exact = "Iterator.chain" },
+    { exact = "Iterator.flatten" },
+    { exact = "Iterator.zip" },
+    { exact = "SliceIter.any" },
+    { exact = "SliceIter.find" },
+    { exact = "SliceIter.find_map" },
+    { exact = "SliceIter.position" },
 ]

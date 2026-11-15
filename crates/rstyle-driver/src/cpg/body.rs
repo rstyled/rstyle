@@ -7,6 +7,7 @@
 //! lowering's pattern; the lowering's temporaries are left out.
 
 use super::compiler;
+use super::sysroot::Ran;
 use super::unit::Unit;
 use rustc_hir::def::{DefKind, Res};
 use rustc_hir::def_id::LocalDefId;
@@ -1227,10 +1228,16 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             .tcx
             .opt_associated_item(callee)
             .and_then(|item| item.trait_container(self.tcx));
+        // An interface member runs the implementation static selection finds, if any. One whose
+        // arguments name a type parameter depends on it only when selection needs to know it:
+        // `T::fmt` does, and a slice iterator's `next` is the same code whatever it yields.
+        let open = args.has_infer() || args.has_escaping_bound_vars();
+        let selected = trait_item
+            .filter(|_| !open)
+            .and_then(|_| self.selection(callee, args));
+        let unsettled = selected.is_none() && (open || args.has_non_region_param());
         let types: Vec<String> = args.types().map(|ty| self.unit.ty(ty)).collect();
-        let mut record = if trait_item.is_some()
-            && (args.has_non_region_param() || args.has_infer() || args.has_escaping_bound_vars())
-        {
+        let mut record = if trait_item.is_some() && unsettled {
             json!({"status": "dependent", "dispatch": dispatch, "via": declared, "bounds": []})
         } else {
             json!({"status": "resolved", "dispatch": dispatch,
@@ -1239,31 +1246,88 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
         if !types.is_empty() {
             record["instance_arguments"] = json!(types);
         }
-        if record["status"] == "dependent" {
-            return record;
-        }
-        // An interface member runs the implementation static selection finds, if any.
-        let (runs, runs_args) = match trait_item {
-            Some(_) => match self.selection(callee, args) {
-                Some(instance) => {
-                    let selected = self.unit.definition(instance.def_id());
-                    record["selected"] = json!({"kind": "definition", "id": selected});
-                    if let Some(types) = self.selected_arguments(instance.args) {
-                        record["selected_arguments"] = json!(types);
-                    }
-                    (instance.def_id(), instance.args)
+        let (runs, runs_args) = match (trait_item, selected) {
+            (Some(_), Some(instance)) => {
+                let selected = self.unit.definition(instance.def_id());
+                record["selected"] = json!({"kind": "definition", "id": selected});
+                if let Some(types) = self.selected_arguments(instance.args) {
+                    record["selected_arguments"] = json!(types);
                 }
-                None => return record,
-            },
-            None => (callee, args),
+                (instance.def_id(), instance.args)
+            }
+            (Some(_), None) => return record,
+            (None, _) => (callee, args),
         };
         if compiler::standard(self.tcx, runs) {
-            let value = super::sysroot::calls_back(self.tcx, runs, runs_args);
-            record["calls_back"] = json!({"value": value,
-                "reason": "callable arguments, or bounds on types outside the standard library"});
+            self.calls_back(&mut record, runs, runs_args);
         }
 
         record
+    }
+
+    /// Says whether a standard callee may run other code, and what, when all of it can be named:
+    /// closures written in this function, whose own facts hold what they do, and functions it's
+    /// handed. It also names what `std` implements for the iterators and readers it drives.
+    fn calls_back(
+        &mut self,
+        record: &mut Value,
+        runs: hir::def_id::DefId,
+        args: ty::GenericArgsRef<'tcx>,
+    ) {
+        let ran = super::sysroot::ran(self.tcx, self.owner, runs, args);
+        record["calls_back"] = json!({"value": !ran.nothing(),
+            "reason": "callable arguments, or bounds that select code outside the standard library"});
+        if let Some(named) = self.named(&ran) {
+            record["calls_back"]["runs"] = json!(named);
+        }
+        let drives: Vec<String> = ran
+            .driven
+            .iter()
+            .map(|next| self.unit.definition(*next))
+            .collect();
+        if !drives.is_empty() {
+            record["drives"] = json!(drives);
+        }
+    }
+
+    /// Everything a standard callee runs besides its own code, when it runs something and all of
+    /// it can be named.
+    fn named(&mut self, ran: &Ran<'tcx>) -> Option<Vec<Value>> {
+        (!ran.unnamed && !ran.nothing()).then_some(())?;
+        let mut named = Vec::new();
+        for closure in &ran.closures {
+            let node = self.tcx.local_def_id_to_hir_id(closure.expect_local());
+            named.push(json!({"kind": "closure", "id": self.id(node)}));
+        }
+        for &(function, arguments) in &ran.functions {
+            let definition = self.handed(function, arguments)?;
+            named.push(json!({"kind": "definition", "id": definition}));
+        }
+        Some(named)
+    }
+
+    /// The definition a function handed to a standard callee runs: the implementation an
+    /// interface member selects, as a call to it would. None when selection finds none, or when
+    /// it's the standard library's and runs other code in turn, which nothing here names.
+    fn handed(
+        &mut self,
+        function: hir::def_id::DefId,
+        arguments: ty::GenericArgsRef<'tcx>,
+    ) -> Option<String> {
+        let member = self
+            .tcx
+            .opt_associated_item(function)
+            .and_then(|item| item.trait_container(self.tcx));
+        let (runs, args) = match member {
+            Some(_) => {
+                let instance = self.selection(function, arguments)?;
+                (instance.def_id(), instance.args)
+            }
+            None => (function, arguments),
+        };
+        let own = !compiler::standard(self.tcx, runs)
+            || super::sysroot::ran(self.tcx, self.owner, runs, args).nothing();
+        own.then(|| self.unit.definition(runs))
     }
 
     /// The selected implementation's own arguments, when there are any and all are types.

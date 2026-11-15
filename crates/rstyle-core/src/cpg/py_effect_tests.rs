@@ -99,3 +99,37 @@ fn a_call_that_calls_nothing_back_is_pure_by_an_entry_that_needs_it() {
         "{lens:?}"
     );
 }
+
+/// A function a call is handed runs where the call does, so it's a call made there, read by its
+/// own entry, or as any call with no key is when it has none. The call that runs it has said
+/// everything it runs, so an entry that needs that holds for it.
+#[test]
+fn a_function_a_call_is_handed_is_a_call_made_there() {
+    let handed = |keyed: bool| {
+        let mut document: Value = serde_json::from_str(SIZES).unwrap();
+        let unit = &mut document["unit"];
+        for definition in unit["definitions"].as_array_mut().unwrap() {
+            if definition["name"] == "builtins.print" && !keyed {
+                definition.as_object_mut().unwrap().remove("operation");
+            }
+        }
+        let functions = unit["functions"].as_array_mut().unwrap();
+        let size = functions.iter_mut().find(|f| f["name"] == "size").unwrap();
+        for reference in size["refs"].as_array_mut().unwrap() {
+            // `len(xs)`, as if it were handed `print` and ran it.
+            if reference["node"] == "f1.n14" {
+                reference["calls_back"] = json!({"value": true, "reason": "a callable argument",
+                    "runs": [{"kind": "definition", "id": "def:py::builtins.print"}]});
+            }
+        }
+        classes(document)
+    };
+    let io = Some(LibraryClass::Effect(EffectKind::Io));
+
+    let keyed = handed(true);
+    assert_eq!(class_of(&keyed, "builtins.print"), [io, io]);
+    let lens = class_of(&keyed, "builtins.len");
+    assert_eq!(lens.iter().filter(|class| **class == PURE).count(), 1);
+
+    assert_eq!(class_of(&handed(false), "builtins.print"), [None, None]);
+}

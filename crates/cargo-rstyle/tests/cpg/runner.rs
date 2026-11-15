@@ -2363,6 +2363,297 @@ fn risk_reads_a_new_pure_standard_call_as_classified_and_a_trait_call_as_not() {
     assert!(!called.contains("first"), "{called}");
 }
 
+/// A closure written in the function is the function's own code, so a standard member that only runs
+/// it, as `Option::map` or `Iterator::filter` does, adds no call nothing classifies.
+#[test]
+fn risk_reads_a_closure_written_here_as_this_function_s_code() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let base = saved_run_of(
+        root,
+        "pub fn f(o: Option<u8>, v: &[u8]) -> usize { v.len() + usize::from(o.is_some()) }\n",
+    );
+    let closures = saved_run_of(
+        root,
+        "pub fn f(o: Option<u8>, v: &[u8]) -> usize {\n    \
+        let kept: Vec<u8> = v.iter().map(|x| x + 1).filter(|x| *x > 1).collect();\n    \
+        kept.len() + usize::from(o.map(|x| x + 1).is_some_and(|x| x > 2))\n}\n",
+    );
+
+    let rated = report(&risk(&base, &closures));
+    assert_eq!(rated["risk"], "low", "{rated}");
+    assert_eq!(
+        rated["changes"][0]["calls_unclassified"],
+        serde_json::json!([]),
+        "{rated}"
+    );
+}
+
+/// A closure's body is the function's own code to the comparison too. A call added inside one is a
+/// call the function now makes, and reading another variable there changes its graph, where both
+/// read as text only before. All of an `async fn` is such a body.
+#[test]
+fn risk_reads_a_change_inside_a_closure_as_a_change_to_the_function() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    let source = |closure: &str, awaited: &str| {
+        format!(
+            "pub fn limit() -> u8 {{ 3 }}\n\
+            pub fn f(o: Option<u8>, k: u8, j: u8) -> Option<u8> {{ o.map(|x| {closure}) }}\n\
+            pub async fn g(k: u8, j: u8) -> u8 {{ {awaited} }}\n"
+        )
+    };
+    let base = saved_run_of(root, &source("x + k", "k"));
+    let rated = report(&risk(&base, &saved_run_of(root, &source("x + j", "j"))));
+    let changes = rated["changes"].as_array().unwrap();
+    assert_eq!(changes.len(), 2, "{rated}");
+    for change in changes {
+        assert_eq!(change["kind"], "changed", "{change}");
+        assert_eq!(change["graph"]["edges_added"], 1, "{change}");
+    }
+
+    let called = saved_run_of(root, &source("x + k + limit()", "k + limit()"));
+    let rated = report(&risk(&base, &called));
+    for change in rated["changes"].as_array().unwrap() {
+        assert_eq!(
+            change["calls_added"],
+            serde_json::json!(["app::limit"]),
+            "{change}"
+        );
+    }
+}
+
+/// Draining an iterator does what its `next` does, wherever the iterator was made: counting a
+/// directory's entries reads the directory, and counting a file's bytes reads the file through the
+/// adapter around it. A stage only wraps what it's handed, so wrapping one reads nothing yet.
+#[test]
+fn risk_reads_a_drained_iterator_by_what_its_next_does() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    let source = |body: &str| {
+        format!(
+            "pub fn f(entries: std::fs::ReadDir, bytes: std::io::Bytes<std::fs::File>) -> usize \
+            {{ {body} }}\n"
+        )
+    };
+    let base = saved_run_of(root, &source("drop((entries, bytes)); 0"));
+    let drained = saved_run_of(
+        root,
+        &source(
+            "entries.filter(|entry| entry.is_ok()).count() + bytes.filter(|byte| byte.is_ok()).count()",
+        ),
+    );
+    let rated = report(&risk(&base, &drained));
+    let gained = rated["changes"][0]["effects_gained"].to_string();
+    assert!(gained.contains("std::fs::ReadDir"), "{rated}");
+    assert!(gained.contains("std::fs::File"), "{rated}");
+
+    let wrapped = saved_run_of(root, &source("drop((entries.skip(1), bytes.skip(1))); 0"));
+    let rated = report(&risk(&base, &wrapped));
+    assert_eq!(
+        rated["changes"][0]["effects_gained"],
+        serde_json::json!([]),
+        "{rated}"
+    );
+}
+
+/// What the handed-function tests share: a constructor, a function of the workspace's, and a
+/// signature with a function pointer.
+const HANDED: &str = "pub struct Id(pub u8);\npub fn helper(x: &u8) -> u8 { *x }\n\
+    pub fn f(v: &[u8], names: &[&str], p: fn(&u8) -> u8) -> usize";
+
+/// A function a standard member is handed runs where the member does, so it's called from there.
+/// One of the workspace's gains a caller, a constructor runs nothing, and a standard function is
+/// read by what it does, as an interface's member is by the implementation it selects, so the
+/// member that runs them adds no call nothing classifies.
+#[test]
+fn risk_reads_a_function_a_standard_member_is_handed_as_called_there() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let base = saved_run_of(root, &format!("{HANDED} {{ v.len() + names.len() }}\n"));
+    let handed = saved_run_of(
+        root,
+        &format!(
+            "{} {{\n    \
+            let ids: Vec<Id> = v.iter().map(helper).filter(|x| *x > 1).map(Id).collect();\n    \
+            let named = names.iter().map(ToString::to_string).count();\n    \
+            ids.len() + named + names.iter().copied().map(str::len).count()\n}}\n",
+            HANDED.replace("{ *x }", "{ *x + 1 }")
+        ),
+    );
+
+    let rated = report(&risk(&base, &handed));
+    assert_eq!(rated["risk"], "low", "{rated}");
+    let change = |name: &str| {
+        let changes = rated["changes"].as_array().unwrap();
+        changes
+            .iter()
+            .find(|change| change["name"] == name)
+            .unwrap()
+    };
+    assert_eq!(
+        change("f")["calls_unclassified"],
+        serde_json::json!([]),
+        "{rated}"
+    );
+    assert_eq!(change("helper")["callers"], 1, "{rated}");
+}
+
+/// A standard function a member is handed does what it does there, as `fs::read` reads. A value
+/// only known where it's called, such as a function pointer, could be any code, and the member
+/// that runs it stays unclassified.
+#[test]
+fn risk_reads_a_handed_function_by_what_it_does_and_a_pointer_as_unknown() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let base = saved_run_of(root, &format!("{HANDED} {{ v.len() + names.len() }}\n"));
+    let read = saved_run_of(
+        root,
+        &format!("{HANDED} {{ v.len() + names.iter().copied().map(std::fs::read).count() }}\n"),
+    );
+    let rated = report(&risk(&base, &read));
+    let gained = rated["changes"][0]["effects_gained"].to_string();
+    assert!(gained.contains("std::fs::read"), "{rated}");
+
+    let pointer = saved_run_of(
+        root,
+        &format!("{HANDED} {{ v.iter().map(p).count() + names.len() }}\n"),
+    );
+    let rated = report(&risk(&base, &pointer));
+    assert_eq!(rated["risk"], "unknown", "{rated}");
+    assert!(
+        rated["changes"][0]["calls_unclassified"]
+            .to_string()
+            .contains("map"),
+        "{rated}"
+    );
+}
+
+/// A bound is read by the implementation it selects. The standard library's iterator over a
+/// workspace type runs nothing of the type's, and neither does collecting its values into a `Vec`, so
+/// a chain over them adds no call nothing classifies. A set's key selects the type's own `Hash`,
+/// which is other code, and stays unclassified.
+#[test]
+fn risk_reads_a_bound_by_the_implementation_it_selects() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let item = "#[derive(PartialEq, Eq, Hash)]\npub struct Item { pub id: u32 }\n";
+    let base = saved_run_of(
+        root,
+        &format!("{item}pub fn f(items: &[Item]) -> usize {{ items.len() }}\n"),
+    );
+    let chained = saved_run_of(
+        root,
+        &format!(
+            "{item}pub fn f(items: &[Item]) -> usize {{\n    \
+            let ids: Vec<u32> = items.iter().map(|item| item.id).filter(|id| *id > 1).collect();\n    \
+            let kept: Vec<&Item> = items.iter().filter(|item| item.id > 1).collect();\n    \
+            ids.len() + kept.len() + items.iter().map(|item| item.id).count()\n}}\n"
+        ),
+    );
+
+    let rated = report(&risk(&base, &chained));
+    assert_eq!(rated["risk"], "low", "{rated}");
+    assert_eq!(
+        rated["changes"][0]["calls_unclassified"],
+        serde_json::json!([]),
+        "{rated}"
+    );
+
+    let keyed = saved_run_of(
+        root,
+        &format!(
+            "{item}pub fn f(items: &[Item]) -> usize {{\n    \
+            let seen: std::collections::HashSet<&Item> = items.iter().collect();\n    \
+            seen.len()\n}}\n"
+        ),
+    );
+    let rated = report(&risk(&base, &keyed));
+    assert_eq!(rated["risk"], "unknown", "{rated}");
+    assert!(
+        rated["changes"][0]["calls_unclassified"]
+            .to_string()
+            .contains("collect"),
+        "{rated}"
+    );
+}
+
+/// A call in a generic function is read as it is anywhere else when the type parameter doesn't
+/// decide what runs. A slice's iterator is the same code whatever it yields, a closure written
+/// there is still the function's own, and `?` on a `Result` converts its error with none at all.
+#[test]
+fn risk_reads_a_call_in_a_generic_function_by_what_selection_settles() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let signature =
+        "pub fn f<T: Copy, E>(items: &[T], o: Option<T>, r: Result<T, E>) -> Result<usize, E>";
+    let base = saved_run_of(
+        root,
+        &format!("{signature} {{ Ok(items.len() + usize::from(o.is_some() && r.is_ok())) }}\n"),
+    );
+    let chained = saved_run_of(
+        root,
+        &format!(
+            "{signature} {{\n    \
+            let kept: Vec<T> = items.iter().map(|item| *item).filter(|_| r.is_ok()).collect();\n    \
+            let first = o.map(|item| item).is_some_and(|_| true);\n    \
+            r?;\n    \
+            Ok(kept.len() + usize::from(first))\n}}\n"
+        ),
+    );
+
+    let rated = report(&risk(&base, &chained));
+    assert_eq!(rated["risk"], "low", "{rated}");
+    assert_eq!(
+        rated["changes"][0]["calls_unclassified"],
+        serde_json::json!([]),
+        "{rated}"
+    );
+}
+
+/// What a bound of the function's own decides is code only known where the function is called:
+/// the `parse` of a `T: FromStr`, the `map` of an `I: Iterator`, and the `clone` a slice of
+/// `T: Clone` runs for each item. Those stay unclassified.
+#[test]
+fn risk_leaves_what_a_type_parameter_decides_unclassified() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let signature = "pub fn f<T: Clone + std::str::FromStr, I: Iterator<Item = u8>>\
+        (items: &[T], text: &str, more: I) -> usize";
+    let base = saved_run_of(
+        root,
+        &format!("{signature} {{ items.len() + more.count() }}\n"),
+    );
+    let unclassified = |body: &str| {
+        let head = saved_run_of(root, &format!("{signature} {{ {body} }}\n"));
+        let rated = report(&risk(&base, &head));
+        assert_eq!(rated["risk"], "unknown", "{rated}");
+        rated["changes"][0]["calls_unclassified"].to_string()
+    };
+
+    let parsed =
+        unclassified("items.len() + more.count() + usize::from(text.parse::<T>().is_ok())");
+    assert!(parsed.contains("parse"), "{parsed}");
+    let mapped = unclassified("items.len() + more.map(|byte| byte + 1).count()");
+    assert!(mapped.contains("map"), "{mapped}");
+    let cloned = unclassified("items.to_vec().len() + more.count()");
+    assert!(cloned.contains("to_vec"), "{cloned}");
+}
+
 /// `.await` polls the body of the `async fn` it awaits, which the call that made the future already
 /// reads, and `?` converts the error with the workspace's `From` or with none at all, so an async
 /// function that awaits and propagates adds no call nothing classifies.
@@ -2417,9 +2708,13 @@ fn risk_reads_an_exact_entry_as_only_the_member_it_names() {
         "{change}"
     );
 
+    // A value only known where it's called is other code, where a closure written here would be
+    // this function's.
     let callable = saved_run_of(
         root,
-        &format!("{signature} {{ v.push(1); a.is_some_and(|x| x > 0) }}\n"),
+        &format!(
+            "static POSITIVE: fn(u8) -> bool = |x| x > 0;\n{signature} {{ v.push(1); a.is_some_and(POSITIVE) }}\n"
+        ),
     );
     let rated = report(&risk(&pure, &callable));
     assert_eq!(rated["risk"], "unknown", "{rated}");

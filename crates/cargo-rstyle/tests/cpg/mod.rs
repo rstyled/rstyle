@@ -387,6 +387,7 @@ pub(crate) fn derived(out: &Path) -> Vec<rstyle_core::facts::FnFacts> {
         .collect();
     let demand = rstyle_core::cpg::records::Demand {
         graphs: true,
+        closures: rstyle_core::cpg::records::Closures::Opaque,
         bounds: false,
         flow: false,
         defects: false,

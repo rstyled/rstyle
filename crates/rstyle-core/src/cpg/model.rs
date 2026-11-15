@@ -735,6 +735,9 @@ pub struct Ref {
     pub arguments: Option<Vec<ArgumentBinding>>,
     pub instance: Option<Id>,
     pub calls_back: Option<CallsBack>,
+    /// Library implementations the call drives that can do more than the callee itself, each by
+    /// its definition: the `next` of an iterator it's handed.
+    pub drives: Option<Vec<Id>>,
     pub reason: Option<String>,
     /// The item type of the receiver, for a call to an iteration member.
     pub item: Option<Id>,
@@ -775,6 +778,27 @@ pub struct InstanceSignature {
 pub struct CallsBack {
     pub value: bool,
     pub reason: String,
+    /// Everything it runs besides its own code, when it runs something and the frontend can name
+    /// it all. Bounds still count it as calling back, since a closure runs once per item.
+    pub runs: Option<Vec<Ran>>,
+}
+
+impl CallsBack {
+    /// Whether the document says everything it runs: nothing, or what `runs` names.
+    pub fn named(&self) -> bool {
+        !self.value || self.runs.is_some()
+    }
+}
+
+/// Code a library call runs besides its own.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum Ran {
+    /// A closure written in the calling function, by its node. That function's own facts hold
+    /// what it does.
+    Closure { id: Id },
+    /// A function it's handed, by its definition.
+    Definition { id: Id },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]

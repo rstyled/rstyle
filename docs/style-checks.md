@@ -105,7 +105,11 @@ panicking on a bad argument and formatting into a `String` count as no effect, a
 other library call unclassified, so density doesn't count it. A call is classified by the
 implementation it selects, when the frontend names one, and by the function it names otherwise: `?`
 on a `Result`, `String`'s `clone` and `to_string` are pure, but `Option`'s `clone`, which runs the
-element's, isn't listed. [Python's](../crates/rstyle-core/src/cpg/contracts/effects/py.toml) lists
+element's, isn't listed. A member that only runs what it's handed, such as `Iterator::map` or
+`Option::map`, is pure where the frontend names everything it runs. The
+[library contracts](../crates/rstyle-core/src/runtime_bounds/contracts/rust.toml) say which members
+those are and how often each runs its callable, once for runtime bounds, effects and the dependence
+graph. [Python's](../crates/rstyle-core/src/cpg/contracts/effects/py.toml) lists
 the standard library's effects, such as `open`, `subprocess.run`, `os.getenv` and `time.monotonic`,
 and leaves third-party calls unclassified, as Rust's does. Python runs a value's own methods almost
 everywhere, so its `none` list only holds what runs nothing it's handed, such as `id`, `typing.cast`

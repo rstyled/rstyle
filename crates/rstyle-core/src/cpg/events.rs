@@ -3,8 +3,8 @@
 
 use super::effects::EffectClasses;
 use super::model::{
-    Definition, DefinitionKind, Dispatch, Node, NodeKind, Origin, Place, PlaceMode, Ref, RefStatus,
-    RefTarget, Scope, Step, Symbol, TargetKind, TypeKind,
+    Definition, DefinitionKind, Dispatch, Node, NodeKind, Origin, Place, PlaceMode, Ran, Ref,
+    RefStatus, RefTarget, Scope, Step, Symbol, TargetKind, TypeKind,
 };
 use super::source::Sources;
 use super::tree::{Body, Tables, anchor, generated, is_kind, line, scope_end};
@@ -14,6 +14,7 @@ use crate::facts::{
     MutationOrigin,
 };
 use crate::paths::strip_generics;
+use crate::runtime_bounds::contracts::Contracts;
 use crate::wording::Message;
 use std::collections::BTreeMap;
 
@@ -176,7 +177,11 @@ impl<'a> Walk<'a> {
                 });
                 Ok(())
             }
-            Call::Resolved(callee) => self.resolved(site, callee, out),
+            Call::Resolved(callee) => {
+                let ran = (callee.reference, callee.selected);
+                self.resolved(site, callee, out)?;
+                self.handed(site.node, ran, out)
+            }
         }
     }
 
@@ -287,6 +292,87 @@ impl<'a> Walk<'a> {
         Ok(())
     }
 
+    /// A function a library call is handed runs where the call does, so it's called from there:
+    /// one of the workspace's is a call edge, and one from outside this unit is a call, read by
+    /// its own class. The frontend names a library's only when it runs nothing else in turn. A
+    /// closure the call names is this function's own code, and a constructor runs none.
+    fn handed(
+        &self,
+        node: &'a Node,
+        (reference, runs): (&Ref, &Definition),
+        out: &mut Events,
+    ) -> Result<(), String> {
+        self.driven(node, (reference, runs), out)?;
+        let named = reference.calls_back.iter();
+        for ran in named.flat_map(|calls_back| calls_back.runs.iter().flatten()) {
+            let Ran::Definition { id } = ran else {
+                continue;
+            };
+            let definition = self.tables.definition(id)?;
+            if !matches!(
+                definition.kind,
+                DefinitionKind::Function | DefinitionKind::Method
+            ) {
+                continue;
+            }
+            let line = self.line(node)?;
+            let library = definition.scope == Scope::Library;
+            if !library {
+                out.edges.push(Edge {
+                    callee: definition.stable_identity.clone(),
+                    line,
+                    dynamic: false,
+                    required: has_modifier(definition, "abstract"),
+                    args: Vec::new(),
+                });
+            }
+            if definition.scope != Scope::Unit {
+                let class = match definition.operation.as_deref() {
+                    Some(operation) => self.classes.class_without_callback(operation),
+                    None => self.classes.unlisted(),
+                };
+                out.calls.push(CallEvent {
+                    callee: strip_generics(&definition.name),
+                    line,
+                    dynamic: false,
+                    library: class.filter(|_| library),
+                    library_callee: library.then(|| definition.stable_identity.clone()),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// What the library itself implements for an iterator or a reader a call drives runs where
+    /// the call does, not where the value was made: draining a directory's entries reads the
+    /// directory. Each is read by its own class, and counts when that's an effect, since most
+    /// only compute. A stage only wraps what it's handed, and whatever drives the stage drives
+    /// that.
+    fn driven(
+        &self,
+        node: &'a Node,
+        (reference, runs): (&Ref, &Definition),
+        out: &mut Events,
+    ) -> Result<(), String> {
+        let stage = |operation| Contracts::embedded().stage(operation).is_some();
+        let wraps = runs.operation.as_deref().is_some_and(stage);
+        for id in reference.drives.iter().flatten().filter(|_| !wraps) {
+            let definition = self.tables.definition(id)?;
+            let operation = definition.operation.as_deref();
+            let class = operation.and_then(|key| self.classes.class_without_callback(key));
+            if let Some(LibraryClass::Effect(_)) = class {
+                out.calls.push(CallEvent {
+                    callee: strip_generics(&definition.name),
+                    line: self.line(node)?,
+                    dynamic: false,
+                    library: class,
+                    library_callee: Some(definition.stable_identity.clone()),
+                });
+            }
+        }
+        Ok(())
+    }
+
     /// What the namespace's contract says this library call does: the implementation it selects,
     /// when the document names a library's, since that's what runs, and its declared callee
     /// otherwise. An implementation in the workspace is followed through the call edge instead. An
@@ -309,7 +395,7 @@ impl<'a> Walk<'a> {
             return Ok(Some(LibraryClass::Pure));
         }
         let calls_back = callee.reference.calls_back.as_ref();
-        Ok(if calls_back.is_some_and(|calls_back| !calls_back.value) {
+        Ok(if calls_back.is_some_and(|calls_back| calls_back.named()) {
             self.classes.class_without_callback(operation)
         } else {
             self.classes.class(operation)

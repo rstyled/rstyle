@@ -33,6 +33,7 @@ const EDITED: &str = include_str!("testdata/bodies-edited-py.cpg.json");
 
 const DEMAND: Demand = Demand {
     graphs: true,
+    closures: crate::cpg::records::Closures::Opaque,
     bounds: false,
     flow: false,
     defects: false,

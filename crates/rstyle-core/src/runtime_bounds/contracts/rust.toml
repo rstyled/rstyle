@@ -224,6 +224,42 @@ operations = [
   "Iterator.position",
 ]
 
+# Callable roles. A `[[callable]]` member runs the callable it's handed for the call itself,
+# not per item of a traversal: `runs` says how often, `arity` is the argument count after the
+# receiver and `callback` the index of the callable. Every other argument is evaluated before
+# it, and the member does nothing else. With the stages and consumers above, this is the one
+# place that says how a library member runs what it's handed: runtime bounds read the per-item
+# roles, effect classes read any role as no effect of the member's own, and the dependence
+# graph reads a consumer that runs its only argument per item and returns nothing as a loop.
+
+[[callable]]
+basis = "Runs the callable at most once, on the value the receiver holds or in place of the one it lacks"
+runs = "AtMostOnce"
+arity = 1
+callback = 0
+operations = [
+  "Option.and_then",
+  "Option.filter",
+  "Option.is_none_or",
+  "Option.is_some_and",
+  "Option.map",
+  "Option.ok_or_else",
+  "Option.or_else",
+  "Option.unwrap_or_else",
+  "Result.is_ok_and",
+  "Result.map",
+  "Result.map_err",
+  "Result.unwrap_or_else",
+  "bool.then",
+]
+
+[[callable]]
+basis = "Evaluates the default, then runs the callable at most once on the value the receiver holds"
+runs = "AtMostOnce"
+arity = 2
+callback = 1
+operations = ["Option.map_or"]
+
 # Extent roles: inherent members over a receiver whose entry count is stable while
 # a shared borrow is live.
 

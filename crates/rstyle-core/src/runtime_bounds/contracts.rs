@@ -8,7 +8,8 @@
 mod iteration;
 
 pub use iteration::{
-    ConsumerEffect, Dispatch, Dispatched, Extent, ExtentRole, ItemAgnostic, Iteration, StageEffect,
+    ConsumerEffect, Dispatch, Dispatched, Extent, ExtentRole, Handed, ItemAgnostic, Iteration,
+    Runs, StageEffect,
 };
 
 use super::Bound;
@@ -77,6 +78,8 @@ struct File {
     consumer: Vec<iteration::Entry<ConsumerEffect>>,
     #[serde(default)]
     extent: Vec<iteration::ExtentEntry>,
+    #[serde(default)]
+    callable: Vec<iteration::CallableEntry>,
 }
 
 #[derive(Deserialize)]
@@ -94,6 +97,7 @@ pub struct Contracts {
     stages: BTreeMap<String, Iteration<StageEffect>>,
     consumers: BTreeMap<String, Iteration<ConsumerEffect>>,
     extents: BTreeMap<String, Extent>,
+    callables: BTreeMap<String, Handed>,
 }
 
 impl File {
@@ -173,7 +177,26 @@ impl Contracts {
 
         let consumers = file.consumer.iter();
         let consumers = consumers.map(|entry| Ok((&entry.operations[..], entry.iteration()?)));
-        declare(&mut self.consumers, (namespace, "consumer"), consumers)
+        declare(&mut self.consumers, (namespace, "consumer"), consumers)?;
+
+        let callables = file.callable.iter();
+        let callables = callables.map(|entry| Ok((&entry.operations[..], entry.handed()?)));
+        declare(&mut self.callables, (namespace, "callable"), callables)
+    }
+
+    /// How an operation runs what it's handed, whichever role says so: a stage or a consumer
+    /// runs its callback once per item, and a callable member runs its own for the call. An
+    /// operation with one of these roles has no effect of its own, so every reader of what a
+    /// library call runs asks here: runtime bounds, effect classes and the dependence graph.
+    pub fn handed(&self, operation: &str) -> Option<Handed> {
+        let per_item = |callback| Handed {
+            callback,
+            runs: Runs::PerItem,
+        };
+        let stage = self.stages.get(operation).map(|role| role.callback);
+        let consumer = self.consumers.get(operation).map(|role| role.callback);
+        let callable = self.callables.get(operation).copied();
+        callable.or(stage.or(consumer).map(per_item))
     }
 
     /// The adapter role of an operation that transforms a traversal's items.
@@ -327,6 +350,51 @@ mod tests {
         assert_eq!(extents, "Library operation t:V.len has two extent roles");
         let role = file(&extent.replace("Length", "Capacity"));
         assert!(Contracts::parse_all(&[&role]).is_err());
+    }
+
+    #[test]
+    fn a_role_says_how_an_operation_runs_what_it_is_handed() {
+        let contracts = Contracts::embedded();
+        let per_item = |callback| {
+            Some(Handed {
+                callback,
+                runs: Runs::PerItem,
+            })
+        };
+        assert_eq!(contracts.handed("rust:Iterator.map"), per_item(Some(0)));
+        assert_eq!(contracts.handed("rust:Iterator.fold"), per_item(Some(1)));
+        assert_eq!(contracts.handed("rust:Iterator.count"), per_item(None));
+        let once = |callback| {
+            Some(Handed {
+                callback: Some(callback),
+                runs: Runs::AtMostOnce,
+            })
+        };
+        assert_eq!(contracts.handed("rust:Option.map"), once(0));
+        assert_eq!(contracts.handed("rust:Option.map_or"), once(1));
+        // A step contract says what a call costs, not what it runs.
+        assert_eq!(contracts.handed("rust:Vec.len"), None);
+    }
+
+    #[test]
+    fn callable_roles_are_validated() {
+        let callable = "[[callable]]\nbasis = \"b\"\nruns = \"AtMostOnce\"\narity = 1\ncallback = 0\noperations = [\"O.map\"]\n";
+        let one = Contracts::parse_all(&[&file(callable)]).unwrap();
+        assert_eq!(
+            one.handed("t:O.map").map(|role| role.runs),
+            Some(Runs::AtMostOnce)
+        );
+        let twice = Contracts::parse_all(&[&file(callable), &file(callable)]).unwrap_err();
+        assert_eq!(twice, "Library operation t:O.map has two callable roles");
+
+        // The callable is one of the arguments, and a traversal's is a stage's or a consumer's.
+        let outside = file(&callable.replace("callback = 0", "callback = 1"));
+        assert_eq!(
+            Contracts::parse_all(&[&outside]).unwrap_err(),
+            "Callable role AtMostOnce with arity 1 has callback 1"
+        );
+        let per_item = file(&callable.replace("AtMostOnce", "PerItem"));
+        assert!(Contracts::parse_all(&[&per_item]).is_err());
     }
 
     #[test]

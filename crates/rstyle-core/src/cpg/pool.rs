@@ -210,6 +210,7 @@ mod tests {
     fn pooled(documents: Vec<Value>, workers: usize) -> Result<Vec<Record>, String> {
         let demand = Demand {
             graphs: true,
+            closures: records::Closures::Opaque,
             bounds: true,
             flow: true,
             defects: false,
