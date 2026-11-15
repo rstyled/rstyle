@@ -109,6 +109,14 @@ or selected extent. The right-hand side still runs, including its calls, counter
 Fields, indexes, references, aggregates, adjusted places, unknown types and overloaded assignments
 retain conservative handling. A Boolean assignment does not prove progress of a Boolean-controlled loop.
 
+**Fresh output storage.** A resolved builtin allocation with an explicit storage contract can certify
+a fresh native sequence with builtin element writes. An ordinary indexed assignment can then preserve
+a scan bound when the sequence is held in an immutable local, its value shape is complete, and its
+base and index are effect-free. The allocation and right-hand side still run. Unknown setters,
+overloaded assignments, indirect bases, effectful indexes and possible cleanup retain conservative
+handling. This certifies unrelated storage; it does not infer the output collection's length from
+the allocator's arguments or prove library operation costs.
+
 **Arguments.** A call evaluates its receiver or callee, then what each argument passes. An argument that
 holds its value under a name, as Python's `print(total, end="")` does, passes that value. One that unpacks
 a sequence or a mapping, as `*items` and `**options` do, is unsupported.
@@ -214,6 +222,9 @@ roles, so frontends carry no method tables:
 - A `[[callable]]` names functions and members that run a callable for the call itself, the arguments
   that are callables, counted after the receiver or the callee, and how often it runs one. One that runs
   one at most once lowers to a branch around each.
+- `[[allocation]]` certifies the storage created by a builtin allocator, independently of its cost.
+  `FreshNativeSequence` promises native element writes without user setters; a declared static type
+  operand is skipped only after matching a childless type annotation at the certified position.
 - `[[extent]]` marks members that read a stable length (`Length`) or traverse each entry once
   (`Traversal`).
 

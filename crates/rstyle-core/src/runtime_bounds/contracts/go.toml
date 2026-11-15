@@ -11,6 +11,13 @@
 schema = "rstyle.library-contracts/1"
 namespace = "go"
 
+[[allocation]]
+basis = "The built-in allocator creates a fresh native slice header and backing storage; replacing an element invokes no setter and leaves the header's length unchanged. The type operand is static; length evaluation and allocation costs remain separate."
+storage = "FreshNativeSequence"
+arity = 2
+type_argument = 0
+operations = ["make"]
+
 [[callable]]
 basis = "Runs the function the first time it's called on this Once, and returns when that call has"
 runs = "AtMostOnce"

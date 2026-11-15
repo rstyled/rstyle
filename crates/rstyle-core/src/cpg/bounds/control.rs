@@ -138,7 +138,9 @@ impl<'a> Collector<'_, '_, 'a> {
             operation,
         };
         let call = self.node(action, Flow::Goto(next), expression);
-        let entry = self.arguments(&arguments, call)?;
+        let runtime = self.allocation_operands(expression)?;
+        let evaluated = runtime.as_deref().unwrap_or(&arguments);
+        let entry = self.arguments(evaluated, call)?;
 
         self.expr(callee, entry)
     }
@@ -257,11 +259,17 @@ impl<'a> Collector<'_, '_, 'a> {
     fn assignment(&mut self, expression: &'a Node, next: u32) -> Lowered {
         match self.assignment_action(expression)? {
             Ok((action, right)) => {
-                let assignment = self.node(action, Flow::Goto(next), expression);
+                let assignment = self.assignment_entry(expression, action, next)?;
                 self.expr(right, assignment)
             }
             Err(reason) => Ok(self.unsupported(expression, next, reason)),
         }
+    }
+
+    fn assignment_entry(&mut self, expression: &'a Node, action: Action, next: u32) -> Lowered {
+        let assignment = self.node(action, Flow::Goto(next), expression);
+        let place = self.facts.body.child(expression, 0)?;
+        self.assignment_place(place, assignment)
     }
 
     fn assignment_action(
@@ -280,7 +288,12 @@ impl<'a> Collector<'_, '_, 'a> {
             ))),
             // The value still runs, including every call, adjustment and cleanup.
             Write::Irrelevant => Ok(Ok((Action::Nop, right))),
-            Write::Unmodeled => Ok(Err("Assignment through unmodeled place or alias")),
+            Write::NativeElement if expression.kind == NodeKind::Assignment => {
+                Ok(Ok((Action::Nop, right)))
+            }
+            Write::NativeElement | Write::Unmodeled => {
+                Ok(Err("Assignment through unmodeled place or alias"))
+            }
         }
     }
 
@@ -346,7 +359,7 @@ impl<'a> Collector<'_, '_, 'a> {
                     assignment
                 }
                 Write::Irrelevant => entry,
-                Write::Unmodeled => {
+                Write::NativeElement | Write::Unmodeled => {
                     self.unsupported(place, entry, "Assignment through unmodeled place or alias")
                 }
             };
