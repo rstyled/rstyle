@@ -28,13 +28,13 @@ stops creating new `Rstyle` checks once that setting reaches the base branch.
 The `.github/workflows/ci.yml` jobs, including self-checks and patterns, stay as
 they are. Restore `status_check = true` to resume App checks. This setting does
 not cancel existing checks or disable the App's background reviews and storage.
-If branch protection requires its check, remove that requirement during the
-bypass; a local result cannot satisfy a check restricted to the GitHub App.
+The local review can complete existing App checks with the owning App's
+credential, as described below; a local report alone does not finish them.
 
 Build this checkout's analyzer and a sibling checkout of
 [`rstyled/rstyle-mcp-server`](https://github.com/rstyled/rstyle-mcp-server).
 Until merged, use its [`fix/local-no-cloud` branch / PR #162](https://github.com/rstyled/rstyle-mcp-server/pull/162)
-for current-analyzer startup and large local report support:
+for full local reviews, current-analyzer startup and large local report support:
 
 ```sh
 cargo build --locked -p cargo-rstyle -p rstyle-driver
