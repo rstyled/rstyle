@@ -43,6 +43,7 @@ pub fn lower(facts: &Facts<'_, '_>, arithmetic: Arithmetic) -> Result<Input, Str
         depth: 0,
         work: 0,
         extents: BTreeMap::new(),
+        extent_origins: BTreeMap::new(),
         closures: BTreeMap::new(),
         returns: Vec::new(),
         formals: BTreeMap::new(),
@@ -63,6 +64,7 @@ pub(crate) struct Collector<'f, 'b, 'a> {
     depth: usize,
     work: usize,
     extents: BTreeMap<String, String>,
+    extent_origins: BTreeMap<String, extent::Place<'a>>,
     closures: BTreeMap<&'a str, &'a Node>,
     returns: Vec<u32>,
     formals: BTreeMap<&'a str, u32>,
@@ -93,7 +95,7 @@ impl<'a> Collector<'_, '_, 'a> {
                     .into(),
             });
         }
-        self.install_extents(&parameters, frame.extents)?;
+        self.install_extents(&parameters, frame.extents, frame.origins)?;
         self.parameters(&parameters)?;
         let root = self.facts.body.root()?;
         match frame.reason {

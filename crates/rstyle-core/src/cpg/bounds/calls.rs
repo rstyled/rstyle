@@ -108,6 +108,7 @@ impl<'a> Collector<'_, '_, 'a> {
         &mut self,
         parameters: &[Parameter<'a>],
         places: Vec<Place<'a>>,
+        origins: std::collections::BTreeMap<String, Place<'a>>,
     ) -> Result<(), String> {
         self.formal_positions(parameters);
         for place in places {
@@ -118,9 +119,13 @@ impl<'a> Collector<'_, '_, 'a> {
                 length,
             );
             self.program.inputs.push(place.label.clone());
-            self.program.extents.push(self.provenance(&place));
+            let source = origins.get(&place.key()).unwrap_or(&place);
+            let mut provenance = self.provenance(source);
+            provenance.input = place.label.clone();
+            self.program.extents.push(provenance);
             self.extents.insert(place.key(), place.label);
         }
+        self.extent_origins = origins;
         Ok(())
     }
 
@@ -272,10 +277,13 @@ impl<'a> Collector<'_, '_, 'a> {
             return Ok(Argument::Scalar(self.value(argument)));
         }
         Ok(match self.place(argument)? {
-            Some(place) => Argument::Place {
-                root: self.root(place.root),
-                fields: place.path.clone(),
-            },
+            Some(place) => {
+                let source = self.extent_origins.get(&place.key()).unwrap_or(&place);
+                Argument::Place {
+                    root: self.root(source.root),
+                    fields: source.path.clone(),
+                }
+            }
             None => Argument::Opaque,
         })
     }
