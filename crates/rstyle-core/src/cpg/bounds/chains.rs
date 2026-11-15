@@ -1,8 +1,8 @@
 //! Resolved standard iterator chains lower to synthetic scans with inlined callbacks.
 //!
-//! A chain is modeled only when its source is a stable slice or `Vec` traversal or a
-//! primitive `Range`, and every stage is a resolved member of the standard iteration
-//! interface with a stage or consumer role in the library contracts. Each callback
+//! A chain is modeled only when its source is a shared sequence or `Vec` traversal with
+//! a known extent or a primitive `Range`, and every stage is a resolved member of the standard
+//! iteration interface with a stage or consumer role in the library contracts. Each callback
 //! runs at most once per pulled source item; filters, skips and short-circuiting
 //! consumers become nondeterministic exits.
 
@@ -262,7 +262,7 @@ impl<'a> Collector<'_, '_, 'a> {
         Some((stage, contract))
     }
 
-    // Slice and `Vec` traversals yield at most their stable length.
+    // Sequence and `Vec` traversals yield at most their known or stable length.
     fn source(&self, root: &'a Node) -> Result<Option<(Value, u8)>, String> {
         if root.kind == NodeKind::RecordConstruction {
             return self.range_source(root);
@@ -273,14 +273,9 @@ impl<'a> Collector<'_, '_, 'a> {
         if !has_role(self.facts, root, ExtentRole::Traversal) {
             return Ok(None);
         }
-        let Some(place) = self.place(self.facts.body.child(root, 0)?)? else {
-            return Ok(None);
-        };
-
         Ok(self
-            .extents
-            .get(&place.key())
-            .map(|label| (Value::Input(label.clone()), self.facts.pointer_bits)))
+            .sequence_extent(self.facts.body.child(root, 0)?)?
+            .map(|limit| (limit, self.facts.pointer_bits)))
     }
 
     // A primitive `start..end` yields at most `end` items, whatever its start.
