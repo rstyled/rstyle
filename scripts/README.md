@@ -21,6 +21,54 @@ have been removed from this checkout; recorded evidence remains in Git history.
 | `test.sh` | `scripts/test.sh [cargo test args]` runs `cargo test --workspace --locked` against a shared `CARGO_TARGET_DIR` (default `~/.cache/rstyle/target`) so worktrees don't rebuild dependencies. |
 | `test_codenet.py` | `python3 scripts/test_codenet.py` tests `codenet_sample.py` on a fake package (needs cargo). |
 
+## Local MCP while the hosted check is bypassed
+
+`rstyle.toml` temporarily sets `[review] status_check = false`, so the GitHub App
+stops creating new `Rstyle` checks once that setting reaches the base branch.
+The `.github/workflows/ci.yml` jobs, including self-checks and patterns, stay as
+they are. Restore `status_check = true` to resume App checks. This setting does
+not cancel existing checks or disable the App's background reviews and storage.
+If branch protection requires its check, remove that requirement during the
+bypass; a local result cannot satisfy a check restricted to the GitHub App.
+
+Build this checkout's analyzer and a sibling checkout of
+[`rstyled/rstyle-mcp-server`](https://github.com/rstyled/rstyle-mcp-server).
+Until merged, use its [`fix/local-no-cloud` branch / PR #162](https://github.com/rstyled/rstyle-mcp-server/pull/162)
+for current-analyzer startup and large local report support:
+
+```sh
+cargo build --locked -p cargo-rstyle -p rstyle-driver
+(cd ../rstyle-mcp-server && cargo +1.93.0 build --locked)
+RSTYLE_MCP_BIN="$(cd ../rstyle-mcp-server && pwd)/target/debug/rstyle-mcp-server" \
+  ./scripts/local-mcp.sh
+```
+
+The launcher is a stdio server: the MCP client starts it and owns its lifetime.
+Set the client's command to the absolute path of `scripts/local-mcp.sh`, with
+no arguments, and set `RSTYLE_MCP_BIN` to the built server. `RSTYLE_BIN` optionally
+selects a different analyzer; its matching `rstyle-driver` must be beside it.
+Without that override, the launcher uses this checkout's `target/debug` (or
+`CARGO_TARGET_DIR/debug`). Builds must happen before connecting.
+
+Call `rstyle_check` or `rstyle_patterns` with
+`{"path":"/absolute/path/to/project","language":"rust"}`. These tools use the
+local analyzer and the project's rules and ignore file. Reports and compiler
+caches stay on disk. The launcher rejects HTTP mode and remote repository
+imports and clears hosted report configuration: it never contacts Cloudflare
+or D1. Cargo may still download dependencies and execute build scripts.
+Each response names its full output in `local.artifact`. Above 64 KiB the
+response's `stdout` is empty and `local.stdout_included` is false; read that
+local file for the report. Reports up to 512 MiB stream to disk.
+Current rstyle has no `clones` subcommand; the MCP server must include the fix
+that makes that command optional at startup. Older analyzers that support it
+also expose `rstyle_clones`.
+
+This native adapter exposes Rust analysis. Hosted `rstyle_review` (base/head
+comparison, merge risk, inline GitHub comments), investigations, remote job
+history and saved-result retrieval remain hosted features. For the exact
+existing CI style gates locally, run `scripts/ci-style.py` as described below;
+the stdio tools use their normal analyzer options rather than CI's gate options.
+
 ## Labeled-example evaluation (`rust_refactoring_examples/`)
 
 | Script | What it does |
