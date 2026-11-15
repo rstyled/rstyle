@@ -241,15 +241,21 @@ callback = 0
 operations = [
   "Option.and_then",
   "Option.filter",
+  "Option.inspect",
   "Option.is_none_or",
   "Option.is_some_and",
   "Option.map",
   "Option.ok_or_else",
   "Option.or_else",
   "Option.unwrap_or_else",
+  "Result.and_then",
+  "Result.inspect",
+  "Result.inspect_err",
+  "Result.is_err_and",
   "Result.is_ok_and",
   "Result.map",
   "Result.map_err",
+  "Result.or_else",
   "Result.unwrap_or_else",
   "bool.then",
 ]
@@ -259,7 +265,7 @@ basis = "Evaluates the default, then runs the callable at most once on the value
 runs = "AtMostOnce"
 arity = 2
 callback = 1
-operations = ["Option.map_or"]
+operations = ["Option.map_or", "Result.map_or"]
 
 # Extent roles: inherent members over a receiver whose entry count is stable while
 # a shared borrow is live.
