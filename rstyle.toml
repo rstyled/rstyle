@@ -7,6 +7,7 @@ exclude = ["target/**"]
 # can't change it for itself.
 [review]
 comment_warnings = true   # comment inline on new warnings too, not only count them
+status_check = true       # post an "Rstyle" status check: green when nothing holds the PR
 
 [fn_length]
 max_lines = 50            # code lines: blank, `//` and `/* */` lines are not counted
