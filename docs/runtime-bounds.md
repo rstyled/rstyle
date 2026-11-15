@@ -103,6 +103,12 @@ Both paths remain possible: `continue`, `return`, counter writes and calls keep 
 cost effects. A failure path that can bypass a counter increment does not establish loop progress.
 Pattern guards, writable reference patterns and hidden cleanup keep their existing restrictions.
 
+**Primitive scratch writes.** A direct write to a local or by-value parameter of primitive Boolean,
+character, floating-point or unit type can preserve bounds when the store affects no modeled scalar
+or selected extent. The right-hand side still runs, including its calls, counter writes and cleanup.
+Fields, indexes, references, aggregates, adjusted places, unknown types and overloaded assignments
+retain conservative handling. A Boolean assignment does not prove progress of a Boolean-controlled loop.
+
 **Arguments.** A call evaluates its receiver or callee, then what each argument passes. An argument that
 holds its value under a name, as Python's `print(total, end="")` does, passes that value. One that unpacks
 a sequence or a mapping, as `*items` and `**options` do, is unsupported.

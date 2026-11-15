@@ -4,6 +4,7 @@ use super::super::model::{Dispatch, Node, NodeKind};
 use super::Collector;
 use super::chains::{Callback, evaluated};
 use super::extent::run_once;
+use super::writes::Write;
 use crate::runtime_bounds::{Action, Argument, Callee, Condition, Flow, Value};
 
 type Lowered = Result<u32, String>;
@@ -269,14 +270,28 @@ impl<'a> Collector<'_, '_, 'a> {
     ) -> Result<Result<(Action, &'a Node), &'static str>, String> {
         let left = self.facts.body.child(expression, 0)?;
         let right = self.facts.body.child(expression, 1)?;
-        let compound = expression.kind == NodeKind::CompoundAssignment;
-        let add = compound && expression.operator.as_deref() == Some("add");
-        let Some(variable) = self.local_id(left) else {
-            return Ok(Err("Assignment through unmodeled place or alias"));
-        };
         if !self.builtin(expression) {
             return Ok(Err("Overloaded assignment"));
         }
+        match self.written(left) {
+            Write::Scalar(variable) => Ok(Ok((
+                self.scalar_assignment(expression, right, variable)?,
+                right,
+            ))),
+            // The value still runs, including every call, adjustment and cleanup.
+            Write::Irrelevant => Ok(Ok((Action::Nop, right))),
+            Write::Unmodeled => Ok(Err("Assignment through unmodeled place or alias")),
+        }
+    }
+
+    fn scalar_assignment(
+        &self,
+        expression: &'a Node,
+        right: &'a Node,
+        variable: u32,
+    ) -> Result<Action, String> {
+        let compound = expression.kind == NodeKind::CompoundAssignment;
+        let add = compound && expression.operator.as_deref() == Some("add");
         let explicit = right.kind == NodeKind::Operator
             && right.operator.as_deref() == Some("add")
             && right.children.len() == 2
@@ -296,13 +311,16 @@ impl<'a> Collector<'_, '_, 'a> {
             }
         };
 
-        Ok(Ok((action, right)))
+        Ok(action)
     }
 
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
     /// `target = value` as the block that lowers it: a let of the value, then one
     /// assignment of an unknown value per place, built backward.
     fn destructuring(&mut self, expression: &'a Node, next: u32) -> Lowered {
+        if !self.builtin(expression) {
+            return Ok(self.unsupported(expression, next, "Overloaded assignment"));
+        }
         let target = self.facts.body.child(expression, 0)?;
         let value = self.facts.body.child(expression, 1)?;
         let places = self.facts.body.places(target)?;
@@ -314,8 +332,8 @@ impl<'a> Collector<'_, '_, 'a> {
             if !self.enter_expression() {
                 continue;
             }
-            entry = match self.local_id(place) {
-                Some(variable) => {
+            entry = match self.written(place) {
+                Write::Scalar(variable) => {
                     let action = Action::Assign {
                         variable,
                         value: Value::Unknown,
@@ -327,7 +345,8 @@ impl<'a> Collector<'_, '_, 'a> {
                     }
                     assignment
                 }
-                None => {
+                Write::Irrelevant => entry,
+                Write::Unmodeled => {
                     self.unsupported(place, entry, "Assignment through unmodeled place or alias")
                 }
             };
