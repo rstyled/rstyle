@@ -1,0 +1,10 @@
+# How Go writes comments, for the `comments` rule. A Go doc comment is an ordinary `//` above a
+# declaration, so a comment in a function body never documents. `//go:` and `//line` are compiler
+# directives, and `nolint` and `lint:` are linters'.
+schema = "rstyle.comment-syntax/1"
+namespace = "go"
+line = ["//"]
+block = { open = "/*", close = "*/", nested = false }
+documentation = []
+ordinary = []
+directives = ["go:", "line ", "nolint", "lint:", "rstyle-allow(", "noinspection"]

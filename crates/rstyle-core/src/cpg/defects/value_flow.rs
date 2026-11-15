@@ -311,9 +311,22 @@ impl<'a> Graph<'a> {
         }
     }
 
-    /// Each read from each write that reaches it. A read or write off the flow, as a closure's are,
-    /// can't be placed before or after anything, so it meets every other of its symbol.
-    fn add_reaching(&mut self) {
+    /// A binding that's a closure's own is new each time the closure runs, so its writes reach
+    /// its reads in the closure's flow, as a function's do in its own.
+    fn add_own_reaching(&mut self, closures: &'a [Reading<'a>], own: &HashMap<&'a str, usize>) {
+        for (index, closure) in closures.iter().enumerate() {
+            let reaching = closure.dependence.iter();
+            for &(write, read, _) in reaching.filter(|edge| own.get(edge.2) == Some(&index)) {
+                self.link(closure.flow.id(write), closure.flow.id(read));
+            }
+        }
+    }
+
+    /// Each read from each write that reaches it. A read or write off the flow can't be placed
+    /// before or after anything, so it meets every other of its symbol. That holds for what a
+    /// closure captures, which the function touches too, whenever the closure runs. A closure's
+    /// `own` bindings are read by its flow instead.
+    fn add_reaching(&mut self, own: &HashMap<&'a str, usize>) {
         let flow = &self.reading.flow;
         let entry = flow.entry();
         let parameters = parameter_symbols(self.reading);
@@ -327,6 +340,7 @@ impl<'a> Graph<'a> {
 
         let accesses = &self.reading.function.accesses;
         let off_flow = accesses.iter().filter(|a| flow.vertex(&a.node).is_none());
+        let off_flow = off_flow.filter(|a| !own.contains_key(a.symbol.as_str()));
         let elsewhere: Vec<(&'a str, &'a str)> = off_flow
             .flat_map(|off| {
                 accesses
@@ -686,13 +700,37 @@ fn hops_from<'a>(
     Ok(found)
 }
 
-/// Where a function's values go.
-pub(super) fn of<'a>(reading: &'a Reading<'a>, namespace: &str) -> Result<ValueFlows, String> {
+/// The bindings that are one closure's own, with which closure: every read and write of one is
+/// in that closure's flow. What a closure captures is touched where the closure is made too, so
+/// it isn't, and neither is a binding a closure inside this one captures.
+fn closure_bindings<'a>(
+    reading: &Reading<'a>,
+    closures: &[Reading<'a>],
+) -> HashMap<&'a str, usize> {
+    let mut held: HashMap<&str, Option<usize>> = HashMap::new();
+    for access in &reading.function.accesses {
+        let within = |closure: &Reading<'_>| closure.flow.vertex(&access.node).is_some();
+        let at = closures.iter().position(within);
+        let holder = held.entry(access.symbol.as_str()).or_insert(at);
+        *holder = holder.filter(|_| *holder == at);
+    }
+    let own = held.into_iter();
+    own.filter_map(|(symbol, holder)| Some((symbol, holder?)))
+        .collect()
+}
+
+/// Where a function's values go, with each closure written in it read by its own flow.
+pub(super) fn of<'a>(
+    (reading, closures): (&'a Reading<'a>, &'a [Reading<'a>]),
+    namespace: &str,
+) -> Result<ValueFlows, String> {
     let mut graph = Graph::new(reading);
     for node in &reading.function.nodes {
         graph.add_node(node)?;
     }
-    graph.add_reaching();
+    let own = closure_bindings(reading, closures);
+    graph.add_own_reaching(closures, &own);
+    graph.add_reaching(&own);
 
     let (calls, positions) = flow_calls(reading)?;
     let returned = returned_nodes(reading)?;
