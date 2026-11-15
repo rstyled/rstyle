@@ -10,6 +10,7 @@ mod dispatch;
 mod extent;
 pub mod facts;
 mod frame;
+mod guards;
 mod iteration;
 mod primitive;
 pub mod report;
@@ -24,32 +25,7 @@ use std::collections::BTreeMap;
 
 /// The runtime-bound program of one function.
 pub fn lower(facts: &Facts<'_, '_>, arithmetic: Arithmetic) -> Result<Input, String> {
-    let mut collector = Collector {
-        facts,
-        program: Program {
-            inputs: Vec::new(),
-            variables: Vec::new(),
-            nodes: Vec::new(),
-            entry: 0,
-            loop_headers: Vec::new(),
-            formals: Vec::new(),
-            extents: Vec::new(),
-            arithmetic,
-        },
-        numbers: facts.symbol_numbers(),
-        locals: BTreeMap::new(),
-        loops: Vec::new(),
-        exhausted: false,
-        depth: 0,
-        work: 0,
-        extents: BTreeMap::new(),
-        extent_origins: BTreeMap::new(),
-        closures: BTreeMap::new(),
-        returns: Vec::new(),
-        formals: BTreeMap::new(),
-    };
-
-    collector.collect()
+    Collector::new(facts, arithmetic).collect()
 }
 
 pub(crate) struct Collector<'f, 'b, 'a> {
@@ -68,6 +44,26 @@ pub(crate) struct Collector<'f, 'b, 'a> {
     closures: BTreeMap<&'a str, &'a Node>,
     returns: Vec<u32>,
     formals: BTreeMap<&'a str, u32>,
+}
+
+impl<'f, 'b, 'a> Collector<'f, 'b, 'a> {
+    fn new(facts: &'f Facts<'b, 'a>, arithmetic: Arithmetic) -> Self {
+        Self {
+            facts,
+            program: empty(arithmetic),
+            numbers: facts.symbol_numbers(),
+            locals: BTreeMap::new(),
+            loops: Vec::new(),
+            exhausted: false,
+            depth: 0,
+            work: 0,
+            extents: BTreeMap::new(),
+            extent_origins: BTreeMap::new(),
+            closures: BTreeMap::new(),
+            returns: Vec::new(),
+            formals: BTreeMap::new(),
+        }
+    }
 }
 
 impl<'a> Collector<'_, '_, 'a> {
