@@ -96,16 +96,18 @@ impl Models {
     /// The models of a frontend namespace; none for a namespace without a file.
     pub fn of(namespace: &str) -> &'static Models {
         static MODELS: ByNamespace<Models> = ByNamespace::empty();
+        let parse = |text: &str| crate::versioned::namespaced(text, (SCHEMA, "taint models"));
         MODELS.of(namespace, (EMBEDDED, parse))
     }
 }
 
-fn parse(text: &str) -> Result<(String, Models), String> {
-    let models: Models =
-        crate::versioned::parse(text, (SCHEMA, "taint models"), |models: &Models| {
-            &models.schema
-        })?;
-    Ok((models.namespace.clone(), models))
+impl crate::versioned::Namespaced for Models {
+    fn schema(&self) -> &str {
+        &self.schema
+    }
+    fn namespace(&self) -> &str {
+        &self.namespace
+    }
 }
 
 /// Whether a key names this call: by its operation, its name or its identity.

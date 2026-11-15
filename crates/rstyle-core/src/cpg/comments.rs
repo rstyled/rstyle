@@ -49,6 +49,7 @@ struct Block {
 impl CommentSyntax {
     pub fn of(namespace: &str) -> &'static CommentSyntax {
         static SYNTAX: ByNamespace<CommentSyntax> = ByNamespace::empty();
+        let parse = |text: &str| crate::versioned::namespaced(text, (SCHEMA, "comment syntax"));
         SYNTAX.of(namespace, (EMBEDDED, parse))
     }
 
@@ -120,13 +121,13 @@ impl CommentSyntax {
     }
 }
 
-fn parse(text: &str) -> Result<(String, CommentSyntax), String> {
-    let syntax: CommentSyntax = crate::versioned::parse(
-        text,
-        (SCHEMA, "comment syntax"),
-        |syntax: &CommentSyntax| &syntax.schema,
-    )?;
-    Ok((syntax.namespace.clone(), syntax))
+impl crate::versioned::Namespaced for CommentSyntax {
+    fn schema(&self) -> &str {
+        &self.schema
+    }
+    fn namespace(&self) -> &str {
+        &self.namespace
+    }
 }
 
 pub fn lines(
