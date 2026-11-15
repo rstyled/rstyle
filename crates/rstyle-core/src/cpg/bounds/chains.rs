@@ -511,8 +511,8 @@ impl<'a> Collector<'_, '_, 'a> {
     }
 }
 
-/// Arguments evaluated once before the first item: all but the inlined callback.
-fn evaluated<'s, 'a>(
+/// Arguments evaluated before a callback runs: all but the inlined callback.
+pub(super) fn evaluated<'s, 'a>(
     arguments: &'s [&'a Node],
     callback: Option<u32>,
 ) -> impl Iterator<Item = &'a Node> + Clone + 's {

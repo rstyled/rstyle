@@ -30,6 +30,7 @@ pub const LIMITATIONS: &[&str] = &[
     "Bounds count loop-body entries and modeled call-site invocations; whole runtime remains unknown.",
     "Compiler-resolved collection length and traversal adapters are abstracted, excluded from modeled call counts.",
     "Resolved standard iterator chains over stable extents or primitive ranges are synthetic scans; callbacks are inlined and counted at most once per pulled item.",
+    "A standard member that runs a callable at most once for the call is a branch around the inlined callable, and adds no call of its own.",
     "Partial results are sound bounds relative to opaque factors: ?loop(site) is the number of header executions of an unproven loop per entry of its enclosing loop, ?call and ?invocations the work and calls of an unsummarized callee; whole-owner failures stay unknown.",
     "Composed results add resolved workspace callee summaries; standard-library bodies are outside that cost unit, and recursive, unresolved or unmappable callees contribute opaque ?call or ?input factors.",
     "Library steps sum data contracts for keyed standard operations, such as log(len(map)) per B-tree lookup, up to each contract's constant factor; uncontracted operations contribute ?library factors and never change the composed verdict.",

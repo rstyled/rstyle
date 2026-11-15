@@ -167,7 +167,7 @@ impl Report {
             })
             .collect();
         format!(
-            "\nRuntime upper bounds for unit {} (loop-body entries and modeled call-site invocations; input complete={}):{rows}\nCollection length and traversal adapters are abstracted, excluded from call counts; iterator callbacks are inlined.\nUpper bounds do not establish tightness or repeated scans.\n",
+            "\nRuntime upper bounds for unit {} (loop-body entries and modeled call-site invocations; input complete={}):{rows}\nCollection length and traversal adapters are abstracted, excluded from call counts; iterator callbacks and callables a member runs at most once are inlined.\nUpper bounds do not establish tightness or repeated scans.\n",
             unit.ordinal(),
             self.input_complete
         )
