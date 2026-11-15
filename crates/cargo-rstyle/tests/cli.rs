@@ -114,7 +114,6 @@ fn saved_facts(report: &Value) -> Vec<Value> {
     );
     let demand = rstyle_core::cpg::records::Demand {
         graphs: true,
-        closures: rstyle_core::cpg::records::Closures::Opaque,
         bounds: false,
         flow: false,
         defects: false,

@@ -23,10 +23,7 @@ pub struct SealedDocument {
 impl SealedDocument {
     /// Seal a plain document supplied by an existing producer.
     pub fn new(position: usize, bytes: &[u8]) -> Self {
-        let mut observed = Observed::default();
-        observed
-            .update(bytes)
-            .expect("slice length fits a transport");
+        let observed = Observed::of(bytes).expect("slice length fits a transport");
         Self {
             file: format!("document-{position:06}.cpg.json"),
             checksum: observed.checksum(),
@@ -38,8 +35,7 @@ impl SealedDocument {
     }
 
     pub fn verify(&self, bytes: &[u8]) -> Result<(), String> {
-        let mut observed = Observed::default();
-        observed.update(bytes).map_err(|error| error.to_string())?;
+        let observed = Observed::of(bytes).map_err(|error| error.to_string())?;
         self.verify_stored(&observed)
     }
 

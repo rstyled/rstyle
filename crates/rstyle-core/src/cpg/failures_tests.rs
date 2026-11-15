@@ -17,7 +17,6 @@ const EDITED: &str = include_str!("testdata/errors-edited-go.cpg.json");
 
 const DEMAND: Demand = Demand {
     graphs: true,
-    closures: crate::cpg::records::Closures::Opaque,
     bounds: false,
     flow: true,
     defects: false,

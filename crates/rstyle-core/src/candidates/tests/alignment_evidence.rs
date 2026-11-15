@@ -46,7 +46,6 @@ fn cluster(kind: CandidateKind, coverage: &[u32], empty_columns: bool) -> Cluste
     };
     Cluster {
         forwarding_only: false,
-        opaque_closure: false,
         members: (0..coverage.len()).collect(),
         coverage_milli: coverage.to_vec(),
         columns,
@@ -184,7 +183,6 @@ fn trait_proposals_receive_the_same_partial_alignment_caveat() {
     let fns: Vec<_> = facts.iter().collect();
     let cluster = Cluster {
         forwarding_only: false,
-        opaque_closure: false,
         members: vec![2, 3],
         coverage_milli: vec![1000, 800],
         columns: vec![Column {
@@ -204,39 +202,4 @@ fn trait_proposals_receive_the_same_partial_alignment_caveat() {
             .any(|warning| warning == WARNING)
     );
     assert!(candidate.possible_refactor.ends_with(PRESERVE));
-}
-
-#[test]
-fn opaque_closures_warn_even_with_complete_alignment_without_changing_proposals() {
-    const OPAQUE: &str = "Ordinary closure bodies are opaque in these graphs; aligned nodes do not establish matching closure behavior or captures.";
-    for kind in KINDS {
-        let facts = facts(kind, 2);
-        let mut cluster = cluster(kind, &[1000, 1000], false);
-        let before = retain(raw_proposal(&facts, kind, &cluster));
-        assert!(!before.counter_evidence.iter().any(|note| note == OPAQUE));
-        cluster.opaque_closure = true;
-        let mut after = retain(raw_proposal(&facts, kind, &cluster));
-        assert_eq!(after.counter_evidence.pop().as_deref(), Some(OPAQUE));
-        assert_eq!(after, before);
-    }
-}
-
-#[test]
-fn a_cxx_candidate_says_lambda_where_rust_says_closure() {
-    const OPAQUE: &str = "Lambda bodies are opaque in these graphs; aligned nodes do not establish matching lambda behavior or captures.";
-    for kind in KINDS {
-        let mut facts = facts(kind, 2);
-        facts
-            .iter_mut()
-            .for_each(|f| f.wording = crate::wording::Wording::of("cxx"));
-        let cluster = Cluster {
-            opaque_closure: true,
-            ..cluster(kind, &[1000, 1000], false)
-        };
-        let proposal = retain(raw_proposal(&facts, kind, &cluster));
-        assert_eq!(
-            proposal.counter_evidence.last().map(String::as_str),
-            Some(OPAQUE)
-        );
-    }
 }

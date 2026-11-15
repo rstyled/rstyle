@@ -98,7 +98,7 @@ pub struct Contracts {
     stages: BTreeMap<String, Iteration<StageEffect>>,
     consumers: BTreeMap<String, Iteration<ConsumerEffect>>,
     extents: BTreeMap<String, Extent>,
-    callables: BTreeMap<String, Handed>,
+    callables: BTreeMap<String, iteration::Callable>,
 }
 
 impl File {
@@ -181,23 +181,26 @@ impl Contracts {
         declare(&mut self.consumers, (namespace, "consumer"), consumers)?;
 
         let callables = file.callable.iter();
-        let callables = callables.map(|entry| Ok((&entry.operations[..], entry.handed()?)));
+        let callables = callables.map(|entry| Ok((&entry.operations[..], entry.callable()?)));
         declare(&mut self.callables, (namespace, "callable"), callables)
     }
 
     /// How an operation runs what it's handed, whichever role says so: a stage or a consumer
-    /// runs its callback once per item, and a callable member runs its own for the call. An
-    /// operation with one of these roles has no effect of its own, so every reader of what a
+    /// runs its callback once per item, and a callable member runs one of its own for the call.
+    /// An operation with one of these roles has no effect of its own, so every reader of what a
     /// library call runs asks here: runtime bounds, effect classes and the dependence graph.
-    pub fn handed(&self, operation: &str) -> Option<Handed> {
-        let per_item = |callback| Handed {
-            callback,
+    pub fn handed(&self, operation: &str) -> Option<Handed<'_>> {
+        let stage = self.stages.get(operation).map(|role| &role.callback);
+        let consumer = self.consumers.get(operation).map(|role| &role.callback);
+        let per_item = stage.or(consumer).map(|callback| Handed {
+            callbacks: callback.as_slice(),
             runs: Runs::PerItem,
-        };
-        let stage = self.stages.get(operation).map(|role| role.callback);
-        let consumer = self.consumers.get(operation).map(|role| role.callback);
-        let callable = self.callables.get(operation).copied();
-        callable.or(stage.or(consumer).map(per_item))
+        });
+        let callable = self.callables.get(operation).map(|role| Handed {
+            callbacks: &role.callbacks,
+            runs: role.runs,
+        });
+        callable.or(per_item)
     }
 
     /// The adapter role of an operation that transforms a traversal's items.
@@ -356,44 +359,53 @@ mod tests {
     #[test]
     fn a_role_says_how_an_operation_runs_what_it_is_handed() {
         let contracts = Contracts::embedded();
-        let per_item = |callback| {
-            Some(Handed {
-                callback,
-                runs: Runs::PerItem,
-            })
+        let handed = |operation: &str, callbacks: &'static [u32], runs| {
+            assert_eq!(
+                contracts.handed(operation),
+                Some(Handed { callbacks, runs }),
+                "{operation}"
+            );
         };
-        assert_eq!(contracts.handed("rust:Iterator.map"), per_item(Some(0)));
-        assert_eq!(contracts.handed("rust:Iterator.fold"), per_item(Some(1)));
-        assert_eq!(contracts.handed("rust:Iterator.count"), per_item(None));
-        let once = |callback| {
-            Some(Handed {
-                callback: Some(callback),
-                runs: Runs::AtMostOnce,
-            })
-        };
-        assert_eq!(contracts.handed("rust:Option.map"), once(0));
-        assert_eq!(contracts.handed("rust:Option.map_or"), once(1));
+        handed("rust:Iterator.map", &[0], Runs::PerItem);
+        handed("rust:Iterator.fold", &[1], Runs::PerItem);
+        handed("rust:Iterator.count", &[], Runs::PerItem);
+        handed("rust:Option.map", &[0], Runs::AtMostOnce);
+        handed("rust:Option.map_or", &[1], Runs::AtMostOnce);
+        // One run for the call, of one of the two it's handed.
+        handed("rust:Option.map_or_else", &[0, 1], Runs::AtMostOnce);
+        handed("rust:Result.map_or_else", &[0, 1], Runs::AtMostOnce);
         // A step contract says what a call costs, not what it runs.
         assert_eq!(contracts.handed("rust:Vec.len"), None);
     }
 
     #[test]
     fn callable_roles_are_validated() {
-        let callable = "[[callable]]\nbasis = \"b\"\nruns = \"AtMostOnce\"\narity = 1\ncallback = 0\noperations = [\"O.map\"]\n";
+        let callable = "[[callable]]\nbasis = \"b\"\nruns = \"AtMostOnce\"\narity = 2\ncallbacks = [0, 1]\noperations = [\"O.map_or_else\"]\n";
         let one = Contracts::parse_all(&[&file(callable)]).unwrap();
         assert_eq!(
-            one.handed("t:O.map").map(|role| role.runs),
-            Some(Runs::AtMostOnce)
+            one.handed("t:O.map_or_else"),
+            Some(Handed {
+                callbacks: &[0, 1],
+                runs: Runs::AtMostOnce
+            })
         );
         let twice = Contracts::parse_all(&[&file(callable), &file(callable)]).unwrap_err();
-        assert_eq!(twice, "Library operation t:O.map has two callable roles");
+        assert_eq!(
+            twice,
+            "Library operation t:O.map_or_else has two callable roles"
+        );
 
-        // The callable is one of the arguments, and a traversal's is a stage's or a consumer's.
-        let outside = file(&callable.replace("callback = 0", "callback = 1"));
+        // Each callable is one of the arguments, named once and in argument order, and a
+        // traversal's is a stage's or a consumer's.
+        let outside = file(&callable.replace("[0, 1]", "[1, 2]"));
         assert_eq!(
             Contracts::parse_all(&[&outside]).unwrap_err(),
-            "Callable role AtMostOnce with arity 1 has callback 1"
+            "Callable role AtMostOnce with arity 2 has callbacks [1, 2]"
         );
+        for callbacks in ["[]", "[0, 0]", "[1, 0]"] {
+            let misplaced = file(&callable.replace("[0, 1]", callbacks));
+            assert!(Contracts::parse_all(&[&misplaced]).is_err(), "{callbacks}");
+        }
         let per_item = file(&callable.replace("AtMostOnce", "PerItem"));
         assert!(Contracts::parse_all(&[&per_item]).is_err());
     }

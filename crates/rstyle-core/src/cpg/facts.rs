@@ -1,7 +1,7 @@
 //! FnFacts for the style rules, derived from one bundled unit document.
 
 use super::comments::CommentSyntax;
-use super::dependence::{Closures, Roles, dependence_graph};
+use super::dependence::{Roles, dependence_graph};
 use super::effects::EffectClasses;
 use super::events::{Events, Walk, mutations};
 use super::metrics::{Constructs, guard_clauses, statements, top_statements};
@@ -59,31 +59,19 @@ pub(super) fn derive(document: &Document, graphs: bool) -> Result<Vec<FnFacts>, 
         .collect()
 }
 
-/// The roles a namespace's graphs read and how they hold closures; none when no graph is asked for.
-type Graphs<'r> = Option<(&'r Roles, Closures)>;
-
 /// Each function's facts, or why they could not be derived.
 type EachFunction<'d> = Vec<(&'d Function, Result<FnFacts, String>)>;
 
-/// Each function's facts, or why they could not be derived, in document order, with the graphs
-/// pattern mining reads when `graphs` asks for them.
-pub(super) fn derive_each(document: &Document, graphs: bool) -> Result<EachFunction<'_>, String> {
-    derive_holding(document, graphs.then_some(Closures::Opaque))
-}
-
 /// Each function's facts, or why they could not be derived, in document order. With `graphs`,
-/// each has its dependence graph, holding closures as it says.
-pub(super) fn derive_holding(
-    document: &Document,
-    graphs: Option<Closures>,
-) -> Result<EachFunction<'_>, String> {
+/// each has its dependence graph.
+pub(super) fn derive_each(document: &Document, graphs: bool) -> Result<EachFunction<'_>, String> {
     declared(&document.coverage)?;
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
     let sources = Sources::new(unit)?;
     let tables = Tables::new(unit)?;
 
     let measured = complexity_available(&document.coverage);
-    let roles = graphs.map(|closures| (Roles::of(&document.producer.namespace), closures));
+    let roles = graphs.then(|| Roles::of(&document.producer.namespace));
     let classes = EffectClasses::of(&document.producer.namespace);
     let comments = CommentSyntax::of(&document.producer.namespace);
     let functions = unit.functions.as_deref().unwrap_or_default();
@@ -145,7 +133,7 @@ fn complexity_available(coverage: &Coverage) -> bool {
 
 fn function_facts(
     function: &Function,
-    (tables, sources, roles, classes): (&Tables<'_>, &Sources<'_>, Graphs<'_>, &EffectClasses),
+    (tables, sources, roles, classes): (&Tables<'_>, &Sources<'_>, Option<&Roles>, &EffectClasses),
     (comments, measured): (&CommentSyntax, bool),
 ) -> Result<FnFacts, String> {
     let body = Body::new(function)?;
@@ -189,7 +177,7 @@ fn function_facts(
         guard_clauses: guard_clauses(&body, sources)?,
         // Patterns are searched in source functions; a macro-written one has no graph.
         pdg: match roles.filter(|_| !super::records::written_by_macro(function)) {
-            Some(graphs) => Some(dependence_graph(&body, tables, sources, graphs)?),
+            Some(roles) => Some(dependence_graph(&body, tables, sources, roles)?),
             None => None,
         },
         wording: tables.wording(),

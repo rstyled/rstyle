@@ -224,20 +224,21 @@ operations = [
   "Iterator.position",
 ]
 
-# Callable roles. A `[[callable]]` member runs the callable it's handed for the call itself,
-# not per item of a traversal: `runs` says how often, `arity` is the argument count after the
-# receiver and `callback` the index of the callable. Every other argument is evaluated before
-# it, and the member does nothing else. With the stages and consumers above, this is the one
-# place that says how a library member runs what it's handed: runtime bounds read a per-item
-# role as a scan and an at-most-once one as a branch around the callable, effect classes read
-# any role as no effect of the member's own, and the dependence graph reads a consumer that runs
-# its only argument per item and returns nothing as a loop.
+# Callable roles. A `[[callable]]` member runs a callable it's handed for the call itself, not
+# per item of a traversal: `runs` says how often, `arity` is the argument count after the
+# receiver and `callbacks` the indexes of the callables. A member handed several runs one of
+# them. Every other argument is evaluated first, and the member does nothing else. With the
+# stages and consumers above, this is the one place that says how a library member runs what
+# it's handed: runtime bounds read a per-item role as a scan and an at-most-once one as a branch
+# around each callable, effect classes read any role as no effect of the member's own, and the
+# dependence graph reads a consumer that runs its only argument per item and returns nothing as
+# a loop.
 
 [[callable]]
 basis = "Runs the callable at most once, on the value the receiver holds or in place of the one it lacks"
 runs = "AtMostOnce"
 arity = 1
-callback = 0
+callbacks = [0]
 operations = [
   "Option.and_then",
   "Option.filter",
@@ -264,8 +265,15 @@ operations = [
 basis = "Evaluates the default, then runs the callable at most once on the value the receiver holds"
 runs = "AtMostOnce"
 arity = 2
-callback = 1
+callbacks = [1]
 operations = ["Option.map_or", "Result.map_or"]
+
+[[callable]]
+basis = "Runs one of its two callables once: the first in place of the value the receiver lacks, or on its error, and the second on the value it holds"
+runs = "AtMostOnce"
+arity = 2
+callbacks = [0, 1]
+operations = ["Option.map_or_else", "Result.map_or_else"]
 
 # Extent roles: inherent members over a receiver whose entry count is stable while
 # a shared borrow is live.

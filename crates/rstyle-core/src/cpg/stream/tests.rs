@@ -30,7 +30,6 @@ fn split_functions_can_arrive_before_their_unit() {
         split.into_iter().map(Ok),
         Demand {
             graphs: true,
-            closures: crate::cpg::records::Closures::Opaque,
             bounds: true,
             flow: false,
             defects: false,

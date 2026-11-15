@@ -116,7 +116,7 @@ impl<'a> Collector<'_, '_, 'a> {
         // Every argument but the inlined callback is evaluated, so other closures stay visible.
         chain
             .arguments
-            .extend(evaluated(arguments, contract.callback));
+            .extend(evaluated(arguments, contract.callback.as_slice()));
         let tail = Tail {
             consumer,
             targets: Targets {
@@ -221,7 +221,7 @@ impl<'a> Collector<'_, '_, 'a> {
             let standard = self.standard_dispatch(receiver, inner, &contract.dispatch)?;
             links.push((
                 stage,
-                evaluated(items, contract.callback).collect::<Vec<_>>(),
+                evaluated(items, contract.callback.as_slice()).collect::<Vec<_>>(),
                 standard,
             ));
             receiver = inner;
@@ -511,17 +511,16 @@ impl<'a> Collector<'_, '_, 'a> {
     }
 }
 
-/// Arguments evaluated before a callback runs: all but the inlined callback.
+/// Arguments evaluated before a callback runs: all but the inlined callbacks.
 pub(super) fn evaluated<'s, 'a>(
     arguments: &'s [&'a Node],
-    callback: Option<u32>,
+    callbacks: &'s [u32],
 ) -> impl Iterator<Item = &'a Node> + Clone + 's {
-    let inlined = callback.map(|index| index as usize);
     arguments
         .iter()
         .copied()
         .enumerate()
-        .filter(move |(i, _)| Some(*i) != inlined)
+        .filter(move |(i, _)| !callbacks.iter().any(|index| *index as usize == *i))
         .map(|(_, argument)| argument)
 }
 

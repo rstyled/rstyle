@@ -49,8 +49,7 @@ struct Block {
 impl CommentSyntax {
     pub fn of(namespace: &str) -> &'static CommentSyntax {
         static SYNTAX: ByNamespace<CommentSyntax> = ByNamespace::empty();
-        let parse = |text: &str| crate::versioned::namespaced(text, (SCHEMA, "comment syntax"));
-        SYNTAX.of(namespace, (EMBEDDED, parse))
+        SYNTAX.named(namespace, (EMBEDDED, (SCHEMA, "comment syntax")))
     }
 
     /// The end and category of a comment at the start of `rest`, `at` into `source`.

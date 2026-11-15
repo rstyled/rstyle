@@ -95,11 +95,12 @@ pub(super) fn has_role(facts: &Facts<'_, '_>, call: &Node, role: ExtentRole) -> 
         .is_some_and(|extent| extent.role == role)
 }
 
-/// Which argument a standard function or member runs at most once for the call, by its callable
-/// role in the library contracts: the closure of Rust's `Option::map`, of Go's `sync.Once.Do`
-/// or of C++'s `std::call_once`. The arguments are counted after the receiver, or after the
+/// Which arguments are the callables a standard function or member runs at most one of, once
+/// for the call, by its callable role in the library contracts: the closure of Rust's
+/// `Option::map`, both of `map_or_else`'s, or what Go's `sync.Once.Do` and C++'s
+/// `std::call_once` are handed. The arguments are counted after the receiver, or after the
 /// callee of a call in function form. Interface members are excluded, as for an extent role.
-pub(super) fn run_once(facts: &Facts<'_, '_>, call: &Node) -> Option<usize> {
+pub(super) fn run_once(facts: &Facts<'_, '_>, call: &Node) -> Option<&'static [u32]> {
     let reference = facts
         .reference(call)
         .filter(|_| call.kind == NodeKind::Call)?;
@@ -107,10 +108,7 @@ pub(super) fn run_once(facts: &Facts<'_, '_>, call: &Node) -> Option<usize> {
     let inherent = method.standard && !facts.interface_member(method);
     let key = inherent.then_some(method.operation.as_deref()).flatten()?;
     let handed = Contracts::embedded().handed(key)?;
-    let callback = handed
-        .callback
-        .filter(|_| handed.runs == Runs::AtMostOnce)?;
-    Some(callback as usize)
+    (handed.runs == Runs::AtMostOnce).then_some(handed.callbacks)
 }
 
 pub(super) fn place<'a>(

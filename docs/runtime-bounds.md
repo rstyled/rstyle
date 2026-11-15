@@ -87,7 +87,8 @@ item.
 call is a branch: its receiver or callee and its other arguments are evaluated, and then the closure or
 function it's handed runs or doesn't. A loop in such a closure counts once for each time the call is reached,
 so `opt.map(|v| ys.iter().filter(|y| **y > v).count())` inside a scan of `xs` is bounded by
-`len(xs) * len(ys)`. The member adds no call of its own. Each language's contracts say which these are:
+`len(xs) * len(ys)`. A member handed two callables that runs one of them, such as `map_or_else`, is a branch
+over both. The member adds no call of its own. Each language's contracts say which these are:
 
 | Language | Functions and members |
 | --- | --- |
@@ -169,9 +170,9 @@ roles, so frontends carry no method tables:
   per-item effects (`Pass`, `Map`, `Filter`, `Skip`, `Take`, `TakeWhile`, `FlatMap`; `Drain`, `Each`,
   `Search`), its arity, the callback argument run once per item, and the type arguments whose trait impls
   it may run, which must be standard.
-- A `[[callable]]` names functions and members that run a callable for the call itself, the argument that
-  is the callable, counted after the receiver or the callee, and how often it runs. One that runs it at
-  most once lowers to a branch around it.
+- A `[[callable]]` names functions and members that run a callable for the call itself, the arguments
+  that are callables, counted after the receiver or the callee, and how often it runs one. One that runs
+  one at most once lowers to a branch around each.
 - `[[extent]]` marks members that read a stable length (`Length`) or traverse each entry once
   (`Traversal`).
 
