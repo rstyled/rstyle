@@ -96,8 +96,7 @@ impl Models {
     /// The models of a frontend namespace; none for a namespace without a file.
     pub fn of(namespace: &str) -> &'static Models {
         static MODELS: ByNamespace<Models> = ByNamespace::empty();
-        let parse = |text: &str| crate::versioned::namespaced(text, (SCHEMA, "taint models"));
-        MODELS.of(namespace, (EMBEDDED, parse))
+        MODELS.named(namespace, (EMBEDDED, (SCHEMA, "taint models")))
     }
 }
 
