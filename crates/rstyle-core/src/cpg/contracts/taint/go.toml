@@ -18,6 +18,47 @@ sources = [
     "io/ioutil.ReadAll",
 ]
 
+# A reader the first two return stops where it says, whoever wrote what it reads. A response is the
+# server's, not the request that asked for it.
+sanitizers = [
+    "io.LimitReader",
+    "net/http.MaxBytesReader",
+    "net/http.Client.Do",
+    "net/http.Client.Get",
+    "net/http.Client.Head",
+    "net/http.Client.Post",
+    "net/http.Client.PostForm",
+    "net/http.Get",
+    "net/http.Head",
+    "net/http.Post",
+    "net/http.PostForm",
+]
+
+# A handler's request is input in every part: its body, its URL, its headers and its form. A
+# handler is handed a response to write too, and a client building a request isn't.
+[[parameters]]
+type = "net/http.Request"
+with = "net/http.ResponseWriter"
+
+# Reading all of a request's body holds as much as its sender sends. Only the request is named: a
+# response comes from a server the code chose, which a project can name a source here too.
+[[sinks]]
+risk = "unbounded read"
+cwe = "CWE-400"
+arguments = [0]
+callees = ["io.ReadAll", "io/ioutil.ReadAll"]
+sources = ["net/http.Request"]
+
+# A map grows by each key it's given, so a key a request names lets its sender grow it without
+# bound. `map key` is what a store at a map's key is called, as `m[k] = v` is. A handler's request
+# is named alone: what's read from it holds it, and `Header.Get` reads a response's headers too.
+[[sinks]]
+risk = "unbounded growth"
+cwe = "CWE-770"
+arguments = [0]
+callees = ["map key"]
+sources = ["net/http.Request"]
+
 [[sinks]]
 risk = "SQL injection"
 cwe = "CWE-89"

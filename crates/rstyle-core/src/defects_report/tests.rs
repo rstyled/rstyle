@@ -414,6 +414,43 @@ fn input_is_followed_in_what_a_go_frontend_writes() {
 }
 
 #[test]
+fn a_handlers_request_is_input_in_every_part() {
+    let found = taint_in(include_str!("../cpg/testdata/taint-http-go.cpg.json"));
+    assert_eq!(
+        found,
+        [
+            ("query".to_owned(), 12),
+            ("path".to_owned(), 15),
+            ("unbounded".to_owned(), 21),
+            ("readBody".to_owned(), 37),
+            ("remember".to_owned(), 43),
+            ("into".to_owned(), 57),
+        ],
+        "parameterized, onlyContext, bounded, response, environment, send, lookup, asValue, \
+         byEnvironment and local are clean, and query's sink is reported once"
+    );
+}
+
+#[test]
+fn a_project_can_name_a_response_as_input_to_a_sink_alone() {
+    let document = serde_json::from_str(include_str!("../cpg/testdata/taint-http-go.cpg.json"));
+    let mut config = Config::default();
+    config.taint = toml::from_str(
+        "[[sinks]]\ncallees = [\"io.ReadAll\"]\narguments = [0]\nrisk = \"unbounded read\"\n\
+         sources = [\"net/http.Client.Get\", \"net/http.Client.Do\"]\n",
+    )
+    .unwrap();
+    let report = report_of(vec![document.unwrap()], &config);
+    let taint = report.defects.iter().filter(|row| row.rule == "taint_flow");
+    let lines: Vec<usize> = taint.map(|row| row.line).collect();
+    assert_eq!(
+        lines,
+        [12, 15, 21, 27, 34, 37, 43, 57],
+        "a response is input, a response's request isn't"
+    );
+}
+
+#[test]
 fn input_is_followed_in_what_a_cxx_frontend_writes() {
     let found = taint_in(include_str!("../cpg/testdata/taint-cxx.cpg.json"));
     let lines: Vec<usize> = found.iter().map(|(_, line)| *line).collect();

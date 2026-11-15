@@ -290,10 +290,7 @@ pub(super) fn shell_code(
         let Some(commands) = Commands::of(sink, flows, &has_body, &counts) else {
             continue;
         };
-        let risk = Risk {
-            risk: sink.risk.clone(),
-            cwe: Some(sink.cwe.clone()),
-        };
+        let risk = Risk::of(sink);
         for (call, element) in commands.code() {
             found.insert((call, ADDED, element), risk.clone());
         }

@@ -1,4 +1,4 @@
-use super::super::value_flow::Hop;
+use super::super::value_flow::{Hop, TypedParameter};
 use super::*;
 use crate::config::TaintSink;
 
@@ -60,6 +60,7 @@ fn function(identity: &str, calls: Vec<FlowCall>, hops: Vec<Hop>) -> FunctionFlo
             namespace: "go".into(),
             calls,
             hops,
+            parameters: Vec::new(),
         },
     }
 }
@@ -100,6 +101,105 @@ fn input_reaching_a_dangerous_argument_says_where_from_and_what_it_risks() {
     assert!(message.contains("`os.Getenv` on line 1"), "{message}");
     assert!(message.contains("`os.Open`"), "{message}");
     assert!(message.contains("path traversal, CWE-22"), "{message}");
+}
+
+/// A parameter declared as this library type, written as `r *<name>`.
+fn typed(position: usize, name: &str) -> TypedParameter {
+    TypedParameter {
+        position,
+        written: format!("r *{name}"),
+        line: 1,
+        ty: NamedType {
+            identity: format!("go::{name}"),
+            name: name.into(),
+            operation: Some(format!("go:{name}")),
+        },
+    }
+}
+
+const REQUEST: &str = "net/http.Request";
+const WRITER: &str = "net/http.ResponseWriter";
+
+/// `func f(w <with>, r *<type>) { <sink>(r) }`, plus `<sink>(os.Getenv())` on the same line.
+fn handler((ty, with): (&str, &str), sink: &str, with_source: bool) -> FunctionFlows {
+    let mut calls = vec![call(sink, 2)];
+    let mut hops = vec![parameter_to(1, 0, 0)];
+    if with_source {
+        calls.push(call(SOURCE, 2));
+        hops.push(result_to(1, 0, 0));
+    }
+    let mut handler = function("f", calls, hops);
+    handler.flows.parameters = vec![typed(0, with), typed(1, ty)];
+    handler
+}
+
+#[test]
+fn a_handlers_request_is_input() {
+    let [(_, line, message)] = &found(&[handler((REQUEST, WRITER), SINK, false)])[..] else {
+        panic!("one finding");
+    };
+    assert_eq!(*line, 2);
+    assert!(
+        message.contains("`r *net/http.Request` on line 1"),
+        "{message}"
+    );
+
+    let client = handler((REQUEST, "net/http.Client"), SINK, false);
+    assert!(
+        found(&[client]).is_empty(),
+        "a client's request isn't input"
+    );
+    let other = handler(("net/http.Client", WRITER), SINK, false);
+    assert!(found(&[other]).is_empty());
+}
+
+#[test]
+fn a_sink_two_inputs_reach_is_reported_once_from_the_call() {
+    let [(_, _, message)] = &found(&[handler((REQUEST, WRITER), SINK, true)])[..] else {
+        panic!("one finding");
+    };
+    assert!(message.contains("`os.Getenv`"), "{message}");
+}
+
+/// `os.Open(read())` on line 2 and `run(read())` on line 3, with `run` a sink that names `sources`.
+fn into_scoped(sources: &[&str]) -> Vec<usize> {
+    let read = "my/pkg.Read";
+    let calls = vec![call(read, 1), call(SINK, 2), call("my/pkg.Run", 3)];
+    let flows = function("f", calls, vec![result_to(0, 1, 0), result_to(0, 2, 0)]);
+    let project = TaintConfig {
+        sinks: vec![TaintSink {
+            callees: vec!["my/pkg.Run".into()],
+            arguments: vec![0],
+            risk: "running it".into(),
+            cwe: None,
+            sources: sources.iter().map(|&source| source.into()).collect(),
+        }],
+        ..TaintConfig::default()
+    };
+    let found = found_with(&[flows], &project).into_iter();
+    found.map(|(_, line, _)| line).collect()
+}
+
+#[test]
+fn a_source_a_sink_names_is_input_to_that_sink_alone() {
+    assert_eq!(into_scoped(&["my/pkg.Read"]), [3]);
+    assert!(into_scoped(&["my/pkg.Other"]).is_empty());
+}
+
+#[test]
+fn a_sink_that_names_its_sources_takes_no_other_input() {
+    let calls = vec![call(SOURCE, 1), call("io.ReadAll", 2)];
+    let environment = function("f", calls, vec![result_to(0, 1, 0)]);
+    assert!(
+        found(&[environment]).is_empty(),
+        "the Go model names only a request"
+    );
+
+    let request = handler((REQUEST, WRITER), "io.ReadAll", false);
+    let [(_, 2, message)] = &found(&[request])[..] else {
+        panic!("one finding on line 2");
+    };
+    assert!(message.contains("unbounded read, CWE-400"), "{message}");
 }
 
 #[test]
@@ -874,6 +974,7 @@ fn a_project_adds_its_own_ends_by_any_name_a_call_has() {
             arguments: vec![position],
             risk: "running queries".into(),
             cwe: None,
+            sources: Vec::new(),
         }],
         ..TaintConfig::default()
     };

@@ -237,7 +237,7 @@ Which calls are sources and sinks is data, per language, in `cpg/contracts/taint
 
 | Language | Sources | Sinks |
 | --- | --- | --- |
-| Go | Query values, form values, headers, `os.Getenv`, `os.LookupEnv`, `io.ReadAll` | `database/sql` query text, `net/http` URLs, `os/exec` programs, template source, `os` file paths |
+| Go | A handler's `*http.Request`, query values, form values, headers, `os.Getenv`, `os.LookupEnv`, `io.ReadAll` | `database/sql` query text, `net/http` URLs, `os/exec` programs, template source, `os` file paths, and for a request alone, `io.ReadAll` and a map's key |
 | C and C++ | `getenv`, `fgets`, `read` and others | `system`, `popen`, the `exec` family, `fopen`, `open` and others |
 | Rust | `std::env::var`, `std::env::args`, reading stdin and others | `std::process::Command` programs and what a shell runs, `std::fs` paths |
 | Python | `os.environ`, `os.getenv`, `sys.argv`, `sys.stdin`, `input` | `os.system`, `subprocess` programs and what a shell runs, `eval`, `exec`, `sqlite3` query text, `pickle.loads`, `open`, `os` and `pathlib` paths and others |
@@ -256,8 +256,33 @@ A Python keyword argument is read by the parameter it names, as mypy's signature
 `subprocess.run("ls", cwd=input, shell=True)` and `open(encoding=input, file="a.txt")` aren't, however they're ordered.
 
 A source can be a library's variable as well as a call, so reading `os.environ` or `sys.argv` is where input starts, and
-`os.environ.get("HOME")` and `sys.argv[1]` hold it. A model can say what cleans input too: Python's says `shlex.quote`
-does.
+`os.environ.get("HOME")` and `sys.argv[1]` hold it. It can be a parameter too: a model names a library type, and a
+parameter declared as one, through pointers, is input in every part where the function is handed the type the model
+pairs it with. Go's says a `*http.Request` is where there's an `http.ResponseWriter`: a handler's request is input, and
+a client's isn't. So in a handler `os.Open(r.URL.Path)` is found, while `db.Exec("... where id = ?", r.FormValue("id"))`
+and `db.ExecContext(r.Context(), q)` aren't, and neither is a helper that sends a request it's handed. A model can say
+what cleans input too: Python's says `shlex.quote` does, and Go's that `io.LimitReader` and `http.MaxBytesReader` do,
+and that a response is the server's and not the request that asked for it.
+
+A sink can name its own sources, and then only input from those is dangerous to it, while what only it names is input to
+it alone. Reading all of something is dangerous only when someone else decides how long it is, so Go's `io.ReadAll` is a
+sink for a handler's request: `io.ReadAll(r.Body)` is found, and `io.ReadAll(http.MaxBytesReader(w, r.Body, n))` and
+`io.ReadAll(strings.NewReader(os.Getenv("Q")))` aren't. A map grows by each key it's given, so a store at a map's key,
+which a sink calls `map key`, is one for what a request names, where the map outlives the call as a field, a parameter or
+a package's variable does: `seen[r.URL.Query().Get("id")] = ""` is found, while reading `seen[r.FormValue("id")]`,
+storing a request's value under a key of your own, and filling a map made in the function aren't.
+
+A response comes from a server your code chose, so it isn't named. A project that wants it can, with a sink of its own:
+
+```toml
+[[taint.sinks]]
+callees = ["io.ReadAll"]
+arguments = [0]
+risk = "unbounded read"
+sources = ["net/http.Client.Do", "net/http.Client.Get"]   # the only input that's dangerous here
+```
+
+A sink is reported once, from the first input that reaches it, a call's before a parameter's.
 
 A Rust `Command` is built a call at a time, so its arguments are what `arg` adds and each element of a list written out for
 `args`, in the order the calls ran. So `Command::new("sh").arg("-c").arg(input)` is found, and so is the same through
