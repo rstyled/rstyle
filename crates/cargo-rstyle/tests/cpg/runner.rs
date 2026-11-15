@@ -2369,6 +2369,41 @@ fn risk_reads_a_change_inside_a_closure_as_a_change_to_the_function() {
     }
 }
 
+/// Draining an iterator does what its `next` does, wherever the iterator was made: counting a
+/// directory's entries reads the directory, and counting a file's bytes reads the file through the
+/// adapter around it. A stage only wraps what it's handed, so wrapping one reads nothing yet.
+#[test]
+fn risk_reads_a_drained_iterator_by_what_its_next_does() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    let source = |body: &str| {
+        format!(
+            "pub fn f(entries: std::fs::ReadDir, bytes: std::io::Bytes<std::fs::File>) -> usize \
+            {{ {body} }}\n"
+        )
+    };
+    let base = saved_run_of(root, &source("drop((entries, bytes)); 0"));
+    let drained = saved_run_of(
+        root,
+        &source(
+            "entries.filter(|entry| entry.is_ok()).count() + bytes.filter(|byte| byte.is_ok()).count()",
+        ),
+    );
+    let rated = report(&risk(&base, &drained));
+    let gained = rated["changes"][0]["effects_gained"].to_string();
+    assert!(gained.contains("std::fs::ReadDir"), "{rated}");
+    assert!(gained.contains("std::fs::File"), "{rated}");
+
+    let wrapped = saved_run_of(root, &source("drop((entries.skip(1), bytes.skip(1))); 0"));
+    let rated = report(&risk(&base, &wrapped));
+    assert_eq!(
+        rated["changes"][0]["effects_gained"],
+        serde_json::json!([]),
+        "{rated}"
+    );
+}
+
 /// What the handed-function tests share: a constructor, a function of the workspace's, and a
 /// signature with a function pointer.
 const HANDED: &str = "pub struct Id(pub u8);\npub fn helper(x: &u8) -> u8 { *x }\n\

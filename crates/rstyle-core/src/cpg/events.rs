@@ -14,6 +14,7 @@ use crate::facts::{
     MutationOrigin,
 };
 use crate::paths::strip_generics;
+use crate::runtime_bounds::contracts::Contracts;
 use crate::wording::Message;
 use std::collections::BTreeMap;
 
@@ -177,9 +178,9 @@ impl<'a> Walk<'a> {
                 Ok(())
             }
             Call::Resolved(callee) => {
-                let reference = callee.reference;
+                let ran = (callee.reference, callee.selected);
                 self.resolved(site, callee, out)?;
-                self.handed(site.node, reference, out)
+                self.handed(site.node, ran, out)
             }
         }
     }
@@ -295,7 +296,13 @@ impl<'a> Walk<'a> {
     /// one of the workspace's is a call edge, and one from outside this unit is a call, read by
     /// its own class. The frontend names a library's only when it runs nothing else in turn. A
     /// closure the call names is this function's own code, and a constructor runs none.
-    fn handed(&self, node: &'a Node, reference: &Ref, out: &mut Events) -> Result<(), String> {
+    fn handed(
+        &self,
+        node: &'a Node,
+        (reference, runs): (&Ref, &Definition),
+        out: &mut Events,
+    ) -> Result<(), String> {
+        self.driven(node, (reference, runs), out)?;
         let named = reference.calls_back.iter();
         for ran in named.flat_map(|calls_back| calls_back.runs.iter().flatten()) {
             let Ran::Definition { id } = ran else {
@@ -330,6 +337,36 @@ impl<'a> Walk<'a> {
                     dynamic: false,
                     library: class.filter(|_| library),
                     library_callee: library.then(|| definition.stable_identity.clone()),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// What the library itself implements for an iterator or a reader a call drives runs where
+    /// the call does, not where the value was made: draining a directory's entries reads the
+    /// directory. Each is read by its own class, and counts when that's an effect, since most
+    /// only compute. A stage only wraps what it's handed, and whatever drives the stage drives
+    /// that.
+    fn driven(
+        &self,
+        node: &'a Node,
+        (reference, runs): (&Ref, &Definition),
+        out: &mut Events,
+    ) -> Result<(), String> {
+        let stage = |operation| Contracts::embedded().stage(operation).is_some();
+        let wraps = runs.operation.as_deref().is_some_and(stage);
+        for id in reference.drives.iter().flatten().filter(|_| !wraps) {
+            let definition = self.tables.definition(id)?;
+            let operation = definition.operation.as_deref();
+            let class = operation.and_then(|key| self.classes.class_without_callback(key));
+            if let Some(LibraryClass::Effect(_)) = class {
+                out.calls.push(CallEvent {
+                    callee: strip_generics(&definition.name),
+                    line: self.line(node)?,
+                    dynamic: false,
+                    library: class,
+                    library_callee: Some(definition.stable_identity.clone()),
                 });
             }
         }

@@ -1251,23 +1251,35 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             None => (callee, args),
         };
         if compiler::standard(self.tcx, runs) {
-            record["calls_back"] = self.calls_back(runs, runs_args);
+            self.calls_back(&mut record, runs, runs_args);
         }
 
         record
     }
 
-    /// Whether a standard callee may run other code, and what, when all of it can be named:
+    /// Says whether a standard callee may run other code, and what, when all of it can be named:
     /// closures written in this function, whose own facts hold what they do, and functions it's
-    /// handed.
-    fn calls_back(&mut self, runs: hir::def_id::DefId, args: ty::GenericArgsRef<'tcx>) -> Value {
+    /// handed. It also names what `std` implements for the iterators and readers it drives.
+    fn calls_back(
+        &mut self,
+        record: &mut Value,
+        runs: hir::def_id::DefId,
+        args: ty::GenericArgsRef<'tcx>,
+    ) {
         let ran = super::sysroot::ran(self.tcx, self.owner, runs, args);
-        let mut record = json!({"value": !ran.nothing(),
+        record["calls_back"] = json!({"value": !ran.nothing(),
             "reason": "callable arguments, or bounds that select code outside the standard library"});
         if let Some(named) = self.named(&ran) {
-            record["runs"] = json!(named);
+            record["calls_back"]["runs"] = json!(named);
         }
-        record
+        let drives: Vec<String> = ran
+            .driven
+            .iter()
+            .map(|next| self.unit.definition(*next))
+            .collect();
+        if !drives.is_empty() {
+            record["drives"] = json!(drives);
+        }
     }
 
     /// Everything a standard callee runs besides its own code, when it runs something and all of

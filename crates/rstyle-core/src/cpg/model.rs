@@ -719,6 +719,9 @@ pub struct Ref {
     pub arguments: Option<Vec<ArgumentBinding>>,
     pub instance: Option<Id>,
     pub calls_back: Option<CallsBack>,
+    /// Library implementations the call drives that can do more than the callee itself, each by
+    /// its definition: the `next` of an iterator it's handed.
+    pub drives: Option<Vec<Id>>,
     pub reason: Option<String>,
     /// The item type of the receiver, for a call to an iteration member.
     pub item: Option<Id>,

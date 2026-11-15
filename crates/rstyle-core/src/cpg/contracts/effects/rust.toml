@@ -59,6 +59,16 @@
 schema = "rstyle.effect-classes/1"
 namespace = "rust"
 
+# What `std` implements for an iterator or a reader that reads as it's driven. A call written to one
+# of these is io by its path already. These are for the call that drives one it was handed, as
+# `entries.count()` drives a `ReadDir`, and `lines.count()` a `File` behind a `BufReader`.
+io = [
+    { exact = "File.read" },
+    { exact = "FsReadDir.next" },
+    { exact = "Stdin.read" },
+    { exact = "StdinLock.fill_buf" },
+]
+
 # There's no `unlisted`. A Rust library call with no entry is any other standard member or free
 # function, or a call into another crate, and stays unclassified: density doesn't count it, and a
 # comparison reads it as unknown.
@@ -502,8 +512,11 @@ none = [
 # `Option.map`, which runs its own at most once. A member with one of those roles is read this way
 # without being listed here, and can't be listed here as well. `none_without_callback` lists the rest:
 # members no contract gives a role, and implementations a type overrides a provided member with.
-# Driving an iterator does what the call that made it does, as `.await` does what the call that made
-# the future does: `fs::read_dir`'s entries are read by `read_dir`, not by the `filter_map` over them.
+# Driving an iterator does what its `next` does, wherever it was made: `fs::read_dir` opens the
+# directory, and the `count` over its entries reads them. The document names what `std` itself
+# implements for each iterator or reader a call drives, and `io` below lists those that read. An
+# adapter in `core` or `alloc` only computes, and runs what it wraps: `io::Lines` reads through its
+# reader's `read`. A stage, such as `filter_map`, only wraps, so the call that drives it reads.
 # A value one drops runs its type's `Drop`, which counts where it's defined, as `Display` does.
 none_without_callback = [
     { exact = "Iterator.chain" },

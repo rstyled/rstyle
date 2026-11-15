@@ -93,7 +93,9 @@ closure written in the function is that function's own code, so `opt.map(|x| x +
 `v.iter().filter(..).collect::<Vec<_>>()` are pure. A function it's handed is called from there, so
 `map(helper)` calls `helper` and `map(fs::read)` reads, while a value only known where it's called,
 such as a function pointer, stays unclassified. A bound is read by the implementation it selects, as a call is: iterating a slice of a
-workspace type runs nothing of the type's, and `max()` over it runs the type's `Ord`. That call, a function like `std::cmp::max`, which runs the caller's `Ord`, and any other
+workspace type runs nothing of the type's, and `max()` over it runs the type's `Ord`. Draining an
+iterator does what its `next` does, wherever the iterator was made: `entries.count()` over a `ReadDir`
+reads the directory, and counting a file's `lines()` reads the file. That call, a function like `std::cmp::max`, which runs the caller's `Ord`, and any other
 crate's function count until [`side_effects.paths`](style-checks.md) or a rule here names them. Python's lists the
 standard library, and a builtin such as `len` only counts as pure where the frontend says the call runs none of the
 workspace's code, so `len` of a class that defines `__len__` still counts. The report names the
