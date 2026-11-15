@@ -3,7 +3,8 @@
 //! give. Frontends emit the flow and the accesses; all of this is derived, never emitted.
 
 use super::model::{
-    AccessMode, Coverage, Declarations, Function, NodeKind, Origin, PlaceMode, Status,
+    AccessMode, CfgEdge, ClosureFlow, Coverage, Declarations, Exit, Function, NodeKind, Origin,
+    PlaceMode, Status,
 };
 use crate::wording::{Message, Wording};
 use serde::{Deserialize, Serialize};
@@ -16,8 +17,11 @@ pub type Vertex = usize;
 /// the worst case. Far above any function a person wrote.
 const TERMINATION_BUDGET: usize = 50_000_000;
 
-/// A function's control flow, restricted to what its entry reaches.
+/// One flow of a function, restricted to what its entry reaches: the function's own, or that of
+/// a closure written in it, which runs when the closure is called.
 pub struct Flow<'f> {
+    /// The closure whose body this is, by its node.
+    closure: Option<&'f str>,
     ids: Vec<&'f str>,
     indices: HashMap<&'f str, Vertex>,
     /// Each vertex's outgoing transfers: target, kind and loop role.
@@ -151,7 +155,25 @@ impl<'f> Flow<'f> {
     /// The function's flow, or `None` when it emits none.
     pub fn of(function: &'f Function) -> Option<Self> {
         let cfg = &function.cfg;
-        if cfg.edges.is_empty() {
+        Self::over((&cfg.entry, &cfg.exits, &cfg.edges), None)
+    }
+
+    /// The flow of a closure written in the function, or `None` when it records no edge.
+    pub fn of_closure(closure: &'f ClosureFlow) -> Option<Self> {
+        let boundaries = (
+            closure.entry.as_str(),
+            &closure.exits[..],
+            &closure.edges[..],
+        );
+        Self::over(boundaries, Some(&closure.node))
+    }
+
+    // rstyle-allow(mutated_targets, mutation_per_target): a flow is built by interning its vertices and their edges
+    fn over(
+        (entry, exits, recorded): (&'f str, &'f [Exit], &'f [CfgEdge]),
+        closure: Option<&'f str>,
+    ) -> Option<Self> {
+        if recorded.is_empty() {
             return None;
         }
         let mut indices: HashMap<&'f str, Vertex> = HashMap::new();
@@ -163,11 +185,11 @@ impl<'f> Flow<'f> {
                 ids.len() - 1
             })
         };
-        let entry = index(&cfg.entry);
+        let entry = index(entry);
 
-        let exits: Vec<Vertex> = cfg.exits.iter().map(|exit| index(&exit.id)).collect();
-        let mut transfers = Vec::with_capacity(cfg.edges.len());
-        for edge in &cfg.edges {
+        let exits: Vec<Vertex> = exits.iter().map(|exit| index(&exit.id)).collect();
+        let mut transfers = Vec::with_capacity(recorded.len());
+        for edge in recorded {
             let (source, target) = (index(&edge.source), index(&edge.target));
             transfers.push((
                 source,
@@ -185,6 +207,7 @@ impl<'f> Flow<'f> {
         }
 
         Some(Self {
+            closure,
             forward: Graph::new(successors),
             ids,
             indices,
@@ -196,6 +219,15 @@ impl<'f> Flow<'f> {
 
     pub fn id(&self, vertex: Vertex) -> &'f str {
         self.ids[vertex]
+    }
+
+    /// What the closure whose flow this is captures: none for a function's own flow.
+    fn captured(&self, function: &'f Function) -> impl Iterator<Item = &'f str> {
+        let closure = function.nodes.iter();
+        let closure = closure.filter(|node| Some(node.id.as_str()) == self.closure);
+        closure
+            .flat_map(|node| node.captures.iter().flatten())
+            .map(|capture| capture.symbol.as_str())
     }
 
     pub fn vertex(&self, id: &str) -> Option<Vertex> {
@@ -425,17 +457,20 @@ pub struct Reaching<'f> {
 }
 
 impl<'f> Reaching<'f> {
-    /// Where each symbol is read, written and overwritten. A parameter is written at entry.
-    /// A write of part of a place, or through a borrow, keeps what was there.
+    /// Where each symbol is read, written and overwritten. A parameter is written at entry,
+    /// and so is what a closure captures, at the entry of the closure's own flow: a read there
+    /// sees what the binding held when the closure ran. A write of part of a place, or through
+    /// a borrow, keeps what was there.
     pub fn of(function: &'f Function, flow: &Flow<'f>) -> Self {
         let strong = whole_updates(function);
-        let mut definitions: Vec<Definition<'f>> = function
-            .symbols
-            .iter()
-            .filter(|symbol| symbol.node.is_none())
+        let parameters = function.symbols.iter();
+        let parameters = parameters.filter(|symbol| symbol.node.is_none());
+        let mut definitions: Vec<Definition<'f>> = parameters
+            .map(|symbol| symbol.id.as_str())
+            .chain(flow.captured(function))
             .map(|symbol| Definition {
                 vertex: flow.entry(),
-                symbol: &symbol.id,
+                symbol,
             })
             .collect();
         let mut reads = Vec::new();
@@ -619,6 +654,10 @@ pub struct Derived {
     pub execution: Vec<ExecutionEdge>,
     /// Each loop head, with the vertices that repeat it.
     pub loops: BTreeMap<String, Vec<String>>,
+    /// The same of each closure written in the function, by the closure's node. Its body runs
+    /// when it's called, so it is a flow of its own, and none of the above holds any of it.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub closures: BTreeMap<String, Derived>,
 }
 
 impl Derived {
@@ -633,6 +672,7 @@ impl Derived {
             control: Vec::new(),
             execution: Vec::new(),
             loops: BTreeMap::new(),
+            closures: BTreeMap::new(),
         }
     }
 }
@@ -769,19 +809,36 @@ pub fn with_accesses<'f>(coverage: &Coverage, function: &'f Function) -> Result<
 /// Everything derived of a function under this coverage. Unknown where the frontend emits
 /// no flow, whatever the reason: the same function becomes known as its coverage grows.
 pub fn derive(coverage: &Coverage, function: &Function, wording: Wording) -> Derived {
-    let (_, capabilities) = entries(coverage, function);
     let flow = match declared_flow(coverage, function) {
         Ok(flow) => flow,
         Err(reason) => return Derived::unknown(reason),
     };
+    let closures = function.cfg.closures.iter().filter_map(|closure| {
+        let flow = Flow::of_closure(closure)?;
+        let derived = derived_of(coverage, (function, &flow), wording);
+        Some((closure.node.clone(), derived))
+    });
+    Derived {
+        closures: closures.collect(),
+        ..derived_of(coverage, (function, &flow), wording)
+    }
+}
+
+/// What one flow of a function establishes: its own, or a closure's.
+fn derived_of(
+    coverage: &Coverage,
+    (function, flow): (&Function, &Flow<'_>),
+    wording: Wording,
+) -> Derived {
+    let (_, capabilities) = entries(coverage, function);
     let (dominators, post) = (flow.dominators(), flow.post_dominators());
 
-    let aliased = changed_elsewhere(function, &flow);
-    let data = accesses_recorded(coverage, function).then(|| data_edges(function, &flow, &aliased));
+    let aliased = changed_elsewhere(function, flow);
+    let data = accesses_recorded(coverage, function).then(|| data_edges(function, flow, &aliased));
 
-    let (control, too_large) = control_edges(&flow, &post);
+    let (control, too_large) = control_edges(flow, &post);
     let read = (data.is_some(), capabilities, wording);
-    let mut reasons = limits((function, &flow), read, &aliased);
+    let mut reasons = limits((function, flow), read, &aliased);
     reasons.extend(too_large);
 
     Derived {
@@ -794,12 +851,13 @@ pub fn derive(coverage: &Coverage, function: &Function, wording: Wording) -> Der
             Some(Status::Supported) => Vec::new(),
             _ => vec!["Unwinding and exceptions are not transfers here".into()],
         },
-        dominators: tree_map(&flow, &dominators),
-        post_dominators: tree_map(&flow, &post),
+        dominators: tree_map(flow, &dominators),
+        post_dominators: tree_map(flow, &post),
         data,
         control,
-        execution: execution_edges(&flow, &dominators),
-        loops: loops(&flow),
+        execution: execution_edges(flow, &dominators),
+        loops: loops(flow),
+        closures: BTreeMap::new(),
     }
 }
 

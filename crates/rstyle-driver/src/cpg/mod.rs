@@ -295,7 +295,7 @@ fn function(unit: &mut unit::Unit<'_>, id: LocalDefId, prefix: &str) -> Result<V
         .and_then(|item| item.trait_item_def_id())
         .map(|trait_fn| builder.unit.definition(trait_fn));
     let definition = builder.unit.definition(id.to_def_id());
-    let written = places::coroutine_places(tcx, id, &mut builder);
+    let written = places::nested_places(tcx, id, &mut builder);
     let (cfg, accesses) = control_flow(&builder, &root, (&places, &written));
 
     let mut function = json!({
@@ -314,7 +314,7 @@ fn function(unit: &mut unit::Unit<'_>, id: LocalDefId, prefix: &str) -> Result<V
 fn control_flow(
     builder: &body::Builder<'_, '_>,
     root: &str,
-    (places, coroutines): (&[Value], &[Value]),
+    (places, nested): (&[Value], &[Value]),
 ) -> (Value, Vec<Value>) {
     let cfg = flow::cfg(
         &builder.nodes,
@@ -328,7 +328,7 @@ fn control_flow(
         nodes: &builder.nodes,
         symbols: &builder.symbols,
         refs: &builder.refs,
-        places: &[places, coroutines].concat(),
+        places: &[places, nested].concat(),
     });
 
     (cfg, accesses)

@@ -1892,6 +1892,35 @@ fn a_rust_run_finds_a_value_nothing_reads() {
     assert!(saved_run(&output).join("defects.sarif").is_file());
 }
 
+/// A closure's body is judged in its own flow, so a value stored there that nothing reads is
+/// found as it is in a function. What the closure captures stays quiet, since the function can
+/// read it after the closure runs, and so does a parameter it never reads.
+#[test]
+fn a_rust_run_finds_a_value_nothing_reads_inside_a_closure() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(
+        root.join("src/lib.rs"),
+        "#![allow(unused_assignments)]\n\
+         fn f() -> u8 { 1 }\n\
+         pub fn dead(o: Option<u8>) -> Option<u8> {\n    o.map(|x| {\n        let mut v = x + f();\n        \
+         v = f();\n        v\n    })\n}\n\
+         pub fn held(items: &[u8]) -> u8 {\n    let mut last = 0;\n    \
+         items.iter().for_each(|x| last = *x);\n    last\n}\n\
+         pub fn unread(o: Option<u8>) -> Option<u8> { o.map(|_x| f()) }\n",
+    )
+    .unwrap();
+
+    let output = rust_run(root, &["--filter", "defects", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let unified = report(&output);
+    let rows = unified["defects"]["defects"].as_array().unwrap();
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(rows[0]["rule"], "dead_store");
+    assert_eq!(rows[0]["line"], 5);
+}
+
 /// The lines `taint_flow` reports in a run of a package. Defects don't change the exit code.
 fn taint_lines(root: &Path) -> Vec<u64> {
     let output = rust_run(root, &["--filter", "defects", "--format", "json"]);
@@ -1949,6 +1978,34 @@ fn a_rust_run_follows_input_to_where_its_dangerous_and_a_project_has_the_last_wo
     );
     std::fs::write(root.join("src/lib.rs"), allowed).unwrap();
     assert_eq!(rows(), [5]);
+}
+
+/// A binding that's a closure's own is new each time the closure runs, so a value replaced there
+/// before it's used doesn't reach the use, as in a function. What a closure captures can be written
+/// whenever the closure runs, so input written after a read there still reaches it.
+#[test]
+fn a_rust_run_follows_a_closure_s_own_bindings_by_the_closure_s_flow() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(
+        root.join("src/lib.rs"),
+        "#![allow(unused_assignments)]\n\
+         fn input() -> String { std::env::var(\"Q\").unwrap() }\n\
+         pub fn overwritten(names: &[String]) {\n    names.iter().for_each(|_name| {\n        \
+         let mut q = input();\n        q = String::from(\"safe\");\n        let _ = std::fs::read(q);\n    });\n}\n\
+         pub fn kept(names: &[String]) {\n    names.iter().for_each(|_name| {\n        \
+         let mut q = String::from(\"/tmp/\");\n        q.push_str(&input());\n        let _ = std::fs::read(q);\n    });\n}\n\
+         pub fn written_later(names: &[String]) {\n    let mut q = String::from(\"safe\");\n    \
+         names.iter().for_each(|_name| {\n        let _ = std::fs::read(&q);\n        q = input();\n    });\n}\n",
+    )
+    .unwrap();
+
+    assert_eq!(
+        taint_lines(root),
+        [14, 20],
+        "kept, and what written_later captures"
+    );
 }
 
 /// A crate that runs input in a shell, built each way a `Command` can be, and that runs it where it's
@@ -2608,6 +2665,72 @@ fn risk_reads_a_bound_by_the_implementation_it_selects() {
             .contains("collect"),
         "{rated}"
     );
+}
+
+/// A call in a generic function is read as it is anywhere else when the type parameter doesn't
+/// decide what runs. A slice's iterator is the same code whatever it yields, a closure written
+/// there is still the function's own, and `?` on a `Result` converts its error with none at all.
+#[test]
+fn risk_reads_a_call_in_a_generic_function_by_what_selection_settles() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let signature =
+        "pub fn f<T: Copy, E>(items: &[T], o: Option<T>, r: Result<T, E>) -> Result<usize, E>";
+    let base = saved_run_of(
+        root,
+        &format!("{signature} {{ Ok(items.len() + usize::from(o.is_some() && r.is_ok())) }}\n"),
+    );
+    let chained = saved_run_of(
+        root,
+        &format!(
+            "{signature} {{\n    \
+            let kept: Vec<T> = items.iter().map(|item| *item).filter(|_| r.is_ok()).collect();\n    \
+            let first = o.map(|item| item).is_some_and(|_| true);\n    \
+            r?;\n    \
+            Ok(kept.len() + usize::from(first))\n}}\n"
+        ),
+    );
+
+    let rated = report(&risk(&base, &chained));
+    assert_eq!(rated["risk"], "low", "{rated}");
+    assert_eq!(
+        rated["changes"][0]["calls_unclassified"],
+        serde_json::json!([]),
+        "{rated}"
+    );
+}
+
+/// What a bound of the function's own decides is code only known where the function is called:
+/// the `parse` of a `T: FromStr`, the `map` of an `I: Iterator`, and the `clone` a slice of
+/// `T: Clone` runs for each item. Those stay unclassified.
+#[test]
+fn risk_leaves_what_a_type_parameter_decides_unclassified() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let signature = "pub fn f<T: Clone + std::str::FromStr, I: Iterator<Item = u8>>\
+        (items: &[T], text: &str, more: I) -> usize";
+    let base = saved_run_of(
+        root,
+        &format!("{signature} {{ items.len() + more.count() }}\n"),
+    );
+    let unclassified = |body: &str| {
+        let head = saved_run_of(root, &format!("{signature} {{ {body} }}\n"));
+        let rated = report(&risk(&base, &head));
+        assert_eq!(rated["risk"], "unknown", "{rated}");
+        rated["changes"][0]["calls_unclassified"].to_string()
+    };
+
+    let parsed =
+        unclassified("items.len() + more.count() + usize::from(text.parse::<T>().is_ok())");
+    assert!(parsed.contains("parse"), "{parsed}");
+    let mapped = unclassified("items.len() + more.map(|byte| byte + 1).count()");
+    assert!(mapped.contains("map"), "{mapped}");
+    let cloned = unclassified("items.to_vec().len() + more.count()");
+    assert!(cloned.contains("to_vec"), "{cloned}");
 }
 
 /// `.await` polls the body of the `async fn` it awaits, which the call that made the future already

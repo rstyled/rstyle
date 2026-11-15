@@ -18,6 +18,21 @@ pub fn parse<T: DeserializeOwned>(
     Ok(file)
 }
 
+/// A data file that names its schema and the frontend namespace it's for.
+pub trait Namespaced {
+    fn schema(&self) -> &str;
+    fn namespace(&self) -> &str;
+}
+
+/// Parses a namespace's file, as `ByNamespace` keys it: its namespace, and the file.
+pub fn namespaced<T: DeserializeOwned + Namespaced>(
+    text: &str,
+    schema: (&str, &str),
+) -> Result<(String, T), String> {
+    let file: T = parse(text, schema, T::schema)?;
+    Ok((file.namespace().to_owned(), file))
+}
+
 /// Reads a data file into its namespace and what it holds.
 type ParseFile<T> = fn(&str) -> Result<(String, T), String>;
 
