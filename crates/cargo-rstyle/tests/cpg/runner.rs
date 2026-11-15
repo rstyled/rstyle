@@ -1980,6 +1980,34 @@ fn a_rust_run_follows_input_to_where_its_dangerous_and_a_project_has_the_last_wo
     assert_eq!(rows(), [5]);
 }
 
+/// A binding that's a closure's own is new each time the closure runs, so a value replaced there
+/// before it's used doesn't reach the use, as in a function. What a closure captures can be written
+/// whenever the closure runs, so input written after a read there still reaches it.
+#[test]
+fn a_rust_run_follows_a_closure_s_own_bindings_by_the_closure_s_flow() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(
+        root.join("src/lib.rs"),
+        "#![allow(unused_assignments)]\n\
+         fn input() -> String { std::env::var(\"Q\").unwrap() }\n\
+         pub fn overwritten(names: &[String]) {\n    names.iter().for_each(|_name| {\n        \
+         let mut q = input();\n        q = String::from(\"safe\");\n        let _ = std::fs::read(q);\n    });\n}\n\
+         pub fn kept(names: &[String]) {\n    names.iter().for_each(|_name| {\n        \
+         let mut q = String::from(\"/tmp/\");\n        q.push_str(&input());\n        let _ = std::fs::read(q);\n    });\n}\n\
+         pub fn written_later(names: &[String]) {\n    let mut q = String::from(\"safe\");\n    \
+         names.iter().for_each(|_name| {\n        let _ = std::fs::read(&q);\n        q = input();\n    });\n}\n",
+    )
+    .unwrap();
+
+    assert_eq!(
+        taint_lines(root),
+        [14, 20],
+        "kept, and what written_later captures"
+    );
+}
+
 /// A crate that runs input in a shell, built each way a `Command` can be, and that runs it where it's
 /// data.
 fn crate_running_input_in_a_shell() -> TempDir {

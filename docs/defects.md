@@ -300,6 +300,7 @@ reach a sink or what it returns, and whether it returns input of its own, so a v
 | A call that gives back a reference to what it was called on | Writes what that writes, so `cmd.arg("-c").arg(script)` adds both to `cmd` |
 | A number or a truth value | Holds no input, so `len(input)` and `%d` of one are clean |
 | A value that only decides a branch | Isn't followed: this is about what a value holds |
+| A binding a closure declares for itself | Is followed through the closure's own flow, where a frontend records one, so input replaced there before it's used doesn't reach the use. What a closure captures can be written whenever the closure runs, so every write of it meets every read |
 
 ### What it misses
 

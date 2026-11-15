@@ -81,15 +81,16 @@ pub fn examine(
             tables,
             sources,
         };
+        let closures: Vec<Reading<'_>> = closures(&reading).collect();
         let mut defects = dead_store::find(&reading)?;
-        for closure in closures(&reading) {
-            defects.extend(dead_store::find(&closure)?);
+        for closure in &closures {
+            defects.extend(dead_store::find(closure)?);
         }
         defects.extend(identical_branches::find(&reading)?);
         Ok(Examined::Read {
             defects,
             results: ignored_result::uses(&reading)?,
-            flows: value_flow::of(&reading, namespace)?,
+            flows: value_flow::of((&reading, &closures), namespace)?,
             arguments: Box::new(deviant_argument::of(&reading)?),
         })
     });
