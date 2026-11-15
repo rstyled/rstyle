@@ -1091,7 +1091,7 @@ pub fn coverage() -> Value {
             "unit": declare("supported", "Unit files with content, target and edition"),
             "method": declare("approximated", "Identity, spans, parameters and receiver; generics and lifetimes are not emitted"),
             "ast": declare("supported", "The HIR tree with for, while and ? restored to their source shape"),
-            "cfg": declare("approximated", "Every transfer but unwinding; closure bodies are opaque and coroutine bodies run in place"),
+            "cfg": declare("approximated", "Every transfer but unwinding; a closure's body is a flow of its own and a coroutine's runs in place"),
             "symbol": declare("supported", "Bindings with their reads and writes"),
             "ref": declare("approximated", "Paths, calls and method calls"),
             "type": declare("approximated", "Signature, place and called-value types"),

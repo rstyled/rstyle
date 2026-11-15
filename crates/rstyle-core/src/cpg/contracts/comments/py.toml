@@ -1,0 +1,9 @@
+# How Python writes comments, for the `comments` rule. A docstring is a string literal, which the
+# compiler's spans already keep out, so no comment documents. `#!` starts a shebang, and the rest are
+# type checkers', linters' and formatters'.
+schema = "rstyle.comment-syntax/1"
+namespace = "py"
+line = ["#"]
+documentation = []
+ordinary = []
+directives = ["!", "type:", "noqa", "pyright:", "mypy:", "pylint:", "isort:", "yapf:", "fmt:", "rstyle-allow(", "noinspection"]
