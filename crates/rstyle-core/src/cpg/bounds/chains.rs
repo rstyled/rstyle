@@ -273,14 +273,9 @@ impl<'a> Collector<'_, '_, 'a> {
         if !has_role(self.facts, root, ExtentRole::Traversal) {
             return Ok(None);
         }
-        let Some(place) = self.place(self.facts.body.child(root, 0)?)? else {
-            return Ok(None);
-        };
-
         Ok(self
-            .extents
-            .get(&place.key())
-            .map(|label| (Value::Input(label.clone()), self.facts.pointer_bits)))
+            .sequence_extent(self.facts.body.child(root, 0)?)?
+            .map(|limit| (limit, self.facts.pointer_bits)))
     }
 
     // A primitive `start..end` yields at most `end` items, whatever its start.

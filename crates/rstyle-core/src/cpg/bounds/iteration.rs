@@ -199,17 +199,10 @@ impl<'a> Collector<'_, '_, 'a> {
         let Some(receiver) = iteration_receiver(self.facts, head)? else {
             return Ok(None);
         };
-        let Some(place) = self.place(receiver)? else {
+        let Some(limit) = self.sequence_extent(receiver)? else {
             return Ok(None);
         };
-        let Some(label) = self.extents.get(&place.key()).cloned() else {
-            return Ok(None);
-        };
-        Ok(Some((
-            Value::Const(0),
-            Value::Input(label),
-            self.facts.pointer_bits,
-        )))
+        Ok(Some((Value::Const(0), limit, self.facts.pointer_bits)))
     }
 }
 

@@ -5,9 +5,11 @@ use super::super::model::{
     DefinitionKind, Dispatch, Node, NodeKind, PlaceMode, RefStatus, TargetKind, TypeKind,
 };
 use super::Collector;
+use super::extent::extent_receiver;
 use super::facts::Facts;
 use super::writes::value_only;
 use crate::advisory::runtime_bounds::MAX_NODES;
+use crate::runtime_bounds::Value;
 use crate::runtime_bounds::contracts::{Allocation, Contracts, Storage};
 
 impl<'a> Collector<'_, '_, 'a> {
@@ -28,6 +30,60 @@ impl<'a> Collector<'_, '_, 'a> {
     pub(super) fn native_element(&self, place: &Node) -> bool {
         indexed(self.facts, place).is_some()
             && self.hidden_call(place).is_ok_and(|reason| reason.is_none())
+    }
+
+    /// Only exact constants or a selected stable formal's length can replace a local size.
+    /// This is a length relation; it does not make the allocation an alias of its source.
+    pub(super) fn allocation_extent(&self, receiver: &Node) -> Result<Option<Value>, String> {
+        let Some(length) = allocation_length(self.facts, receiver) else {
+            return Ok(None);
+        };
+        if length.kind == NodeKind::Literal
+            && length.children.is_empty()
+            && !self.facts.adjusted_of(length)
+            && let Value::Const(length) = self.value(length)
+        {
+            let fits = self.facts.pointer_bits == 64 || length < (1u64 << self.facts.pointer_bits);
+            return Ok(fits.then_some(Value::Const(length)));
+        }
+        let Some(source) = extent_receiver(self.facts, length)? else {
+            return Ok(None);
+        };
+        let Some(place) = self.stable_formal(source)? else {
+            return Ok(None);
+        };
+        Ok(self
+            .extents
+            .get(&place.key())
+            .map(|label| Value::Input(label.clone())))
+    }
+
+    fn stable_formal(&self, source: &'a Node) -> Result<Option<super::extent::Place<'a>>, String> {
+        if source.kind != NodeKind::Identifier
+            || !source.children.is_empty()
+            || self.facts.adjusted_of(source)
+            || self
+                .facts
+                .reference(source)
+                .is_none_or(|reference| reference.status != RefStatus::Resolved)
+        {
+            return Ok(None);
+        }
+        let Some(symbol) = self.facts.local(source) else {
+            return Ok(None);
+        };
+        let binding = self.facts.body.symbol(symbol)?;
+        if !self.formals.contains_key(symbol) || binding.mutable || binding.ty != source.ty {
+            return Ok(None);
+        }
+        let private = Private {
+            facts: self.facts,
+            symbol,
+        };
+        if !private.holds() {
+            return Ok(None);
+        }
+        self.place(source)
     }
 
     /// These two operands are certified effect-free, so evaluating them cannot reorder
@@ -70,7 +126,7 @@ fn allocation(facts: &Facts<'_, '_>, call: &Node) -> Option<&'static Allocation>
     let children = facts.body.children(call).ok()?;
     let arity = usize::try_from(role.arity).ok()?;
     if children.len() != arity.checked_add(1)?
-        || !named_allocator(facts, children[0], definition.id.as_str())
+        || !named_function(facts, children[0], definition.id.as_str())
     {
         return None;
     }
@@ -84,7 +140,7 @@ fn allocation(facts: &Facts<'_, '_>, call: &Node) -> Option<&'static Allocation>
     valid.then_some(role)
 }
 
-fn named_allocator(facts: &Facts<'_, '_>, callee: &Node, definition: &str) -> bool {
+pub(super) fn named_function(facts: &Facts<'_, '_>, callee: &Node, definition: &str) -> bool {
     callee.kind == NodeKind::Identifier
         && callee.children.is_empty()
         && !facts.adjusted_of(callee)
@@ -159,14 +215,25 @@ fn pure_index(facts: &Facts<'_, '_>, index: &Node) -> bool {
     }
 }
 
+/// The exact length operand of a certified fresh local, when its contract supplies one.
+fn allocation_length<'a>(facts: &Facts<'_, 'a>, base: &Node) -> Option<&'a Node> {
+    let initializer = fresh_initializer(facts, base)?;
+    let index = allocation(facts, initializer)?.length_argument?;
+    facts.body.child(initializer, index as usize + 1).ok()
+}
+
 fn fresh_local(facts: &Facts<'_, '_>, base: &Node) -> bool {
+    fresh_initializer(facts, base).is_some()
+}
+
+fn fresh_initializer<'a>(facts: &Facts<'_, 'a>, base: &Node) -> Option<&'a Node> {
     let function = facts.body.function;
     if function.nodes.len().saturating_add(function.places.len()) > MAX_NODES * 4 {
-        return false;
+        return None;
     }
-    let Some(symbol) = facts.local(base).and_then(|id| facts.body.symbol(id).ok()) else {
-        return false;
-    };
+    let symbol = facts
+        .local(base)
+        .and_then(|id| facts.body.symbol(id).ok())?;
     if symbol.kind != "local"
         || symbol.mutable
         || symbol.ty != base.ty
@@ -176,30 +243,28 @@ fn fresh_local(facts: &Facts<'_, '_>, base: &Node) -> bool {
             .reference(base)
             .is_none_or(|reference| reference.status != RefStatus::Resolved)
     {
-        return false;
+        return None;
     }
-    let Some(pattern) = symbol
+    let pattern = symbol
         .node
         .as_deref()
-        .and_then(|id| facts.body.node(id).ok())
-    else {
-        return false;
-    };
+        .and_then(|id| facts.body.node(id).ok())?;
     if pattern.kind != NodeKind::PatternBinding
         || !pattern.children.is_empty()
         || pattern.binding_mode.as_deref().unwrap_or("value") != "value"
     {
-        return false;
+        return None;
     }
-    initialized(facts, pattern, base)
-        && Private {
-            facts,
-            symbol: &symbol.id,
-        }
-        .holds()
+    let initializer = initialized(facts, pattern, base)?;
+    Private {
+        facts,
+        symbol: &symbol.id,
+    }
+    .holds()
+    .then_some(initializer)
 }
 
-fn initialized(facts: &Facts<'_, '_>, pattern: &Node, base: &Node) -> bool {
+fn initialized<'a>(facts: &Facts<'_, 'a>, pattern: &Node, base: &Node) -> Option<&'a Node> {
     // Body validation gives each child one parent, so a binding has at most one declaration.
     facts
         .body
@@ -211,9 +276,7 @@ fn initialized(facts: &Facts<'_, '_>, pattern: &Node, base: &Node) -> bool {
         })
         .filter(|declaration| declaration.children.len() == 2)
         .and_then(|declaration| facts.body.child(declaration, 1).ok())
-        .is_some_and(|initializer| {
-            initializer.ty == base.ty && allocation(facts, initializer).is_some()
-        })
+        .filter(|initializer| initializer.ty == base.ty && allocation(facts, initializer).is_some())
 }
 
 struct Private<'f, 'b, 'a> {

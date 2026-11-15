@@ -4,7 +4,8 @@
 use super::super::model::{Node, NodeKind, TypeKind};
 use super::calls::Parameter;
 use super::extent::{
-    Place, extent_receiver, extent_type, has_role, is_method, iteration_receiver, place, run_once,
+    Place, extent_receiver, extent_type, has_role, is_method, iteration_receiver, ordinary_length,
+    place, run_once,
 };
 use super::facts::{Facts, referent};
 use crate::advisory::runtime_bounds::{MAX_NODES, MAX_VARIABLES};
@@ -536,7 +537,7 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
     // rstyle-allow(mutation_per_target): the inspection accumulates frame facts in self by design
     fn record_candidate(&mut self, expression: &'a Node) -> Visited {
         if let Some(receiver) = self.candidate(expression)? {
-            if self.closures > 0 {
+            if self.closures > 0 || ordinary_length(self.facts, expression).is_some() {
                 self.optional.push(receiver);
             } else {
                 self.candidates.push(receiver);
