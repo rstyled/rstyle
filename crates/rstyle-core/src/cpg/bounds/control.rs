@@ -97,13 +97,15 @@ impl<'a> Collector<'_, '_, 'a> {
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
     fn call(&mut self, expression: &'a Node, next: u32) -> Lowered {
         let callee = self.facts.body.child(expression, 0)?;
-        let arguments: Vec<&'a Node> = self.facts.body.children(expression)?[1..].to_vec();
-        if let Some(symbol) = self.facts.local(callee)
-            && let Some(&closure) = self.closures.get(symbol)
-        {
+        let arguments: Vec<&'a Node> = self.evaluated_by(expression)?[1..].to_vec();
+        // A closure bound to a local, or written where it's called, runs here.
+        if let Some(Callback::Closure(closure)) = self.callback(callee) {
             // Arguments are evaluated before the inlined body runs.
             let body = self.inline(closure, next)?;
             return self.arguments(&arguments, body);
+        }
+        if let Some(entry) = self.run_once(expression, next)? {
+            return Ok(entry);
         }
         // Only a path names what it calls; any other callee is a computed value.
         let path = (callee.kind == NodeKind::Identifier)
@@ -138,6 +140,20 @@ impl<'a> Collector<'_, '_, 'a> {
         let entry = self.arguments(&arguments, call)?;
 
         self.expr(callee, entry)
+    }
+
+    /// What a call evaluates, in the order it's written: its receiver or callee, then what each
+    /// argument passes. An argument that holds its value in a child, as a keyword argument
+    /// holds what it passes, is that child.
+    fn evaluated_by(&self, call: &'a Node) -> Result<Vec<&'a Node>, String> {
+        let passed = self.facts.body.arguments(call)?;
+        let value = |written: &'a Node| {
+            let mut bound = passed.iter();
+            let bound = bound.find(|argument| std::ptr::eq(argument.node, written));
+            bound.map_or(written, |argument| argument.value)
+        };
+        let written = self.facts.body.children(call)?;
+        Ok(written.into_iter().map(value).collect())
     }
 
     /// Lowers `items` in evaluation order, built backward from `next`.
@@ -175,34 +191,43 @@ impl<'a> Collector<'_, '_, 'a> {
         Ok(Some(self.unsupported(expression, next, reason)))
     }
 
-    /// A member that runs what it's handed at most once for the call, as `Option::map` runs its
-    /// closure: the receiver and every other argument are evaluated, and then the callable
-    /// runs or it doesn't. The member does nothing else, so it adds no call of its own. `None`
-    /// keeps ordinary call lowering, where a callable nothing here resolves stays unknown.
+    /// A function or member that runs what it's handed at most once for the call, as
+    /// `Option::map` runs its closure and `std::call_once` its callable: the receiver or the
+    /// callee and every other argument are evaluated, and then the callable runs or it doesn't.
+    /// One handed several, as `map_or_else` is, runs at most one of them. It does nothing else,
+    /// so it adds no call of its own. `None` keeps ordinary call lowering, where a callable
+    /// nothing here resolves stays unknown.
     fn run_once(&mut self, expression: &'a Node, next: u32) -> Result<Option<u32>, String> {
         let inputs = self.facts.body.children(expression)?;
-        let index = run_once(self.facts, expression);
-        let handed = index.and_then(|index| Some((index, *inputs.get(index + 1)?)));
-        let Some((index, callback)) =
-            handed.and_then(|(index, argument)| Some((index, self.callback(argument)?)))
-        else {
+        let Some(indexes) = run_once(self.facts, expression) else {
             return Ok(None);
         };
-        let either = self.ran_or_not(callback, expression, next)?;
-        let others: Vec<&'a Node> = evaluated(&inputs[1..], Some(index as u32)).collect();
+        let handed = indexes.iter().map(|index| {
+            let argument = inputs.get(*index as usize + 1)?;
+            self.callback(argument)
+        });
+        let Some(callbacks) = handed.collect::<Option<Vec<_>>>() else {
+            return Ok(None);
+        };
+        let either = self.ran_or_not(&callbacks, expression, next)?;
+        let others: Vec<&'a Node> = evaluated(&inputs[1..], indexes).collect();
         let entry = self.arguments(&others, either)?;
 
         self.expr(inputs[0], entry).map(Some)
     }
 
-    /// A branch that runs the callable and goes on, or goes on without it.
-    fn ran_or_not(&mut self, callback: Callback<'a>, at: &'a Node, next: u32) -> Lowered {
-        let ran = self.invoke(callback, at, next)?;
-        Ok(self.choice((ran, next), at))
+    /// Branches that each run one of the callables and go on, or go on without any.
+    fn ran_or_not(&mut self, callbacks: &[Callback<'a>], at: &'a Node, next: u32) -> Lowered {
+        let mut either = next;
+        for callback in callbacks.iter().rev() {
+            let ran = self.invoke(*callback, at, next)?;
+            either = self.choice((ran, either), at);
+        }
+        Ok(either)
     }
 
     fn method_invocation(&mut self, expression: &'a Node, next: u32) -> Lowered {
-        let inputs = self.facts.body.children(expression)?;
+        let inputs = self.evaluated_by(expression)?;
         let callee = self
             .facts
             .reference(expression)

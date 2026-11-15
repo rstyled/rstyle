@@ -116,7 +116,6 @@ impl Filter {
     pub fn demand(&self) -> Demand {
         Demand {
             graphs: self.core(Analysis::Patterns),
-            closures: crate::cpg::records::Closures::Opaque,
             bounds: self.core(Analysis::Bounds),
             flow: self.core(Analysis::Flow),
             defects: self.core(Analysis::Defects),

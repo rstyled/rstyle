@@ -73,6 +73,13 @@ pub(super) struct Observed {
 }
 
 impl Observed {
+    /// What all of a document's bytes are observed as.
+    fn of(bytes: &[u8]) -> io::Result<Self> {
+        let mut observed = Self::default();
+        observed.update(bytes)?;
+        Ok(observed)
+    }
+
     fn update(&mut self, bytes: &[u8]) -> io::Result<()> {
         self.bytes = self
             .bytes

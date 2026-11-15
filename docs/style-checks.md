@@ -109,7 +109,10 @@ element's, isn't listed. A member that only runs what it's handed, such as `Iter
 `Option::map`, is pure where the frontend names everything it runs. The
 [library contracts](../crates/rstyle-core/src/runtime_bounds/contracts/rust.toml) say which members
 those are and how often each runs its callable, once for runtime bounds, effects and the dependence
-graph. [Python's](../crates/rstyle-core/src/cpg/contracts/effects/py.toml) lists
+graph. Go's and C++'s frontends don't name what a call runs, so a member whose role is to run one
+callable for the call, such as `sync.Once.Do` or `std::call_once`, is read by what's written as that
+argument: a closure is the function's own code, a function or method named there is called from
+there, and anything else makes it a call the table doesn't list. [Python's](../crates/rstyle-core/src/cpg/contracts/effects/py.toml) lists
 the standard library's effects, such as `open`, `subprocess.run`, `os.getenv` and `time.monotonic`,
 and leaves third-party calls unclassified, as Rust's does. Python runs a value's own methods almost
 everywhere, so its `none` list only holds what runs nothing it's handed, such as `id`, `typing.cast`

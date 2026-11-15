@@ -40,9 +40,10 @@ To analyze a saved run again without source files or compiler tools, use `--repl
    operand-position edges. `for`, `?` and macros are single nodes, and call nodes are labeled by the
    callee's signature class, not its name. A Weisfeiler-Lehman kernel clusters functions with the same
    structure, an alignment step produces the *holes* (`T0 = Dog | Cat`, `M0 = Dog::bark | Cat::meow`),
-   and method holes are joined back to the signature groups. `for` loops and `Iterator::for_each`
-   closures count as the same iteration, and a `match` whose arms call analogous methods is reported as
-   `enum_dispatch`.
+   and method holes are joined back to the signature groups. A closure's body is part of its function's
+   graph, under the closure's node, so what two closures call or read is compared like the rest. `for`
+   loops and `Iterator::for_each` closures count as the same iteration, and a `match` whose arms call
+   analogous methods is reported as `enum_dispatch`.
 
 Each candidate has:
 
@@ -112,8 +113,8 @@ still in it.
 
 - Pass `ignore` the same clustering flags as `patterns`, since they decide which candidates and ids
   exist.
-- Shape comes from the dependence graph, so edits inside closures, or edits that only swap one callee
-  for another of the same signature, aren't seen.
+- Shape comes from the dependence graph, so edits that only swap one callee for another of the same
+  signature aren't seen.
 - Pruning is manual, and needs complete full-workspace inputs captured with `--all-targets`. Saved
   replay uses the selection it recorded. Stale entries are harmless, and just never match.
 - `--status` reports absent members as unobserved within each compilation population, rather than
@@ -141,7 +142,6 @@ These are off by default:
 ## Known limits
 
 - Analysis is function-level only.
-- Closure bodies are opaque, except `for_each`.
 - A cluster mixing already-trait and inherent impls is reported as a candidate, rather than as
   "implement the existing trait".
 - The size floor is 4 nodes and 1 call, so small functions never cluster. On competitive-programming

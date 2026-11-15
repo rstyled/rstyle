@@ -62,8 +62,6 @@ pub struct Cluster {
     /// Every retained alignment only forwards through distinct, single-use callee holes.
     /// Missing identities, shared calls, repeated holes or other node kinds keep this false.
     pub forwarding_only: bool,
-    /// At least one retained member contains an opaque ordinary closure node.
-    pub opaque_closure: bool,
 }
 
 fn classes_of(pdg: &Pdg) -> BTreeSet<String> {
@@ -307,8 +305,6 @@ fn build(pdgs: &[&Pdg], wls: &[Wl], group: &[usize], params: &Params) -> Option<
             .chain(joined.iter().map(|j| j.alignment.coverage_milli))
             .collect(),
         columns: columns_of(&joined),
-        opaque_closure: wls[template].opaque_closure
-            || joined.iter().any(|member| wls[member.index].opaque_closure),
         forwarding_only: joined
             .iter()
             .all(|member| forwards_calls(&wls[template], &wls[member.index], &member.alignment)),
@@ -354,7 +350,7 @@ pub fn cluster(pdgs: &[&Pdg], params: &Params) -> Vec<Cluster> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::facts::{NodeKind, PdgNode, TyShape};
+    use crate::facts::{PdgNode, TyShape};
     use crate::pdgtest::*;
 
     fn animals() -> Vec<Pdg> {
@@ -438,30 +434,6 @@ mod tests {
         let wls: Vec<Wl> = pdgs.iter().map(Wl::new).collect();
         assert_eq!(medoid(&wls, &[0, 1, 2]), 1);
         assert_eq!(medoid(&wls, &[0, 2, 1]), 1, "ties keep the lowest index");
-    }
-
-    #[test]
-    fn opaque_closure_summary_follows_only_retained_graph_members() {
-        let mut pdgs = animals();
-        assert!(
-            run(&pdgs, &Params::default())
-                .iter()
-                .all(|c| !c.opaque_closure)
-        );
-        for pdg in &mut pdgs {
-            pdg.nodes.push(node(NodeKind::Closure));
-        }
-        let clusters = run(&pdgs, &Params::default());
-        assert_eq!(clusters.len(), 1);
-        assert!(clusters[0].opaque_closure);
-        assert_eq!(clusters[0].coverage_milli, [1000, 1000, 1000]);
-
-        let mut ordinary = animals();
-        ordinary.push(pdgs.pop().unwrap());
-        let refs: Vec<_> = ordinary.iter().collect();
-        let wls: Vec<_> = refs.iter().map(|pdg| Wl::new(pdg)).collect();
-        let selected = build(&refs, &wls, &[0, 1, 2], &Params::default()).unwrap();
-        assert!(!selected.opaque_closure);
     }
 
     #[test]

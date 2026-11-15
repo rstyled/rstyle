@@ -57,6 +57,30 @@ operations = [
   "vector.size",
 ]
 
+# Callable roles: a function or member that runs the callable it's handed for the call itself.
+# `runs` says how often, `arity` is the argument count after the receiver or the callee, and
+# `callbacks` the indexes of the callables among them. Every other argument is evaluated before it,
+# and the member does nothing else, so runtime bounds read one that runs its callable at most
+# once as a branch around the callable.
+
+[[callable]]
+basis = "Calls the callable at most once, on the value the receiver holds or in place of the one it lacks"
+runs = "AtMostOnce"
+arity = 1
+callbacks = [0]
+operations = [
+  "optional.and_then",
+  "optional.or_else",
+  "optional.transform",
+]
+
+[[callable]]
+basis = "Calls the callable the first time it's reached with this flag, and returns when that call has"
+runs = "AtMostOnce"
+arity = 2
+callbacks = [1]
+operations = ["call_once"]
+
 # Extent roles: members over a receiver whose entry count is stable while it's only read.
 
 [[extent]]

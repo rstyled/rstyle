@@ -9,7 +9,7 @@ mod receipt;
 
 use rstyle_core::config::Config;
 use rstyle_core::cpg::bounds::report::from_records;
-use rstyle_core::cpg::records::{self, Closures, Demand, Record};
+use rstyle_core::cpg::records::{self, Demand, Record};
 use rstyle_core::filter::{Analysis, Filter};
 use rstyle_core::unified::{self, FlowReport, FlowRow, take_flow};
 use rstyle_core::{cpg, patterns_report, report};
@@ -52,7 +52,6 @@ pub fn check(
 pub fn patterns(cli: &Cli, args: &CpgPatternsArgs) -> Result<(String, u8), String> {
     let demand = Demand {
         graphs: true,
-        closures: Closures::Opaque,
         bounds: args.complexity,
         flow: false,
         defects: false,
