@@ -1259,11 +1259,10 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
     /// Whether a standard callee may run workspace code, and whether that's only closures written
     /// in this function, whose own facts hold what they do.
     fn calls_back(&self, runs: hir::def_id::DefId, args: ty::GenericArgsRef<'tcx>) -> Value {
-        let value = super::sysroot::calls_back(self.tcx, None, runs, args);
+        let value = super::sysroot::calls_back(self.tcx, (self.owner, true), runs, args);
         let mut record = json!({"value": value,
-            "reason": "callable arguments, or bounds on types outside the standard library"});
-        let owner = Some(self.owner.to_def_id());
-        if value && !super::sysroot::calls_back(self.tcx, owner, runs, args) {
+            "reason": "callable arguments, or bounds that select code outside the standard library"});
+        if value && !super::sysroot::calls_back(self.tcx, (self.owner, false), runs, args) {
             record["own_closures"] = json!(true);
         }
         record

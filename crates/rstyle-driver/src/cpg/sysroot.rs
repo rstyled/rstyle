@@ -1,8 +1,11 @@
 //! Standard-library identity by crate number, never by crate or path spelling.
 use rustc_hir::def::DefKind;
-use rustc_hir::def_id::{CrateNum, DefId};
+use rustc_hir::def_id::{CrateNum, DefId, LocalDefId};
+use rustc_middle::traits::ImplSource;
 use rustc_middle::ty::{self, Ty};
 use rustc_span::sym;
+use rustc_type_ir::elaborate::supertrait_def_ids;
+use std::collections::HashSet;
 
 /// `core`, `alloc` or `std`, identified by the crates defining their lang and diagnostic items.
 pub(crate) fn sysroot(tcx: ty::TyCtxt<'_>, krate: CrateNum) -> bool {
@@ -56,17 +59,19 @@ fn standard_kind<'tcx>(tcx: ty::TyCtxt<'tcx>, ty: Ty<'tcx>) -> bool {
     }
 }
 
-/// A standard callee may run workspace code through callable arguments or trait bounds
-/// on workspace types, such as `PartialEq::ne`, `Into::into` or `sort` on workspace items.
-/// With an `owner`, a closure written there isn't counted: its body is the owner's own.
+/// A standard callee may run workspace code through callable arguments, or through an
+/// implementation one of its bounds selects, such as `PartialEq::ne`, `Into::into` or `sort` on
+/// workspace items. With `own_closures` left out, a closure written in the `owner` isn't counted:
+/// its body is the owner's own.
 pub(crate) fn calls_back<'tcx>(
     tcx: ty::TyCtxt<'tcx>,
-    owner: Option<DefId>,
+    (owner, own_closures): (LocalDefId, bool),
     callee: DefId,
     arguments: ty::GenericArgsRef<'tcx>,
 ) -> bool {
+    let own = (!own_closures).then(|| owner.to_def_id());
     let callable = arguments.types().any(|ty| {
-        parts(tcx, owner, ty).into_iter().any(|ty| {
+        parts(tcx, own, ty).into_iter().any(|ty| {
             matches!(
                 ty.kind(),
                 ty::Closure(..)
@@ -79,19 +84,76 @@ pub(crate) fn calls_back<'tcx>(
             )
         })
     });
-    let sized = tcx.lang_items().sized_trait();
-    callable
-        || tcx
-            .clauses_of(callee)
-            .instantiate(tcx, arguments)
+    let mut bounds = Bounds {
+        tcx,
+        environment: ty::TypingEnv::post_analysis(tcx, owner),
+        own,
+        seen: HashSet::new(),
+    };
+    callable || !bounds.standard(callee, arguments)
+}
+
+/// The implementations a call's bounds select, each read once.
+struct Bounds<'tcx> {
+    tcx: ty::TyCtxt<'tcx>,
+    environment: ty::TypingEnv<'tcx>,
+    /// The function whose closures are its own code, when they aren't counted.
+    own: Option<DefId>,
+    seen: HashSet<ty::TraitRef<'tcx>>,
+}
+
+impl<'tcx> Bounds<'tcx> {
+    /// Whether every bound of `item` selects only the standard library's code.
+    fn standard(&mut self, item: DefId, arguments: ty::GenericArgsRef<'tcx>) -> bool {
+        let clauses = self.tcx.clauses_of(item).instantiate(self.tcx, arguments);
+        clauses
             .clauses
             .into_iter()
             .filter_map(|clause| clause.skip_norm_wip().as_trait_clause())
-            .filter(|bound| Some(bound.def_id()) != sized)
-            .any(|bound| {
-                let parts = parts(tcx, owner, bound.self_ty().skip_binder());
-                !parts.into_iter().all(|ty| standard_kind(tcx, ty))
-            })
+            .all(|bound| self.selects_standard(bound.map_bound(|bound| bound.trait_ref)))
+    }
+
+    /// A bound on an associated type is on the type it names, as `Self::Item: Ord` is on the
+    /// item's. One that names none here could select anything.
+    fn selects_standard(&mut self, bound: ty::PolyTraitRef<'tcx>) -> bool {
+        let bound = self.tcx.instantiate_bound_regions_with_erased(bound);
+        let bound = ty::Unnormalized::new_wip(bound);
+        let named = self
+            .tcx
+            .try_normalize_erasing_regions(self.environment, bound);
+        named.is_ok_and(|bound| self.implemented_by_standard(bound))
+    }
+
+    /// A bound is read by the implementation it selects, as a call is. The standard library's
+    /// runs what its own bounds select, so `Iter<Item>: Iterator` runs nothing of `Item`'s, and
+    /// `Vec<Item>: Clone` runs `Item`'s `clone`. A trait with no function to call selects no
+    /// code. One the compiler implements runs what the type is built from, and calling a closure
+    /// runs the closure.
+    fn implemented_by_standard(&mut self, bound: ty::TraitRef<'tcx>) -> bool {
+        let tcx = self.tcx;
+        if !declares_functions(tcx, bound.def_id) || !self.seen.insert(bound) {
+            return true;
+        }
+        match tcx.codegen_select_candidate(self.environment.as_query_input(bound)) {
+            Ok(ImplSource::UserDefined(found)) if sysroot(tcx, found.impl_def_id.krate) => {
+                self.standard(found.impl_def_id, found.args)
+            }
+            Ok(ImplSource::Builtin(..)) => {
+                let own = self.own.filter(|_| tcx.is_fn_trait(bound.def_id));
+                let parts = parts(tcx, own, bound.self_ty());
+                parts.into_iter().all(|ty| standard_kind(tcx, ty))
+            }
+            _ => false,
+        }
+    }
+}
+
+/// Whether the trait, or one it requires, declares a function an implementation defines.
+fn declares_functions(tcx: ty::TyCtxt<'_>, declared: DefId) -> bool {
+    supertrait_def_ids(tcx, declared).any(|required| {
+        let mut items = tcx.associated_items(required).in_definition_order();
+        items.any(|item| item.is_fn())
+    })
 }
 
 /// Contract namespace of this frontend's operation keys.

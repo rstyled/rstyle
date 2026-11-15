@@ -2355,6 +2355,57 @@ fn risk_reads_a_closure_written_here_as_this_function_s_code() {
     );
 }
 
+/// A bound is read by the implementation it selects. The standard library's iterator over a
+/// workspace type runs nothing of the type's, and neither does collecting its values into a `Vec`, so
+/// a chain over them adds no call nothing classifies. A set's key selects the type's own `Hash`,
+/// which is other code, and stays unclassified.
+#[test]
+fn risk_reads_a_bound_by_the_implementation_it_selects() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    std::fs::write(root.join("rstyle.toml"), "[risk]\npdg_change = \"low\"\n").unwrap();
+    let item = "#[derive(PartialEq, Eq, Hash)]\npub struct Item { pub id: u32 }\n";
+    let base = saved_run_of(
+        root,
+        &format!("{item}pub fn f(items: &[Item]) -> usize {{ items.len() }}\n"),
+    );
+    let chained = saved_run_of(
+        root,
+        &format!(
+            "{item}pub fn f(items: &[Item]) -> usize {{\n    \
+            let ids: Vec<u32> = items.iter().map(|item| item.id).filter(|id| *id > 1).collect();\n    \
+            let kept: Vec<&Item> = items.iter().filter(|item| item.id > 1).collect();\n    \
+            ids.len() + kept.len() + items.iter().map(|item| item.id).count()\n}}\n"
+        ),
+    );
+
+    let rated = report(&risk(&base, &chained));
+    assert_eq!(rated["risk"], "low", "{rated}");
+    assert_eq!(
+        rated["changes"][0]["calls_unclassified"],
+        serde_json::json!([]),
+        "{rated}"
+    );
+
+    let keyed = saved_run_of(
+        root,
+        &format!(
+            "{item}pub fn f(items: &[Item]) -> usize {{\n    \
+            let seen: std::collections::HashSet<&Item> = items.iter().collect();\n    \
+            seen.len()\n}}\n"
+        ),
+    );
+    let rated = report(&risk(&base, &keyed));
+    assert_eq!(rated["risk"], "unknown", "{rated}");
+    assert!(
+        rated["changes"][0]["calls_unclassified"]
+            .to_string()
+            .contains("collect"),
+        "{rated}"
+    );
+}
+
 /// `.await` polls the body of the `async fn` it awaits, which the call that made the future already
 /// reads, and `?` converts the error with the workspace's `From` or with none at all, so an async
 /// function that awaits and propagates adds no call nothing classifies.
