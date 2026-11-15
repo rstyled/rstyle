@@ -2334,6 +2334,41 @@ fn risk_reads_a_closure_written_here_as_this_function_s_code() {
     );
 }
 
+/// A closure's body is the function's own code to the comparison too. A call added inside one is a
+/// call the function now makes, and reading another variable there changes its graph, where both
+/// read as text only before. All of an `async fn` is such a body.
+#[test]
+fn risk_reads_a_change_inside_a_closure_as_a_change_to_the_function() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    a_package_in(root);
+    let source = |closure: &str, awaited: &str| {
+        format!(
+            "pub fn limit() -> u8 {{ 3 }}\n\
+            pub fn f(o: Option<u8>, k: u8, j: u8) -> Option<u8> {{ o.map(|x| {closure}) }}\n\
+            pub async fn g(k: u8, j: u8) -> u8 {{ {awaited} }}\n"
+        )
+    };
+    let base = saved_run_of(root, &source("x + k", "k"));
+    let rated = report(&risk(&base, &saved_run_of(root, &source("x + j", "j"))));
+    let changes = rated["changes"].as_array().unwrap();
+    assert_eq!(changes.len(), 2, "{rated}");
+    for change in changes {
+        assert_eq!(change["kind"], "changed", "{change}");
+        assert_eq!(change["graph"]["edges_added"], 1, "{change}");
+    }
+
+    let called = saved_run_of(root, &source("x + k + limit()", "k + limit()"));
+    let rated = report(&risk(&base, &called));
+    for change in rated["changes"].as_array().unwrap() {
+        assert_eq!(
+            change["calls_added"],
+            serde_json::json!(["app::limit"]),
+            "{change}"
+        );
+    }
+}
+
 /// What the handed-function tests share: a constructor, a function of the workspace's, and a
 /// signature with a function pointer.
 const HANDED: &str = "pub struct Id(pub u8);\npub fn helper(x: &u8) -> u8 { *x }\n\

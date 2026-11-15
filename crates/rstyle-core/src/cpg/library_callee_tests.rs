@@ -29,6 +29,7 @@ const RUNS: &str = include_str!("testdata/effects-run-py.cpg.json");
 
 const DEMAND: Demand = Demand {
     graphs: true,
+    closures: crate::cpg::records::Closures::Opaque,
     bounds: false,
     flow: false,
     defects: false,

@@ -1,6 +1,7 @@
 //! Dependence graphs of function bodies (the profile's Pattern facts): operands give
 //! data edges, a binding links to its uses, and the enclosing branch, match, loop or
-//! iteration gives control edges. There are no execution-order edges.
+//! iteration gives control edges, as a closure does in a graph that holds its body.
+//! There are no execution-order edges.
 
 use super::model::{
     DefinitionKind, Dispatch, Literal, Node, NodeKind, Ref, RefStatus, RefTarget, Scope,
@@ -55,18 +56,31 @@ impl Roles {
     }
 }
 
+/// How a graph holds the closures its function writes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Closures {
+    /// One node each, as pattern mining reads them: its candidates, and the ledger that names
+    /// them, were found without the bodies.
+    #[default]
+    Opaque,
+    /// With its body under its node, as a comparison reads them, since a change inside a
+    /// closure is a change to the function that wrote it.
+    Bodies,
+}
+
 /// The dependence graph of one function body.
 pub fn dependence_graph(
     body: &Body<'_>,
     tables: &Tables<'_>,
     sources: &Sources<'_>,
-    roles: &Roles,
+    (roles, closures): (&Roles, Closures),
 ) -> Result<Pdg, String> {
     let mut graph = Graph {
         body,
         tables,
         sources,
         roles,
+        closures,
         graph: GraphBuilder::default(),
         binds: BTreeMap::new(),
         declared: body
@@ -86,6 +100,7 @@ struct Graph<'b, 'a> {
     tables: &'b Tables<'a>,
     sources: &'b Sources<'a>,
     roles: &'b Roles,
+    closures: Closures,
     graph: GraphBuilder,
     /// The graph node each symbol is bound to.
     binds: BTreeMap<&'a str, usize>,
@@ -118,12 +133,17 @@ impl<'a> Graph<'_, 'a> {
     // rstyle-allow(mutation_per_target): the graph accumulates nodes and edges in self by design
     fn lower_body(&mut self) -> Result<(), String> {
         self.params()?;
-        let root = self.body.root()?;
-        let value = self.expr(root)?;
+        self.returning(self.body.root()?)
+    }
+
+    // rstyle-allow(mutation_per_target): the graph accumulates nodes and edges in self by design
+    /// Lowers a function's body, or a closure's, and what it returns.
+    fn returning(&mut self, body: &'a Node) -> Result<(), String> {
+        let value = self.expr(body)?;
         // A unit-valued body returns nothing: `f();` and a tail `f()` give the same graph.
-        if self.type_kind(root)? != TypeKind::Unit {
+        if self.type_kind(body)? != TypeKind::Unit {
             let node = PdgNode {
-                line: self.line(root)?,
+                line: self.line(body)?,
                 ..blank(Kind::Return)
             };
             let ret = self.graph.add(node);
@@ -271,13 +291,34 @@ impl<'a> Graph<'_, 'a> {
                 Some(self.graph.add(self.generic_node(node)?))
             }
             NodeKind::Block => self.block(node)?,
-            NodeKind::Closure => Some(self.graph.add(self.typed(Kind::Closure, node)?)),
+            NodeKind::Closure => Some(self.closure(node)?),
             NodeKind::Assignment if self.body.destructures(node)? => {
                 self.destructuring(node)?;
                 None
             }
             _ => Some(self.generic(node)?),
         })
+    }
+
+    /// A closure's body is its function's own code, so a graph that holds it has it under the
+    /// closure's node, with each parameter bound to that node, as a loop's pattern is to the
+    /// loop, and what it returns, as the function's own body does. What the body captures links
+    /// to where the function bound it, as any other use does. A coroutine's body, which is all
+    /// of an `async fn`, is held the same way. A graph that leaves bodies out has the node alone.
+    // rstyle-allow(mutation_per_target): the graph accumulates nodes and edges in self by design
+    fn closure(&mut self, node: &'a Node) -> Result<usize, String> {
+        let index = self.graph.add(self.typed(Kind::Closure, node)?);
+        let held = self.closures == Closures::Bodies;
+        let parts = &self.body.children(node)?[..];
+        let parts = if held { parts } else { &[] };
+        let parameters = parts.len().saturating_sub(1);
+        for parameter in &parts[..parameters] {
+            self.bind(parameter, index)?;
+        }
+        for body in &parts[parameters..] {
+            self.under(index, 0, |walk| walk.returning(body))?;
+        }
+        Ok(index)
     }
 
     /// Branches, matches, loops and jumps; `None` for any other node.

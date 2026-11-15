@@ -6,6 +6,7 @@ use serde_json::{Value, json};
 
 const DEMAND: Demand = Demand {
     graphs: false,
+    closures: crate::cpg::records::Closures::Opaque,
     bounds: false,
     flow: false,
     defects: true,

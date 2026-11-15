@@ -5,6 +5,7 @@
 //! and no rule reads them.
 
 use super::defects::{self, Examined};
+pub use super::dependence::Closures;
 use super::flow::Derived;
 use super::model::{
     Document, FileSpan, Function, Generic, Node, Origin, Provenance, Type, TypeKind,
@@ -24,6 +25,8 @@ pub const UNMEASURED: &str = "Existing compiler collector has no original functi
 #[derive(Clone, Copy, Default)]
 pub struct Demand {
     pub graphs: bool,
+    /// With graphs: how each holds the closures its function writes.
+    pub closures: Closures,
     pub bounds: bool,
     /// Dominators, post-dominators and the dependence graph the control flow gives.
     pub flow: bool,
@@ -337,7 +340,8 @@ fn measured_and_failed(
 ) -> Result<(BTreeMap<String, FnFacts>, Failed), String> {
     let mut failed = BTreeMap::new();
     let mut measured = BTreeMap::new();
-    for (function, facts) in super::facts::derive_each(document, demand.graphs)? {
+    let graphs = demand.graphs.then_some(demand.closures);
+    for (function, facts) in super::facts::derive_holding(document, graphs)? {
         match facts {
             Ok(facts) => {
                 measured.insert(facts.id.clone(), facts);

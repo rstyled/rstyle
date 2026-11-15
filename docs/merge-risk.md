@@ -40,7 +40,7 @@ and one added.
 
 | Kind | Meaning |
 | --- | --- |
-| `changed` | Its dependence graph differs, lines aside, or a value known at a node it wrote does, as a constant's does at a use |
+| `changed` | Its dependence graph differs, lines aside, or a value known at a node it wrote does, as a constant's does at a use. The graph holds the body of each closure the function writes, and all of an `async fn`'s, so a call or a variable changed inside one is a change to the function |
 | `added`, `removed` | Only one run has it |
 | `text only` | Its text differs and nothing compared does. That says those facts didn't change, not that behavior didn't |
 | `unknown` | It differs, and its tree isn't all of it, such as when the compiler couldn't parse part of the file |

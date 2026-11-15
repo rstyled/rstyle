@@ -8,6 +8,7 @@ pub(super) fn consume(request: &UnitRequest<'_>, result: &mut Handoff) -> Result
     check_mode(unit, &request.capture.plan)?;
     let demand = rstyle_core::cpg::records::Demand {
         graphs: request.args.compiler_patterns,
+        closures: rstyle_core::cpg::records::Closures::Opaque,
         bounds: request.args.compiler_runtime_bounds,
         flow: false,
         defects: false,
