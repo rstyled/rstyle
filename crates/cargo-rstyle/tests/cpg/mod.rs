@@ -472,6 +472,7 @@ fn emit_selects_packages_and_targets() {
 mod analyze;
 mod bounds;
 mod build_outputs;
+mod callables;
 mod capture;
 #[cfg(unix)]
 mod descriptor;

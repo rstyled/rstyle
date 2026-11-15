@@ -14,7 +14,7 @@ use crate::facts::{
     MutationOrigin,
 };
 use crate::paths::strip_generics;
-use crate::runtime_bounds::contracts::Contracts;
+use crate::runtime_bounds::contracts::{Contracts, Runs};
 use crate::wording::Message;
 use std::collections::BTreeMap;
 
@@ -303,8 +303,10 @@ impl<'a> Walk<'a> {
         out: &mut Events,
     ) -> Result<(), String> {
         self.driven(node, (reference, runs), out)?;
+        let written = self.handed_callable(node, (reference, runs))?;
         let named = reference.calls_back.iter();
-        for ran in named.flat_map(|calls_back| calls_back.runs.iter().flatten()) {
+        let named = named.flat_map(|calls_back| calls_back.runs.iter().flatten());
+        for ran in named.chain(&written) {
             let Ran::Definition { id } = ran else {
                 continue;
             };
@@ -343,6 +345,53 @@ impl<'a> Walk<'a> {
         Ok(())
     }
 
+    /// What a function or member with a callable role is handed as its callable, where the
+    /// document doesn't name what the call runs: the closure written there, which is this
+    /// function's own code, or the function the argument names. The role says the callable is
+    /// all the member runs, so that is everything. A frontend that names what its calls run is
+    /// read by what it says.
+    fn handed_callable(
+        &self,
+        node: &Node,
+        (reference, runs): (&Ref, &Definition),
+    ) -> Result<Option<Ran>, String> {
+        let named = reference.calls_back.as_ref();
+        let named = named.is_some_and(|calls_back| calls_back.named());
+        let operation = runs.operation.as_deref().filter(|_| !named);
+        let role = operation.and_then(|operation| Contracts::embedded().handed(operation));
+        // One that runs its callable for the call itself, and not for each item it's driven
+        // through, which would run the traversal's own code as well.
+        let role = role.filter(|handed| handed.runs == Runs::AtMostOnce);
+        let Some(index) = role.and_then(|handed| handed.callback) else {
+            return Ok(None);
+        };
+        // The first child is the receiver, or the callee of a call in function form. A call
+        // written as the callable hands over what it returns, which nothing names.
+        let children = self.body.children(node)?;
+        let argument = children.get(index as usize + 1);
+        let argument = argument.filter(|argument| argument.kind != NodeKind::Call);
+        Ok(argument.and_then(|argument| match argument.kind {
+            NodeKind::Closure => Some(Ran::Closure {
+                id: argument.id.clone(),
+            }),
+            _ => self.function_named(argument),
+        }))
+    }
+
+    /// The function or method an expression names, as what a call it's handed to runs: a
+    /// function by its name, or a method by its value, as Go's `c.load` is.
+    fn function_named(&self, named: &Node) -> Option<Ran> {
+        let target = self.body.reference(&named.id)?.target.as_ref()?;
+        let named = target.kind == TargetKind::Definition;
+        let id = target.id.as_deref().filter(|_| named)?;
+        let definition = self.tables.definition(id).ok()?;
+        let callable = matches!(
+            definition.kind,
+            DefinitionKind::Function | DefinitionKind::Method
+        );
+        callable.then(|| Ran::Definition { id: id.to_owned() })
+    }
+
     /// What the library itself implements for an iterator or a reader a call drives runs where
     /// the call does, not where the value was made: draining a directory's entries reads the
     /// directory. Each is read by its own class, and counts when that's an effect, since most
@@ -377,7 +426,8 @@ impl<'a> Walk<'a> {
     /// when the document names a library's, since that's what runs, and its declared callee
     /// otherwise. An implementation in the workspace is followed through the call edge instead. An
     /// entry that only holds for a call that runs none of the workspace's code holds where the
-    /// call's reference says it calls nothing back.
+    /// call's reference says it calls nothing back, or names all it runs, and where a callable
+    /// role's own argument is written out.
     fn library_class(
         &self,
         node: &'a Node,
@@ -395,7 +445,9 @@ impl<'a> Walk<'a> {
             return Ok(Some(LibraryClass::Pure));
         }
         let calls_back = callee.reference.calls_back.as_ref();
-        Ok(if calls_back.is_some_and(|calls_back| calls_back.named()) {
+        let named = calls_back.is_some_and(|calls_back| calls_back.named());
+        let written = self.handed_callable(node, (callee.reference, runs))?;
+        Ok(if named || written.is_some() {
             self.classes.class_without_callback(operation)
         } else {
             self.classes.class(operation)

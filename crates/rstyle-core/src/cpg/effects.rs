@@ -109,8 +109,8 @@ impl EffectClasses {
     /// The class of an operation key such as `go:os.WriteFile`, for a call that may call back into
     /// the workspace: the longest entry that starts it, where an exact entry only starts the key it
     /// names, else the file's class for an unlisted call. An entry that needs the call to call
-    /// nothing back leaves it unclassified, and so does a role in the library contracts, which
-    /// says the member only runs what it's handed.
+    /// nothing back leaves it unclassified. A role in the library contracts says the member only
+    /// runs what it's handed, so a call that may run something else is an unlisted one.
     pub fn class(&self, operation: &str) -> Option<LibraryClass> {
         self.classed(operation, true)
     }
@@ -122,9 +122,14 @@ impl EffectClasses {
     }
 
     fn classed(&self, operation: &str, calls_back: bool) -> Option<LibraryClass> {
-        // A member the library contracts give a role runs only what it's handed.
+        // A member the library contracts give a role runs only what it's handed. Where nothing
+        // names that, it's as any call the file doesn't list.
         if Contracts::embedded().handed(operation).is_some() {
-            return (!calls_back).then_some(LibraryClass::Pure);
+            return if calls_back {
+                self.unlisted
+            } else {
+                Some(LibraryClass::Pure)
+            };
         }
         let listed = operation
             .char_indices()
@@ -453,6 +458,21 @@ mod tests {
                 "{operation}"
             );
             assert_eq!(classes.class(operation), None, "{operation}");
+        }
+        // Where a file gives a class to what it doesn't list, a role that may run something
+        // nothing names is one of those, whatever a prefix says of its package.
+        for (namespace, operation) in [("go", "go:sync.Once.Do"), ("cxx", "cxx:call_once")] {
+            let classes = EffectClasses::of(namespace);
+            assert_eq!(
+                classes.class_without_callback(operation),
+                Some(LibraryClass::Pure),
+                "{operation}"
+            );
+            assert_eq!(
+                classes.class(operation),
+                Some(LibraryClass::Effect(EffectKind::Unknown)),
+                "{operation}"
+            );
         }
         // The contracts say it once, so the table can't say it too.
         let listed = "schema = \"rstyle.effect-classes/1\"\nnamespace = \"rust\"\n\

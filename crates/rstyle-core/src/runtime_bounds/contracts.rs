@@ -23,6 +23,7 @@ pub const SCHEMA: &str = "rstyle.library-contracts/1";
 const EMBEDDED: &[&str] = &[
     include_str!("contracts/rust.toml"),
     include_str!("contracts/cxx.toml"),
+    include_str!("contracts/go.toml"),
 ];
 
 /// Per-invocation steps of one operation, over the sizes of its arguments.

@@ -453,18 +453,25 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
     }
 
     // Callbacks are admitted only where lowering can resolve every invocation: any closure an
-    // iteration member is handed, and the one a member runs at most once for the call.
+    // iteration member is handed, the one a function or member runs at most once for the call,
+    // and one written where it's called.
     fn admit_callbacks(&mut self, expression: &'a Node) -> Visited {
-        if !is_method(self.facts, expression) {
+        if expression.kind != NodeKind::Call {
             return Ok(());
         }
-        let iterating = iteration_member(self.facts, expression);
+        let method = is_method(self.facts, expression);
+        let iterating = method && iteration_member(self.facts, expression);
         let once = run_once(self.facts, expression);
-        let arguments = &self.facts.body.children(expression)?[1..];
-        let handed = arguments.iter().enumerate();
-        for (_, argument) in handed.filter(|(index, _)| iterating || once == Some(*index)) {
-            if argument.kind == NodeKind::Closure {
-                self.callbacks.insert(argument.id.as_str());
+        // The first child is the receiver, or the callee of a call in function form.
+        let admitted = |index: usize| match index.checked_sub(1) {
+            Some(argument) => iterating || once == Some(argument),
+            None => !method,
+        };
+        let children = self.facts.body.children(expression)?;
+        let handed = children.iter().enumerate();
+        for (_, child) in handed.filter(|(index, _)| admitted(*index)) {
+            if child.kind == NodeKind::Closure {
+                self.callbacks.insert(child.id.as_str());
             }
         }
         Ok(())

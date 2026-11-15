@@ -98,12 +98,14 @@ impl<'a> Collector<'_, '_, 'a> {
     fn call(&mut self, expression: &'a Node, next: u32) -> Lowered {
         let callee = self.facts.body.child(expression, 0)?;
         let arguments: Vec<&'a Node> = self.facts.body.children(expression)?[1..].to_vec();
-        if let Some(symbol) = self.facts.local(callee)
-            && let Some(&closure) = self.closures.get(symbol)
-        {
+        // A closure bound to a local, or written where it's called, runs here.
+        if let Some(Callback::Closure(closure)) = self.callback(callee) {
             // Arguments are evaluated before the inlined body runs.
             let body = self.inline(closure, next)?;
             return self.arguments(&arguments, body);
+        }
+        if let Some(entry) = self.run_once(expression, next)? {
+            return Ok(entry);
         }
         // Only a path names what it calls; any other callee is a computed value.
         let path = (callee.kind == NodeKind::Identifier)
@@ -175,10 +177,11 @@ impl<'a> Collector<'_, '_, 'a> {
         Ok(Some(self.unsupported(expression, next, reason)))
     }
 
-    /// A member that runs what it's handed at most once for the call, as `Option::map` runs its
-    /// closure: the receiver and every other argument are evaluated, and then the callable
-    /// runs or it doesn't. The member does nothing else, so it adds no call of its own. `None`
-    /// keeps ordinary call lowering, where a callable nothing here resolves stays unknown.
+    /// A function or member that runs what it's handed at most once for the call, as
+    /// `Option::map` runs its closure and `std::call_once` its callable: the receiver or the
+    /// callee and every other argument are evaluated, and then the callable runs or it doesn't.
+    /// It does nothing else, so it adds no call of its own. `None` keeps ordinary call lowering,
+    /// where a callable nothing here resolves stays unknown.
     fn run_once(&mut self, expression: &'a Node, next: u32) -> Result<Option<u32>, String> {
         let inputs = self.facts.body.children(expression)?;
         let index = run_once(self.facts, expression);

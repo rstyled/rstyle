@@ -83,15 +83,25 @@ each invocation, so the callback calls in
 `len(xs) * len(ys)`. Filters, skips, takes and searches may exit early, and `flat_map` rescans per outer
 item.
 
-**Callables run at most once.** A standard member that runs what it's handed at most once for the call, such
-as `Option::map`, `unwrap_or_else` or `bool::then`, is a branch: its receiver and other arguments are
-evaluated, and then the closure or function it's handed runs or doesn't. A loop in such a closure counts
-once for each time the call is reached, so `opt.map(|v| ys.iter().filter(|y| **y > v).count())` inside a
-scan of `xs` is bounded by `len(xs) * len(ys)`. The member adds no call of its own.
+**Callables run at most once.** A standard function or member that runs what it's handed at most once for the
+call is a branch: its receiver or callee and its other arguments are evaluated, and then the closure or
+function it's handed runs or doesn't. A loop in such a closure counts once for each time the call is reached,
+so `opt.map(|v| ys.iter().filter(|y| **y > v).count())` inside a scan of `xs` is bounded by
+`len(xs) * len(ys)`. The member adds no call of its own. Each language's contracts say which these are:
+
+| Language | Functions and members |
+| --- | --- |
+| Rust | `Option::map`, `unwrap_or_else`, `bool::then` and the like, and `Result`'s |
+| Go | `sync.Once.Do` |
+| C++ | `std::call_once`, and `transform`, `and_then` and `or_else` of `std::optional` |
+
+**Closures called where they're written.** A closure that's called as it's written, as in Go's
+`func() { .. }()` and C++'s `[&] { .. }()`, runs there, so its body is lowered in place.
 
 These stay unknown: unresolved or escaping callbacks, user iterators, mutable captures of a measured
 value, and chains that dispatch to workspace `Clone`, `Ord`, `Sum` or `FromIterator` impls. A closure
-handed to any other call leaves the whole function unknown.
+handed to any other call leaves the whole function unknown. So does one that Go defers or starts with `go`,
+which runs later than where it's written.
 
 ## What a partial result means
 
@@ -159,8 +169,9 @@ roles, so frontends carry no method tables:
   per-item effects (`Pass`, `Map`, `Filter`, `Skip`, `Take`, `TakeWhile`, `FlatMap`; `Drain`, `Each`,
   `Search`), its arity, the callback argument run once per item, and the type arguments whose trait impls
   it may run, which must be standard.
-- A `[[callable]]` names members that run a callable for the call itself, the argument that is the
-  callable, and how often it runs. One that runs it at most once lowers to a branch around it.
+- A `[[callable]]` names functions and members that run a callable for the call itself, the argument that
+  is the callable, counted after the receiver or the callee, and how often it runs. One that runs it at
+  most once lowers to a branch around it.
 - `[[extent]]` marks members that read a stable length (`Length`) or traverse each entry once
   (`Traversal`).
 
