@@ -148,6 +148,7 @@ fn runtime_bounds_are_independent_replayable_owner_results() {
     assert!(output.status.success(), "{}", stdout(&output));
     assert_known(&original);
     assert_call(runtime(&original)["rows"].as_array().unwrap());
+    assert_guard_call(runtime(&original)["rows"].as_array().unwrap());
     assert_callbacks(runtime(&original)["rows"].as_array().unwrap());
     assert_composed(runtime(&original)["rows"].as_array().unwrap());
     assert_library(runtime(&original)["rows"].as_array().unwrap());
@@ -231,12 +232,30 @@ fn assert_known_bounds(rows: &[Value]) {
         ("once_default", 6),
         ("once_either", 8),
         ("once_either_function", 3),
+        ("guard_call", 3),
     ] {
         let row = named_row(rows, name);
         let bound: rstyle_core::runtime_bounds::Bound =
             serde_json::from_value(row["result"]["Proven"]["loop_body_entries"].clone()).unwrap();
         assert_eq!(value(&bound), expected, "{name}: {bound:?}");
     }
+}
+
+/// A condition that calls something runs before every pass and once more, so the loop keeps its
+/// guard, and the call counts once per pass and once more.
+fn assert_guard_call(rows: &[Value]) {
+    let assessment = &named_row(rows, "guard_call")["result"]["Proven"];
+    let calls = assessment["calls"].as_array().unwrap();
+    let counts: u64 = calls
+        .iter()
+        .filter(|call| call["callee"].as_str().unwrap().ends_with("opaque"))
+        .map(|call| {
+            let count: rstyle_core::runtime_bounds::Bound =
+                serde_json::from_value(call["count"].clone()).unwrap();
+            value(&count)
+        })
+        .sum();
+    assert_eq!(counts, 4, "{assessment}");
 }
 
 fn assert_call(rows: &[Value]) {
@@ -477,7 +496,6 @@ fn assert_unknown(rows: &[Value]) {
         "unsafe_body",
         "guarded_or",
         "pattern_guard_reset",
-        "guard_call",
         "loop_local_extent",
         "containing_rebind",
         "mutable_callback_capture",
