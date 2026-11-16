@@ -134,6 +134,25 @@ each invocation, so the callback calls in
 `len(xs) * len(ys)`. Filters, skips, takes and searches may exit early, and `flat_map` rescans per outer
 item.
 
+**Immutable iterator locals.** One supported lazy pipeline can be stored in a simple
+immutable local and consumed exactly once by the immediately following terminal call
+in the owner's root block. Resolved references, reads, writes, places and captures must
+agree that the local has no alias, borrow, escape, reassignment or other use. Calls
+must have complete matching signatures and select the standard implementations.
+A named callback plan must agree exactly with the modeled pipeline's callbacks,
+including those stored in the local; empty, duplicate, missing or additional entries
+are rejected. Explicit driven-code rosters remain unsupported.
+
+The initializer's source is a stable shared formal place. A stage must explicitly
+declare deferred construction, and its stored state, intermediate items and captures
+must have inert cleanup. Initializer closures may capture only immutable direct scalar
+formals by shared reference. The source and other initializer operands evaluate at the
+declaration, once; callback bodies run at the consumer. Downstream operands still
+evaluate there. Callback environments with unmodeled cleanup and flattened
+continuations remain unsupported. Downstream values retain the existing consumer's supported cleanup.
+This proves a scan bound from the original extent, without inventing a size for a
+partially consumed, returned, captured or otherwise unknown iterator.
+
 **Callables run at most once.** A standard function or member that runs what it's handed at most once for the
 call is a branch: its receiver or callee and its other arguments are evaluated, and then the closure or
 function it's handed runs or doesn't. A loop in such a closure counts once for each time the call is reached,
@@ -246,6 +265,10 @@ roles, so frontends carry no method tables:
   per-item effects (`Pass`, `Map`, `Filter`, `Skip`, `Take`, `TakeWhile`, `FlatMap`; `Drain`, `Each`,
   `Search`), its arity, the callback argument run once per item, and the type arguments whose trait impls
   it may run, which must be standard.
+  A stage's optional `deferred = true` additionally certifies that constructing it only
+  stores its evaluated operands and runs no callback or trait operation; wrapper cleanup
+  only cleans up those stored operands. Core still verifies their cleanup before
+  retaining the pipeline in a local. The default is false; consumers cannot declare it.
 - A `[[callable]]` names functions and members that run a callable for the call itself, the arguments
   that are callables, counted after the receiver or the callee, and how often it runs one. One that runs
   one at most once lowers to a branch around each.

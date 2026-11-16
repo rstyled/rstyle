@@ -6,6 +6,7 @@ mod calls;
 mod canonical;
 mod chains;
 mod control;
+mod deferred;
 mod dispatch;
 mod extent;
 pub mod facts;
@@ -24,31 +25,7 @@ use std::collections::BTreeMap;
 
 /// The runtime-bound program of one function.
 pub fn lower(facts: &Facts<'_, '_>, arithmetic: Arithmetic) -> Result<Input, String> {
-    let mut collector = Collector {
-        facts,
-        program: Program {
-            inputs: Vec::new(),
-            variables: Vec::new(),
-            nodes: Vec::new(),
-            entry: 0,
-            loop_headers: Vec::new(),
-            formals: Vec::new(),
-            extents: Vec::new(),
-            arithmetic,
-        },
-        numbers: facts.symbol_numbers(),
-        locals: BTreeMap::new(),
-        loops: Vec::new(),
-        exhausted: false,
-        depth: 0,
-        work: 0,
-        extents: BTreeMap::new(),
-        closures: BTreeMap::new(),
-        returns: Vec::new(),
-        formals: BTreeMap::new(),
-    };
-
-    collector.collect()
+    Collector::new(facts, arithmetic).collect()
 }
 
 pub(crate) struct Collector<'f, 'b, 'a> {
@@ -66,6 +43,27 @@ pub(crate) struct Collector<'f, 'b, 'a> {
     closures: BTreeMap<&'a str, &'a Node>,
     returns: Vec<u32>,
     formals: BTreeMap<&'a str, u32>,
+    deferred: Option<deferred::Binding<'a>>,
+}
+
+impl<'f, 'b, 'a> Collector<'f, 'b, 'a> {
+    fn new(facts: &'f Facts<'b, 'a>, arithmetic: Arithmetic) -> Self {
+        Self {
+            facts,
+            program: empty(arithmetic),
+            numbers: facts.symbol_numbers(),
+            locals: BTreeMap::new(),
+            loops: Vec::new(),
+            exhausted: false,
+            depth: 0,
+            work: 0,
+            extents: BTreeMap::new(),
+            closures: BTreeMap::new(),
+            returns: Vec::new(),
+            formals: BTreeMap::new(),
+            deferred: None,
+        }
+    }
 }
 
 impl<'a> Collector<'_, '_, 'a> {
@@ -98,7 +96,10 @@ impl<'a> Collector<'_, '_, 'a> {
         let root = self.facts.body.root()?;
         match frame.reason {
             Some(reason) => self.reject_body(root, &reason),
-            None => self.capture_body(root)?,
+            None => {
+                self.prepare_deferred(root)?;
+                self.capture_body(root)?;
+            }
         }
         if self.exhausted {
             return Ok(Input::BudgetExhausted {
@@ -340,6 +341,9 @@ impl<'a> Collector<'_, '_, 'a> {
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
     fn local(&mut self, local: &'a Node, next: u32) -> Result<u32, String> {
         let parts = self.local_parts(local)?;
+        if let Some(entry) = self.initialize_deferred(&parts, next)? {
+            return Ok(entry);
+        }
         // Immutable local closures run only where they are directly invoked.
         if let Some(symbol) = self.binding_symbol(parts.pattern)
             && self.closures.contains_key(symbol)

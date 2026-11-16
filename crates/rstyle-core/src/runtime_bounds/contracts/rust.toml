@@ -144,6 +144,9 @@ operations = [
 # receiver and `callback` the index of the argument run once per item. Every other
 # argument is evaluated once, before the first item. Upper bounds rely on these
 # effects, never on `size_hint`.
+# `deferred` separately certifies that constructing the adapter only stores its
+# evaluated receiver and arguments. Their evaluation, capture and cleanup still
+# need call-site proofs; callbacks and trait operations run only when it is driven.
 #
 # `dispatch.standard` lists types whose trait impls the call may run per item (`Item`
 # is the iterator's item type, `Generic = i` the call's type argument `i` with the
@@ -153,6 +156,7 @@ operations = [
 [[stage]]
 basis = "Yields each source item once, unchanged in count"
 effect = "Pass"
+deferred = true
 operations = ["Iterator.copied", "Iterator.enumerate", "Iterator.rev"]
 
 [[stage]]
@@ -171,6 +175,7 @@ operations = ["Iterator.inspect", "Iterator.map"]
 [[stage]]
 basis = "Runs the predicate once per item and may drop the item"
 effect = "Filter"
+deferred = true
 arity = 1
 callback = 0
 operations = ["Iterator.filter", "Iterator.filter_map", "Iterator.skip_while"]

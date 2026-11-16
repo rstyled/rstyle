@@ -16,6 +16,8 @@ use crate::runtime_bounds::contracts::{
 use crate::runtime_bounds::{Action, Callee, Condition, Flow, Integer, Value};
 use crate::wording::Message;
 
+mod deferred;
+
 const MAX_STAGES: usize = 32;
 
 #[derive(Clone, Copy)]
@@ -50,6 +52,7 @@ struct Chain<'a> {
     stages: Vec<Stage<'a>>,
     arguments: Vec<&'a Node>,
     standard: bool,
+    initialized: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -241,7 +244,11 @@ impl<'a> Collector<'_, '_, 'a> {
         };
         *work = remaining;
         if ty.kind == TypeKind::Reference {
-            return true;
+            return matches!(ty.mode.as_deref(), Some("shared" | "exclusive"))
+                && ty
+                    .target
+                    .as_deref()
+                    .is_some_and(|id| self.facts.type_of(id).is_some());
         }
         if ty.definition.is_some()
             || ty
@@ -275,6 +282,9 @@ impl<'a> Collector<'_, '_, 'a> {
         let mut arguments = scan;
         for argument in chain.arguments.iter().rev() {
             arguments = self.expr(argument, arguments)?;
+        }
+        if chain.initialized {
+            return Ok(arguments);
         }
         if is_method(self.facts, chain.root) && chain.root.children.len() == 1 {
             return self.expr(self.facts.body.child(chain.root, 0)?, arguments);
@@ -366,7 +376,33 @@ impl<'a> Collector<'_, '_, 'a> {
             ));
             receiver = inner;
         }
+        let Some(mut chain) = self.chain_source(receiver)? else {
+            return Ok(None);
+        };
+        if chain.stages.len() + links.len() > MAX_STAGES {
+            return Ok(None);
+        }
         // Links were walked outermost first; the source's stage runs first.
+        chain.stages.extend(links.iter().rev().map(|link| link.0));
+        chain
+            .arguments
+            .extend(links.iter().rev().flat_map(|link| link.1.clone()));
+        chain.standard &= links.iter().all(|link| link.2);
+        Ok(Some(chain))
+    }
+
+    /// A new traversal, or already-initialized state whose operands ran at its declaration.
+    fn chain_source(&self, receiver: &'a Node) -> Result<Option<Chain<'a>>, String> {
+        if let Some(binding) = &self.deferred
+            && binding.use_node.id == receiver.id
+        {
+            let Some(mut chain) = self.chain(binding.init)? else {
+                return Ok(None);
+            };
+            chain.arguments.clear();
+            chain.initialized = true;
+            return Ok(Some(chain));
+        }
         let Some((limit, bits)) = self.source(receiver)? else {
             return Ok(None);
         };
@@ -374,9 +410,10 @@ impl<'a> Collector<'_, '_, 'a> {
             root: receiver,
             limit,
             bits,
-            stages: links.iter().rev().map(|link| link.0).collect(),
-            arguments: links.iter().rev().flat_map(|link| link.1.clone()).collect(),
-            standard: links.iter().all(|link| link.2),
+            stages: Vec::new(),
+            arguments: Vec::new(),
+            standard: true,
+            initialized: false,
         }))
     }
 
