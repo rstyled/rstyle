@@ -46,6 +46,9 @@ pub struct Extension {
     pub control: Option<Control>,
     /// The namespaced extensions a `Try` reads as its handlers.
     pub handlers: Vec<String>,
+    /// The namespaced modifier of a node that runs where what it makes is consumed, rather than
+    /// where it's written, as a generator expression does.
+    pub lazy: Option<String>,
     /// Why the node runs nothing else.
     pub basis: String,
 }
@@ -60,6 +63,8 @@ pub(super) struct ExtensionEntry {
     /// Extensions, without the namespace, that are a `Try`'s handlers.
     #[serde(default)]
     handlers: Vec<String>,
+    /// The modifier, without the namespace, of a node that runs where it's consumed.
+    lazy: Option<String>,
     /// Registered extension names, without the namespace.
     pub(super) extensions: Vec<String>,
 }
@@ -83,6 +88,10 @@ impl ExtensionEntry {
                 .iter()
                 .map(|handler| format!("{namespace}:{handler}"))
                 .collect(),
+            lazy: self
+                .lazy
+                .as_ref()
+                .map(|modifier| format!("{namespace}:{modifier}")),
             basis: self.basis.clone(),
         })
     }

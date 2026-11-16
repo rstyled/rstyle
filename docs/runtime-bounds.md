@@ -107,8 +107,14 @@ composed result carries an opaque factor for the call. An extension without a ro
 
 | Language | Evaluates only its children | Then runs an unresolved call |
 | --- | --- | --- |
-| Python | `py:fstring`, `py:slice`, a keyword argument with a name | `py:format`, `py:dict`, `py:star`, `py:await`, `py:import`, a `**` keyword argument |
+| Python | `py:fstring`, `py:slice`, a keyword argument with a name | `py:format`, `py:dict`, `py:star`, `py:await`, `py:import`, `py:comprehension`, a `**` keyword argument |
 | Go | `go:slice` | |
+
+A comprehension runs the `for` loops it desugars to where it's written, so they're bounded as any `for` is,
+and then builds its result. A node whose role names a `lazy` modifier, as a generator expression has
+`py:lazy`, runs where what it makes is consumed. It's lowered in place only as an argument of the call
+that consumes it, directly or through a keyword or a starred argument, and one kept for later stays
+unsupported, since it could run against values that changed.
 
 **Exceptions.** A role can also say how a node raises an exception or handles one. Python's `raise` and
 `assert` and C++'s `throw` raise. Python's `try` and C++'s `try` handle what their body raises, and so does
@@ -229,7 +235,8 @@ roles, so frontends carry no method tables:
   (`Traversal`).
 - An `[[extension]]` gives a registered extension, named without its namespace, the operation it runs
   after its children: `Never`, `Always`, or `WithoutMember`, for a node that runs one only when it names
-  no member, as a `**` keyword argument does. Its `control` says instead how it raises (`Throw`,
+  no member, as a `**` keyword argument does. Its `lazy` names the modifier of a node that runs where
+  it's consumed. Its `control` says instead how it raises (`Throw`,
   `Assert`) or handles (`Try`, `With`), and a `Try`'s `handlers` name the extensions among its children
   that are handlers, as a `match` among them is.
 - A `[[range]]` gives a call that makes a range of integers the argument that holds its `start`,

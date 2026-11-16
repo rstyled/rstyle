@@ -520,6 +520,9 @@ mod tests {
                 .basis
                 .contains("hashes")
         );
+        let comprehension = contracts.extension("py:comprehension").unwrap();
+        assert_eq!(comprehension.lazy.as_deref(), Some("py:lazy"));
+        assert_eq!(contracts.extension("py:format").unwrap().lazy, None);
         // A chain of comparisons has control of its own and no role, and roles are keyed by
         // namespace.
         assert_eq!(role("py:compare-chain"), None);

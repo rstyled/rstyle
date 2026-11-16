@@ -86,3 +86,13 @@ basis = "zip yields one tuple per item until its shortest argument ends, so no m
 arities = [2, 3, 4]
 over = 0
 operations = ["zip.__new__"]
+
+# A comprehension runs the for loops it desugars to where it's written, then builds its result. A
+# generator expression runs where it's consumed, so it is lowered in place only as an argument of
+# the call that consumes it.
+
+[[extension]]
+basis = "A comprehension runs the for loops it desugars to, then builds its list, set or dict, which hashes a set's or dict's keys and can run their __hash__ and __eq__"
+implicit = "Always"
+lazy = "lazy"
+extensions = ["comprehension"]

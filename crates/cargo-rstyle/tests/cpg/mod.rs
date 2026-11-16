@@ -473,6 +473,7 @@ mod bounds;
 mod build_outputs;
 mod callables;
 mod capture;
+mod comprehensions;
 #[cfg(unix)]
 mod descriptor;
 mod effects;
