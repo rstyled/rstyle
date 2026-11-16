@@ -7,6 +7,7 @@ mod canonical;
 mod chains;
 mod control;
 mod dispatch;
+mod extension;
 mod extent;
 pub mod facts;
 mod frame;

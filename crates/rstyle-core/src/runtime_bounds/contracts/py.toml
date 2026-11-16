@@ -1,0 +1,25 @@
+# Library operation contracts for the Python frontend.
+#
+# Extension roles: how runtime bounds lower a node the profile registers for Python, by its name
+# without the `py:` namespace. The node evaluates its children once, in the order the registry
+# writes them, and a child that is a pattern is a binding the node writes. `implicit` says when it
+# also runs an operation the document names no callee for, which can reach a method a workspace
+# type defines; runtime bounds read that operation as an unresolved call at the node.
+
+schema = "rstyle.library-contracts/1"
+namespace = "py"
+
+[[extension]]
+basis = "Joining an f-string's formatted fields and building a slice object run only the interpreter's own code"
+implicit = "Never"
+extensions = ["fstring", "slice"]
+
+[[extension]]
+basis = "Formatting a value calls its type's __format__, __str__ or __repr__; a dict display hashes and compares its keys and unpacks a ** entry's mapping; a starred expression iterates its operand; await runs the awaitable's __await__; an import can run the imported module's code"
+implicit = "Always"
+extensions = ["await", "dict", "format", "import", "star"]
+
+[[extension]]
+basis = "A keyword argument passes its value; one without a member is ** and unpacks a mapping through its keys and items"
+implicit = "WithoutMember"
+extensions = ["keyword"]

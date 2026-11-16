@@ -74,7 +74,20 @@ length is measured from.
 
 **Arguments.** A call evaluates its receiver or callee, then what each argument passes. An argument that
 holds its value under a name, as Python's `print(total, end="")` does, passes that value. One that unpacks
-a sequence or a mapping, as `*items` and `**options` do, is unsupported.
+a sequence or a mapping, as `*items` and `**options` do, runs an unresolved call of its own, since
+iterating or unpacking its operand can reach a method the operand's type defines.
+
+**Language extensions.** A node a language registers as its own, such as Python's `py:dict` or Go's
+`go:slice`, is lowered by the role its contract file gives it. It evaluates its children once, in the order
+the profile writes them, and a pattern among them is a binding it writes. When the role says the node also
+runs an operation the document names no callee for, as formatting a value reaches its type's
+`__format__`, that operation is an unresolved call at the node: the function's own bound holds, and its
+composed result carries an opaque factor for the call. An extension without a role stays unsupported.
+
+| Language | Evaluates only its children | Then runs an unresolved call |
+| --- | --- | --- |
+| Python | `py:fstring`, `py:slice`, a keyword argument with a name | `py:format`, `py:dict`, `py:star`, `py:await`, `py:import`, a `**` keyword argument |
+| Go | `go:slice` | |
 
 **Collections.** Resolved collection length queries and traversal adapters are abstracted and excluded
 from call counts. Ordinary body calls can have unknown cost while preserving a bound on a private scalar
@@ -179,6 +192,9 @@ roles, so frontends carry no method tables:
   one at most once lowers to a branch around each.
 - `[[extent]]` marks members that read a stable length (`Length`) or traverse each entry once
   (`Traversal`).
+- An `[[extension]]` gives a registered extension, named without its namespace, the operation it runs
+  after its children: `Never`, `Always`, or `WithoutMember`, for a node that runs one only when it names
+  no member, as a `**` keyword argument does.
 
 A frontend lowers effects, never method names, and an operation without a role keeps ordinary call
 lowering.
