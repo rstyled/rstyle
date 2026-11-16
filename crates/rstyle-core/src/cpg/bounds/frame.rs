@@ -576,7 +576,10 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
             return Ok(Some(receiver));
         }
         match super::iteration::for_head(self.facts, expression)? {
-            Some(head) => iteration_receiver(self.facts, head),
+            Some(head) => {
+                let source = super::iteration::traversed(self.facts, head)?;
+                iteration_receiver(self.facts, source)
+            }
             None => Ok(None),
         }
     }
