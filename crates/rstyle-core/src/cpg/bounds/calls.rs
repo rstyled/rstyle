@@ -134,11 +134,7 @@ impl<'a> Collector<'_, '_, 'a> {
         };
         if !self.facts.interface_member(declared) {
             let operation = declared.operation.clone();
-            return self.classified(
-                declared,
-                operation,
-                reference.calls_back.as_ref().map(|c| c.value),
-            );
+            return self.classified(declared, operation, self.callback_status(node, declared));
         }
         // Interface members resolve only through static selection of an implementation.
         if reference.status == RefStatus::Dependent {
@@ -155,12 +151,26 @@ impl<'a> Collector<'_, '_, 'a> {
         else {
             return (Callee::Unresolved, None);
         };
-        let calls_back = reference.calls_back.as_ref().map(|c| c.value);
+        let calls_back = self.callback_status(node, implementation);
         // An interface's own default body has no implementation key.
         let operation = (!self.facts.interface_member(implementation))
             .then(|| implementation.operation.clone())
             .flatten();
         self.classified(implementation, operation, calls_back)
+    }
+
+    fn callback_status(&self, node: &Node, callee: &Definition) -> Option<bool> {
+        let captured = self
+            .facts
+            .reference(node)
+            .and_then(|reference| reference.calls_back.as_ref())
+            .map(|callbacks| callbacks.value);
+        if super::super::invocation::callback_free(self.facts.body, self.facts.tables, node, callee)
+        {
+            Some(false)
+        } else {
+            captured
+        }
     }
 
     // Standard bodies are excluded only when they cannot call back into workspace code;

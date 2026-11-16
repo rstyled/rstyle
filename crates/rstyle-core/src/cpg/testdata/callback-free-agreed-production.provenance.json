@@ -1,0 +1,35 @@
+{
+  "corpus": "rstyle-main frozen production replay",
+  "manifest_file": "documents.manifest.json",
+  "manifest_checksum": "sha256:2fb0b26c09a559ab4421fccaf68217717d92fd96cd2008d67c6e24426c11f9b9",
+  "document": {
+    "file": "document-000032.cpg.json.zst",
+    "checksum": "sha256:fd34d1c03b8f8ce64cff783c2189132f172027cd08cfc7a6af4f9c9abfc81118",
+    "bytes": 369403,
+    "encoding": "zstd",
+    "decoded_bytes": 4315525,
+    "decoded_checksum": "sha256:21da2dbf8788f68af4dae7fe5dc919dc91d653e725db4489c72134146ad7b91c"
+  },
+  "owner": "rstyle_core::cpg::defects::deviant_argument::agreed_otherwise",
+  "owner_checksum": "sha256:bc2110386fd4ac4cd7039d177487b108552bd522c962e4ebd22dd8a32c892e0f",
+  "owner_checksum_encoding": "UTF-8 JSON with lexicographically sorted object keys, no insignificant whitespace",
+  "fixture_checksum": "sha256:1a0d737025753aaec06da3c2344a76766c68b1d3675045a9f41a66827ab9701b",
+  "reduction": "Only the named original function is retained. Definitions and types are its transitive ID dependency closure. Function facts, referenced source bytes, compilation semantics and implicit-call capability remain unchanged. Unrelated values and session extensions are omitted.",
+  "source_files": [
+    {
+      "id": "file:crates/rstyle-core/src/config.rs",
+      "digest": "sha256:8dbab6922427b48da27476c4e364a22be06b55095ae8d0309c27c702907c1fed",
+      "content_checksum": "sha256:8dbab6922427b48da27476c4e364a22be06b55095ae8d0309c27c702907c1fed"
+    },
+    {
+      "id": "file:crates/rstyle-core/src/cpg/defects/deviant_argument.rs",
+      "digest": "sha256:7fee5a4c527cd45124226b614d88f73ae665a4589b915978dbe98b5dce1f493b",
+      "content_checksum": "sha256:7fee5a4c527cd45124226b614d88f73ae665a4589b915978dbe98b5dce1f493b"
+    },
+    {
+      "id": "file:crates/rstyle-core/src/lib.rs",
+      "digest": "sha256:eee14f7d38c14823aafbc8844a0841f3da605c61d683e11fecf143431acc585b",
+      "content_checksum": "sha256:eee14f7d38c14823aafbc8844a0841f3da605c61d683e11fecf143431acc585b"
+    }
+  ]
+}

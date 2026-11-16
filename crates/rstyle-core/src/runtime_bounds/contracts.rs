@@ -5,7 +5,10 @@
 //! up and instantiates the contract's step expression with the call's argument sizes.
 //! The same files declare each operation's iteration and extent roles, so a frontend
 //! recognizes traversals by key instead of carrying its own method tables.
+mod invocation;
 mod iteration;
+
+pub use invocation::{CallForm, CallbackFree, TypeGuard};
 
 pub use iteration::{
     ConsumerEffect, Dispatch, Dispatched, Extent, ExtentRole, Handed, ItemAgnostic, Iteration,
@@ -81,6 +84,8 @@ struct File {
     extent: Vec<iteration::ExtentEntry>,
     #[serde(default)]
     callable: Vec<iteration::CallableEntry>,
+    #[serde(default)]
+    callback_free: Vec<invocation::Entry>,
 }
 
 #[derive(Deserialize)]
@@ -99,6 +104,7 @@ pub struct Contracts {
     consumers: BTreeMap<String, Iteration<ConsumerEffect>>,
     extents: BTreeMap<String, Extent>,
     callables: BTreeMap<String, iteration::Callable>,
+    callback_free: BTreeMap<String, CallbackFree>,
 }
 
 impl File {
@@ -159,13 +165,30 @@ impl Contracts {
             Ok((&entry.operations[..], contract))
         });
         declare(&mut self.operations, (namespace, "step"), steps)?;
+        self.extend_roles(&file)
+    }
+
+    fn extend_roles(&mut self, file: &File) -> Result<(), String> {
+        let namespace = file.namespace.as_str();
         let extents = file
             .extent
             .iter()
             .map(|entry| Ok((&entry.operations[..], entry.extent())));
         declare(&mut self.extents, (namespace, "extent"), extents)?;
+        self.extend_invocations(file)?;
+        self.extend_iteration(file)
+    }
 
-        self.extend_iteration(&file)
+    fn extend_invocations(&mut self, file: &File) -> Result<(), String> {
+        let roles = file
+            .callback_free
+            .iter()
+            .map(|entry| Ok((&entry.operations[..], entry.callback_free()?)));
+        declare(
+            &mut self.callback_free,
+            (&file.namespace, "callback-free"),
+            roles,
+        )
     }
 
     fn extend_iteration(&mut self, file: &File) -> Result<(), String> {
@@ -216,6 +239,12 @@ impl Contracts {
     /// What an operation measures about its receiver's extent.
     pub fn extent(&self, operation: &str) -> Option<&Extent> {
         self.extents.get(operation)
+    }
+
+    /// Conditions under which a call invokes no workspace code of its own.
+    /// This declares neither costs, purity, nor how a handed callable runs.
+    pub fn callback_free(&self, operation: &str) -> Option<&CallbackFree> {
+        self.callback_free.get(operation)
     }
 
     pub fn get(&self, operation: &str) -> Option<&Contract> {

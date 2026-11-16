@@ -3,8 +3,8 @@
 # Keys are `<self type>.<member>`: the defining impl's self type by its compiler
 # diagnostic item name (`BTreeMap`, `Vec`), else its lang item name (`String`,
 # `owned_box`), else its primitive kind (`slice`, `str`, `usize`), and the resolved
-# member name. The frontend emits them only for standard-library bodies that cannot
-# call back into workspace code.
+# member name. These identify resolved standard-library bodies; callback facts or
+# a conditional callback-free certificate determine whether workspace calls remain.
 #
 # `steps` bounds element operations per invocation (comparisons, element clones,
 # byte copies) up to a constant factor. The cost of each element operation itself,
@@ -16,6 +16,33 @@
 
 schema = "rstyle.library-contracts/1"
 namespace = "rust"
+
+# Callback-free roles do not declare costs, purity, or callable invocation behavior.
+# Cleanup positions include the receiver at 0; arity counts only arguments after it.
+
+[[callback_free]]
+basis = "The primitive boolean selects or discards an already evaluated value without invoking a callable; discarding that value must run no workspace cleanup"
+form = "Member"
+arity = 1
+cleanup_free = [1]
+types = [{ argument = 0, keys = ["rust:bool"] }]
+operations = ["bool.then_some"]
+
+[[callback_free]]
+basis = "Copies the referenced value using the marker Copy trait, which invokes no user code, and moves the resulting option"
+form = "Member"
+arity = 0
+cleanup_free = []
+types = [{ argument = 0, keys = ["rust:Option"] }]
+operations = ["Option.copied"]
+
+[[callback_free]]
+basis = "Moves an Ok value or discards an Err value without invoking a callable; receiver cleanup must run no workspace code"
+form = "Member"
+arity = 0
+cleanup_free = [0]
+types = [{ argument = 0, keys = ["rust:Result"] }]
+operations = ["Result.ok"]
 
 [[contract]]
 basis = "B-tree search: tree height is logarithmic in the entry count"
