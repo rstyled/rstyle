@@ -37,6 +37,14 @@ types = [{ argument = 0, keys = ["rust:Option"] }]
 operations = ["Option.copied"]
 
 [[callback_free]]
+basis = "Moves the contained value or the already evaluated fallback without invoking a callable; only the unused fallback can be discarded, so its cleanup must run no workspace code"
+form = "Member"
+arity = 1
+cleanup_free = [1]
+types = [{ argument = 0, keys = ["rust:Option"] }]
+operations = ["Option.unwrap_or"]
+
+[[callback_free]]
 basis = "Moves an Ok value or discards an Err value without invoking a callable; receiver cleanup must run no workspace code"
 form = "Member"
 arity = 0
