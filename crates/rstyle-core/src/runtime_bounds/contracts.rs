@@ -7,8 +7,10 @@
 //! recognizes traversals by key instead of carrying its own method tables.
 mod invocation;
 mod iteration;
+mod state;
 
 pub use invocation::{CallForm, CallbackFree, TypeGuard};
+pub use state::{StateArgument, StateCallbackFree};
 
 pub use iteration::{
     ConsumerEffect, Dispatch, Dispatched, Extent, ExtentRole, Handed, ItemAgnostic, Iteration,
@@ -86,6 +88,8 @@ struct File {
     callable: Vec<iteration::CallableEntry>,
     #[serde(default)]
     callback_free: Vec<invocation::Entry>,
+    #[serde(default)]
+    state_callback_free: Vec<state::Entry>,
 }
 
 #[derive(Deserialize)]
@@ -105,6 +109,7 @@ pub struct Contracts {
     extents: BTreeMap<String, Extent>,
     callables: BTreeMap<String, iteration::Callable>,
     callback_free: BTreeMap<String, CallbackFree>,
+    state_callback_free: BTreeMap<String, Vec<StateCallbackFree>>,
 }
 
 impl File {
@@ -180,14 +185,16 @@ impl Contracts {
     }
 
     fn extend_invocations(&mut self, file: &File) -> Result<(), String> {
+        let namespace = file.namespace.as_str();
         let roles = file
             .callback_free
             .iter()
             .map(|entry| Ok((&entry.operations[..], entry.callback_free()?)));
-        declare(
-            &mut self.callback_free,
-            (&file.namespace, "callback-free"),
-            roles,
+        declare(&mut self.callback_free, (namespace, "callback-free"), roles)?;
+        state::declare(
+            &mut self.state_callback_free,
+            namespace,
+            &file.state_callback_free,
         )
     }
 
@@ -245,6 +252,14 @@ impl Contracts {
     /// This declares neither costs, purity, nor how a handed callable runs.
     pub fn callback_free(&self, operation: &str) -> Option<&CallbackFree> {
         self.callback_free.get(operation)
+    }
+
+    /// Exact standard receiver families whose selected parameterless interface method
+    /// invokes no workspace code. This declares no cost, extent, purity or callback role.
+    pub fn state_callback_free(&self, operation: &str) -> &[StateCallbackFree] {
+        self.state_callback_free
+            .get(operation)
+            .map_or(&[], Vec::as_slice)
     }
 
     pub fn get(&self, operation: &str) -> Option<&Contract> {

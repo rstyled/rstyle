@@ -44,6 +44,22 @@ cleanup_free = [0]
 types = [{ argument = 0, keys = ["rust:Result"] }]
 operations = ["Result.ok"]
 
+[[callback_free]]
+basis = "Constructs a reverse split searcher for a primitive string or character pattern without invoking caller code; pattern cleanup must run no workspace code"
+form = "Member"
+arity = 1
+cleanup_free = [1]
+types = [{ argument = 0, keys = ["rust:str"] }, { argument = 1, keys = ["rust:str", "rust:char"] }]
+operations = ["str.rsplit"]
+
+# A selected parameterless interface implementation can be certified by its exact
+# standard nominal receiver and complete generic type roster. This declares no cost.
+[[state_callback_free]]
+basis = "The standard reverse split iterator searches using only its private string or character searcher and yields borrowed strings, without caller callbacks or item cleanup"
+receiver = "core::str::iter::RSplit"
+arguments = [[{ key = "rust:str", shared = true }, { key = "rust:char", shared = false }]]
+operations = ["Iterator.next"]
+
 [[contract]]
 basis = "B-tree search: tree height is logarithmic in the entry count"
 steps = { Log = { Size = 0 } }

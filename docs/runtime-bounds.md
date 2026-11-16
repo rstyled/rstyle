@@ -165,6 +165,21 @@ The initial contracts cover `bool::then_some` with cleanup-free payloads,
 cost uncertainty remain. Callback freedom supplies context to existing effect classes;
 it does not declare purity or remove unknown effects.
 
+**Callbacks held in standard state.** A separate contract can certify a parameterless
+iteration-interface method from its selected standard implementation and exact nominal
+receiver. The declared member, implementation link, exclusive receiver, instantiated
+signature and complete actual generic roster must agree. Each permitted generic argument
+is an exact primitive type key, either directly or behind one shared reference. Missing
+facts, callable patterns, other adapter types and named execution remain unresolved.
+
+The first state contract covers `RSplit<&str>` and `RSplit<char>` at `Iterator::next`;
+the matching `str::rsplit` constructor accepts only those primitive pattern shapes.
+The searcher state is private and fixed by the actual pattern type, so aliases and prior
+pulls cannot introduce callbacks. Both calls, their evaluation, existing mutation rules
+and surrounding cleanup remain visible. This proves no source-length relation or pull
+count: splitting `"abc"` with an empty pattern yields five items, and splitting an empty
+string yields two. Generic predicate patterns can run user code and stay unknown.
+
 These stay unknown: unresolved or escaping callbacks, user iterators, mutable captures of a measured
 value, and chains that dispatch to workspace `Clone`, `Ord`, `Sum` or `FromIterator` impls. A closure
 handed to any other call leaves the whole function unknown. So does one that Go defers or starts with `go`,
@@ -243,6 +258,11 @@ roles, so frontends carry no method tables:
   post-receiver/callee arity, exact type-key guards and operands requiring cleanup-free
   storage. Member operand 0 is the receiver; Function operand 0 is the first argument.
   This role declares neither a cost, purity nor a callable invocation count.
+- A `[[state_callback_free]]` names a declared iteration operation, the exact standard
+  nominal receiver identity and its complete generic type roster. Each position lists
+  permitted primitive keys and whether one shared reference is required. The core checks
+  the selected parameterless implementation and actual exclusive receiver before refining
+  a coarse may-call fact. This role declares no traversal extent, purity or cost.
 - `[[extent]]` marks members that read a stable length (`Length`) or traverse each entry once
   (`Traversal`).
 
