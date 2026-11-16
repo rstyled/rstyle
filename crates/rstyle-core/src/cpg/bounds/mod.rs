@@ -13,6 +13,7 @@ mod extent;
 pub mod facts;
 mod frame;
 mod iteration;
+mod loops;
 mod primitive;
 pub mod report;
 
@@ -184,10 +185,20 @@ impl<'a> Collector<'_, '_, 'a> {
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
     fn block(&mut self, block: &'a Node, next: u32) -> Result<u32, String> {
         let (statements, tail) = self.statements(block)?;
+        self.sequence((&statements, tail), next)
+    }
+
+    // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
+    /// Statements, then a tail expression if there is one, built backward from `next`.
+    fn sequence(
+        &mut self,
+        (statements, tail): (&[&'a Node], Option<&'a Node>),
+        next: u32,
+    ) -> Result<u32, String> {
         if !self.charge(statements.len()) {
             return Ok(next);
         }
-        self.register_locals(&statements)?;
+        self.register_locals(statements)?;
         let mut entry = match tail {
             Some(value) => self.expr(value, next)?,
             None => next,

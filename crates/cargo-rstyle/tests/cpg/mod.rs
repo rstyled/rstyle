@@ -482,6 +482,7 @@ mod facts;
 mod flow;
 mod ids;
 mod keywords;
+mod loops;
 #[cfg(unix)]
 mod runner;
 mod stdin;

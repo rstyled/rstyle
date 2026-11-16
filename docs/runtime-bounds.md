@@ -54,6 +54,15 @@ To silence one function, put an `rstyle-allow` above it. Its bound stays in the 
 - traversal of shared slices and standard `Vec` values, including fields reached through shared
   references
 
+**Loops without a guard.** A loop with no guard of its own, as Rust's `loop`, Go's `for {}` and C++'s
+`for (;;)` are, may run any number of passes and leaves through a `break`, a `return` or what it raises.
+Its own entries are an opaque `?loop` factor, and the rest of the function keeps its bound. A language's
+contract file can say a loop's guard is the last statement of its block, as rstyle-cxx writes a `do`
+statement. That guard runs after each pass, and `continue` goes to it. A guard that is false wherever it
+runs, as a macro's `do { .. } while (0)` is, runs the body once, so the statement isn't a loop. "False" here
+means a false or zero literal, `&&` with such an operand, and an operator the contracts give
+the `Sequence` role, such as C++'s comma, whose last operand is one.
+
 **Signed values.** A signed counter needs a `<` guard, a unit increment and a constant start of at
 least zero, and any other start makes that loop opaque. A signed input counts as its positive part, so
 `while i < n` over an `i64` gives `max(n, 0)`, and that floor survives composition with a caller's
@@ -211,6 +220,9 @@ roles, so frontends carry no method tables:
   no member, as a `**` keyword argument does. Its `control` says instead how it raises (`Throw`,
   `Assert`) or handles (`Try`, `With`), and a `Try`'s `handlers` name the extensions among its children
   that are handlers, as a `match` among them is.
+- A `[[loop]]` gives a loop node's original kind, such as `DoStmt`, its `guard`: `Last`, the last
+  statement of its block. An `[[operator]]` gives a language's own operator, such as `comma`, a role core
+  evaluates: `Sequence`.
 
 A frontend lowers effects, never method names, and an operation without a role keeps ordinary call
 lowering.
