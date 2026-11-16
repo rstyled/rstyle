@@ -144,3 +144,17 @@ operations = [
   "unordered_set.~unordered_set",
   "vector.~vector",
 ]
+
+# Extension roles: how runtime bounds lower a node the profile registers for C and C++, by its
+# name without the `cxx:` namespace. A control role says how the node raises an exception or
+# handles one.
+
+[[extension]]
+basis = "throw evaluates its operand, if any, and control does not pass; unwinding runs the destructors of every object it leaves, as the document's cleanup calls do on the normal path"
+control = "Throw"
+extensions = ["throw"]
+
+[[extension]]
+basis = "try runs its body and, when the body throws, the match of its handlers on what was thrown, whose implicit arm stands for a throw no handler catches"
+control = "Try"
+extensions = ["try"]

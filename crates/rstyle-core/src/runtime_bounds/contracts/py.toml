@@ -23,3 +23,31 @@ extensions = ["await", "dict", "format", "import", "star"]
 basis = "A keyword argument passes its value; one without a member is ** and unpacks a mapping through its keys and items"
 implicit = "WithoutMember"
 extensions = ["keyword"]
+
+# Control roles: how a node raises an exception or handles one. Something raised inside a handled
+# region reaches its handlers with every counter the region names unknown.
+
+[[extension]]
+basis = "raise evaluates its exception and its cause, and control does not pass"
+control = "Throw"
+extensions = ["raise"]
+
+[[extension]]
+basis = "assert evaluates its test, and its message only when the test fails, then raises AssertionError"
+control = "Assert"
+extensions = ["assert"]
+
+[[extension]]
+basis = "try runs its body and, when the body raises, an except clause or none; an else block runs only when the body doesn't raise and a finally block on every way out, so reading both as finally blocks only adds paths"
+control = "Try"
+handlers = ["except"]
+extensions = ["try"]
+
+[[extension]]
+basis = "An except clause evaluates its exception type, which matches what was raised by the class hierarchy alone, binds what was raised, then runs its body"
+extensions = ["except"]
+
+[[extension]]
+basis = "with evaluates each context and calls its __enter__, or __aenter__ in async with, binding what that returns; every way out of its body calls each context's __exit__, innermost first, and __exit__ can end an exception the body raised"
+control = "With"
+extensions = ["with"]

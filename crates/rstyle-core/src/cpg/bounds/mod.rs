@@ -7,6 +7,7 @@ mod canonical;
 mod chains;
 mod control;
 mod dispatch;
+mod exceptions;
 mod extension;
 mod extent;
 pub mod facts;
@@ -46,6 +47,7 @@ pub fn lower(facts: &Facts<'_, '_>, arithmetic: Arithmetic) -> Result<Input, Str
         extents: BTreeMap::new(),
         closures: BTreeMap::new(),
         returns: Vec::new(),
+        raises: Vec::new(),
         formals: BTreeMap::new(),
     };
 
@@ -66,6 +68,8 @@ pub(crate) struct Collector<'f, 'b, 'a> {
     extents: BTreeMap<String, String>,
     closures: BTreeMap<&'a str, &'a Node>,
     returns: Vec<u32>,
+    /// Where something raised in each enclosing handled region goes, innermost last.
+    raises: Vec<u32>,
     formals: BTreeMap<&'a str, u32>,
 }
 

@@ -89,6 +89,20 @@ composed result carries an opaque factor for the call. An extension without a ro
 | Python | `py:fstring`, `py:slice`, a keyword argument with a name | `py:format`, `py:dict`, `py:star`, `py:await`, `py:import`, a `**` keyword argument |
 | Go | `go:slice` | |
 
+**Exceptions.** A role can also say how a node raises an exception or handles one. Python's `raise` and
+`assert` and C++'s `throw` raise. Python's `try` and C++'s `try` handle what their body raises, and so does
+Python's `with`, whose context's `__enter__` and `__exit__` are unresolved calls at the node.
+
+Anything in a handled region can raise, not only a node that says so. A region's handlers can therefore
+start where its body ends and before every jump out of it, with every counter the region names unknown.
+A path that raises partway and is handled is a prefix of one of those, so its loops and calls are
+counted. A `finally` block, or a `with`'s exit methods, runs once on every way out and then goes on to any
+of them, which only adds paths. An `else` block is read as a `finally` block for the same reason.
+
+What's raised outside every handled region leaves the function. In a document whose destructors are
+calls, as C++'s are, it goes on as if it weren't raised instead: the normal path runs every destructor
+that unwinding would, and more. A `with` that binds an attribute stays unsupported.
+
 **Collections.** Resolved collection length queries and traversal adapters are abstracted and excluded
 from call counts. Ordinary body calls can have unknown cost while preserving a bound on a private scalar
 counter.
@@ -194,7 +208,9 @@ roles, so frontends carry no method tables:
   (`Traversal`).
 - An `[[extension]]` gives a registered extension, named without its namespace, the operation it runs
   after its children: `Never`, `Always`, or `WithoutMember`, for a node that runs one only when it names
-  no member, as a `**` keyword argument does.
+  no member, as a `**` keyword argument does. Its `control` says instead how it raises (`Throw`,
+  `Assert`) or handles (`Try`, `With`), and a `Try`'s `handlers` name the extensions among its children
+  that are handlers, as a `match` among them is.
 
 A frontend lowers effects, never method names, and an operation without a role keeps ordinary call
 lowering.

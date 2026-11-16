@@ -476,6 +476,7 @@ mod capture;
 #[cfg(unix)]
 mod descriptor;
 mod effects;
+mod exceptions;
 mod extensions;
 mod facts;
 mod flow;

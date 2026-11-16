@@ -123,6 +123,13 @@ fn a_pattern_an_extension_holds_writes_its_places() {
 
 #[test]
 fn an_extension_without_a_role_is_unsupported() {
+    let program = program(with_extension("py:compare-chain", json!([]), Vec::new()));
+    assert!(program.contains("has unmodeled control"), "{program}");
+}
+
+/// A control role this lowering can't read, a try with nothing in it, stays unsupported.
+#[test]
+fn an_empty_try_is_unsupported() {
     let program = program(with_extension("py:try", json!([]), Vec::new()));
     assert!(program.contains("has unmodeled control"), "{program}");
 }
