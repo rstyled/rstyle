@@ -523,9 +523,8 @@ mod tests {
         let comprehension = contracts.extension("py:comprehension").unwrap();
         assert_eq!(comprehension.lazy.as_deref(), Some("py:lazy"));
         assert_eq!(contracts.extension("py:format").unwrap().lazy, None);
-        // A chain of comparisons has control of its own and no role, and roles are keyed by
-        // namespace.
-        assert_eq!(role("py:compare-chain"), None);
+        // An assignment to several targets has no role, and roles are keyed by namespace.
+        assert_eq!(role("py:assign-chain"), None);
         assert_eq!(role("slice"), None);
         assert!(contracts.get("py:dict").is_none());
     }
@@ -550,6 +549,10 @@ mod tests {
         assert_eq!(control("cxx:throw"), Some(Control::Throw));
         assert_eq!(control("py:assert"), Some(Control::Assert));
         assert_eq!(control("py:with"), Some(Control::With));
+        assert_eq!(control("go:defer"), Some(Control::Deferred));
+        assert_eq!(control("go:go"), Some(Control::Deferred));
+        assert_eq!(control("py:del"), Some(Control::Delete));
+        assert_eq!(control("py:compare-chain"), Some(Control::Chain));
         let tried = contracts.extension("py:try").unwrap();
         assert_eq!(tried.control, Some(Control::Try));
         assert_eq!(tried.handlers, ["py:except"]);

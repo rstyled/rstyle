@@ -17,8 +17,9 @@ type Lowered = Result<u32, String>;
 
 impl<'a> Collector<'_, '_, 'a> {
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
-    /// A node whose role says how it raises or handles an exception. `None` is one this lowering
-    /// can't read, which stays unsupported.
+    /// A node whose role says how it runs its children: how it raises or handles an exception, runs
+    /// a call later, removes what it names, or chains comparisons. `None` is one this lowering can't
+    /// read, which stays unsupported.
     pub(super) fn control(
         &mut self,
         node: &'a Node,
@@ -38,6 +39,11 @@ impl<'a> Collector<'_, '_, 'a> {
                 self.expr(test, held).map(Some)
             }
             (Control::Try, Some((body, rest))) => self.tried((node, role), (body, rest), next),
+            (Control::Deferred, _) => self.deferred(node, &children, next).map(Some),
+            (Control::Delete, _) => self.deleted(node, &children, next).map(Some),
+            (Control::Chain, Some((first, rest))) => {
+                self.chained(node, (first, rest), next).map(Some)
+            }
             (Control::With, Some(_)) => {
                 let (contexts, body) = children.split_at(children.len() - 1);
                 self.with(node, (body[0], contexts), next).map(Some)
@@ -177,7 +183,7 @@ impl<'a> Collector<'_, '_, 'a> {
             .any(|access| access.mode != AccessMode::Read && under.contains(access.node.as_str())))
     }
 
-    fn subtree(&self, node: &'a Node) -> Result<BTreeSet<&'a str>, String> {
+    pub(super) fn subtree(&self, node: &'a Node) -> Result<BTreeSet<&'a str>, String> {
         let mut under = BTreeSet::new();
         let mut pending = vec![node];
         while let Some(part) = pending.pop() {
