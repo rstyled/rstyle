@@ -106,3 +106,13 @@ extensions = ["del"]
 basis = "A chain of comparisons evaluates each operand once, and the next only while every comparison so far held; comparing values that aren't numbers, booleans or strings runs a method they define"
 control = "Chain"
 extensions = ["compare-chain"]
+
+# Extent roles: a dict's items, keys and values traverse each entry once without changing the dict,
+# when the dict is a `map`, which rstyle-py writes only where nothing from the function's start
+# through the loop can change it.
+
+[[extent]]
+basis = "items, keys and values yield each entry of the dict once, and a dict that changes size while they're iterated raises"
+role = "Traversal"
+receiver = ["map"]
+operations = ["dict.items", "dict.keys", "dict.values"]

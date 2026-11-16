@@ -1,7 +1,7 @@
 //! Immutable standard-library extents, identified by resolved types and by the extent
 //! roles their methods have in the library contracts.
 
-use super::super::model::{Node, NodeKind, Type, TypeKind};
+use super::super::model::{DefinitionKind, Node, NodeKind, Type, TypeKind};
 use super::Collector;
 use super::facts::{Facts, is_shared_reference, shared_target};
 use crate::runtime_bounds::contracts::{Contracts, ExtentRole, Runs};
@@ -83,16 +83,39 @@ pub(super) fn has_role(facts: &Facts<'_, '_>, call: &Node, role: ExtentRole) -> 
         return false;
     };
 
-    let inherent = method.standard
-        && method.implements.is_none()
-        && !facts.interface_member(method)
-        && method
-            .callable
-            .as_ref()
-            .is_some_and(|c| c.owner_type.is_some());
+    // A method with no callable facts, as Python's are, is still its class's own.
+    let owned = method
+        .callable
+        .as_ref()
+        .map_or(method.kind == DefinitionKind::Method, |c| {
+            c.owner_type.is_some()
+        });
+    let inherent =
+        method.standard && method.implements.is_none() && !facts.interface_member(method) && owned;
     let key = inherent.then_some(method.operation.as_deref()).flatten();
     key.and_then(|key| Contracts::embedded().extent(key))
-        .is_some_and(|extent| extent.role == role)
+        .is_some_and(|extent| extent.role == role && receives(facts, call, &extent.receiver))
+}
+
+/// Whether a call's receiver has one of the type kinds a role names, when it names any.
+fn receives(facts: &Facts<'_, '_>, call: &Node, kinds: &[String]) -> bool {
+    if kinds.is_empty() {
+        return true;
+    }
+    let receiver = call
+        .children
+        .first()
+        .and_then(|id| facts.body.node(id).ok());
+    let kind = receiver
+        .and_then(|receiver| facts.ty(receiver))
+        .map(|ty| ty.kind);
+    kind.is_some_and(|kind| kinds.iter().any(|name| named(kind, name)))
+}
+
+/// Whether a type kind has this name in the profile.
+fn named(kind: TypeKind, name: &str) -> bool {
+    serde_json::from_value::<TypeKind>(serde_json::Value::String(name.into()))
+        .is_ok_and(|named| named == kind)
 }
 
 /// Which arguments are the callables a standard function or member runs at most one of, once
@@ -246,6 +269,8 @@ pub(super) fn iteration_receiver<'a>(
 
 pub(super) fn extent_type(facts: &Facts<'_, '_>, ty: &Type) -> bool {
     shared_target(facts, ty).is_some_and(|ty| {
-        (ty.kind == TypeKind::Sequence && ty.fixed != Some(true)) || is_vec(facts, ty)
+        (ty.kind == TypeKind::Sequence && ty.fixed != Some(true))
+            || ty.kind == TypeKind::Set
+            || is_vec(facts, ty)
     })
 }

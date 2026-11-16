@@ -205,6 +205,9 @@ pub enum ExtentRole {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Extent {
     pub role: ExtentRole,
+    /// The type kinds, by their profile names, a receiver must have for the role to hold, as a
+    /// `map` has only where nothing can change it. Empty is any receiver.
+    pub receiver: Vec<String>,
     /// Why the receiver's extent stays fixed across the call.
     pub basis: String,
 }
@@ -214,6 +217,8 @@ pub struct Extent {
 pub(super) struct ExtentEntry {
     basis: String,
     role: ExtentRole,
+    #[serde(default)]
+    receiver: Vec<String>,
     pub(super) operations: Vec<String>,
 }
 
@@ -221,6 +226,7 @@ impl ExtentEntry {
     pub(super) fn extent(&self) -> Extent {
         Extent {
             role: self.role,
+            receiver: self.receiver.clone(),
             basis: self.basis.clone(),
         }
     }
