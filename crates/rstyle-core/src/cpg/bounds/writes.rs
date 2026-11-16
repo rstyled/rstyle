@@ -1,7 +1,7 @@
 //! Writes the bound program depends on. A direct value-only local that is neither
 //! a modeled scalar nor an extent source needs no abstract state of its own.
 
-use super::super::model::{DefinitionKind, Node, Type, TypeField, TypeKind, Variant};
+use super::super::model::{Node, Type, TypeField, TypeKind, Variant};
 use super::Collector;
 use super::facts::Facts;
 
@@ -98,7 +98,7 @@ impl Values<'_, '_, '_> {
 
     fn remaining(&self, ty: &Type, budget: Budget) -> Option<u16> {
         let budget = budget.enter()?;
-        if !self.nominal(ty) {
+        if !self.0.tables.no_own_destructor(ty) {
             return None;
         }
         let arguments = ty.arguments.as_deref().unwrap_or_default();
@@ -116,15 +116,6 @@ impl Values<'_, '_, '_> {
             TypeKind::Record => self.fields(ty.fields.as_deref()?, budget),
             TypeKind::Sum => self.variants(ty.variants.as_deref()?, budget),
             _ => None,
-        }
-    }
-
-    fn nominal(&self, ty: &Type) -> bool {
-        match ty.definition.as_deref() {
-            Some(id) => self.0.tables.definition(id).is_ok_and(|definition| {
-                definition.kind == DefinitionKind::Type && !definition.destructor
-            }),
-            None => !matches!(ty.kind, TypeKind::Record | TypeKind::Sum),
         }
     }
 
