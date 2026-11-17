@@ -1036,6 +1036,9 @@ mod tests {
         assert!(Config::default().strict_style.test_sleep.enabled);
         let off = Config::parse("[strict_style.test_sleep]\nenabled = false").unwrap();
         assert!(!off.strict_style.test_sleep.enabled);
+
+        let policy = serde_json::to_value(off).unwrap();
+        assert!(policy.get("strict_style").is_none(), "nothing on: {policy}");
     }
 
     #[test]
