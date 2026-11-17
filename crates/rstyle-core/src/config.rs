@@ -999,7 +999,6 @@ mod tests {
         example_states_the_defaults_of::<CommentsConfig>("comments");
         example_states_the_defaults_of::<PrimitiveObsessionConfig>("primitive_obsession");
         example_states_the_defaults_of::<ValueObjectConfig>("value_object");
-        example_states_the_defaults_of::<TestSleepConfig>("test_sleep");
     }
 
     #[test]
