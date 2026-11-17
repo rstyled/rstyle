@@ -120,7 +120,7 @@ enabled = false             # an `if` whose `else` only returns, around a body t
 min_nested_statements = 2   # fewer statements under the `if` than this are no main path to bring out
 
 [strict_style.test_sleep]
-enabled = false             # a test that waits a fixed time instead of for what it waits on
+enabled = true              # a test that waits a fixed time instead of for what it waits on
 
 [strict_style.primitive_obsession]
 enabled = false             # a parameter whose name says what it means, held as plain text or an integer

@@ -25,7 +25,8 @@ analyzed function.
 | `mutated_targets` | Too many distinct roots mutated in one function. |
 | `side_effect_density` | Too many effects for the number of statements. See below. |
 | `invalid_suppression` | An `rstyle-allow` comment with no reason or an unknown rule id. |
-| `fn_spacing`, `comments`, `guard_clause`, `test_sleep`, `primitive_obsession`, `value_object` | Off by default. See [strict style](#strict-style). |
+| `fn_spacing`, `comments`, `guard_clause`, `primitive_obsession`, `value_object` | Off by default. See [strict style](#strict-style). |
+| `test_sleep` | A test that waits a fixed time. On by default. See [`test_sleep`](#test_sleep). |
 
 A missing complexity score is reported as unavailable, never as zero, and makes the run exit 2.
 Closures count toward the function that owns them. Compiler lowering and a macro's own code add no
@@ -239,9 +240,13 @@ func TestReady(t *testing.T) {
 Await the operation, or a channel, event or callback it signals, instead. One diagnostic per function lists the lines
 it sleeps on.
 
+Unlike the other strict style rules, it is on by default: a fixed wait in a test is a race, not a matter of taste. A
+test that has to let real time pass, such as one of a timeout or a backoff, says so with
+`rstyle-allow(test_sleep): reason`, and a project turns the rule off with `enabled = false`.
+
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `enabled` | `false` | |
+| `enabled` | `true` | |
 
 A function is a test's when its frontend marks its file as tests: `_test.go` in Go, and a file pytest collects in
 Python. The Rust and C++ frontends mark no file yet, so the rule reports nothing there. Which calls wait a fixed time
