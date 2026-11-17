@@ -29,6 +29,16 @@ pub struct Events {
     pub waits: Vec<usize>,
 }
 
+impl Events {
+    /// Records a call, and its line among the fixed waits when it is one.
+    fn call(&mut self, call: CallEvent, waits: bool) {
+        if waits {
+            self.waits.push(call.line);
+        }
+        self.calls.push(call);
+    }
+}
+
 /// Whether a call has no callee node, so that its receiver is its first argument.
 fn method_form(reference: &Ref) -> bool {
     matches!(
@@ -284,19 +294,17 @@ impl<'a> Walk<'a> {
                 .push(self.effect(EffectKind::Unsafe, detail, site.node)?);
         }
         let line = self.line(site.node)?;
-        if self.waits.holds(callee.selected) {
-            out.waits.push(line);
-        }
         let library = self.library_class(site.node, &callee)?;
         let library_callee =
             (callee.selected.scope == Scope::Library).then(|| declared.stable_identity.clone());
-        out.calls.push(CallEvent {
+        let call = CallEvent {
             callee: name,
             line,
             dynamic,
             library,
             library_callee,
-        });
+        };
+        out.call(call, self.waits.holds(callee.selected));
         Ok(())
     }
 
