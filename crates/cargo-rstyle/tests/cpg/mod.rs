@@ -90,6 +90,51 @@ fn cpg_check_applies_an_explicit_config() {
 }
 
 #[test]
+fn cpg_check_reports_a_go_and_a_python_test_that_sleeps_once_test_sleep_is_on() {
+    let testdata = workspace_root().join("crates/rstyle-core/src/cpg/testdata");
+    let read = |name: &str| -> Value {
+        serde_json::from_str(&std::fs::read_to_string(testdata.join(name)).unwrap()).unwrap()
+    };
+    let documents = [
+        read("test-sleep-go.cpg.json"),
+        read("test-sleep-py.cpg.json"),
+    ];
+    let off = check(&documents, &["--format", "json"]);
+    assert_eq!(off.status.code(), Some(0), "{off:?}");
+
+    let dir = tempfile::tempdir().unwrap();
+    let config = dir.path().join("rstyle.toml");
+    std::fs::write(&config, "[strict_style.test_sleep]\nenabled = true\n").unwrap();
+    let on = check(
+        &documents,
+        &["--format", "json", "--config", config.to_str().unwrap()],
+    );
+    assert_eq!(on.status.code(), Some(1), "{on:?}");
+    let report: Value = serde_json::from_slice(&on.stdout).unwrap();
+    let mut found: Vec<(String, Value)> = report["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|row| row["rule_id"] == "test_sleep")
+        .map(|row| {
+            (
+                row["path"].as_str().unwrap().to_owned(),
+                row["details"][0]["lines"].clone(),
+            )
+        })
+        .collect();
+    found.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.to_string().cmp(&b.1.to_string())));
+    assert_eq!(
+        found,
+        [
+            ("tests/test_wait.py".into(), json!([11])),
+            ("tests/test_wait.py".into(), json!([6])),
+            ("wait_test.go".into(), json!([9])),
+        ]
+    );
+}
+
+#[test]
 fn cpg_check_rejects_invalid_runs() {
     let mut newer = example();
     newer["profile"]["version"] = json!("0.2.0");

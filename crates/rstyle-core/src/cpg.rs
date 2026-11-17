@@ -24,6 +24,7 @@ pub mod source;
 mod stream;
 pub mod transport;
 pub mod tree;
+mod waits;
 
 pub use facts::{CAPABILITIES, LAYERS, all_facts, derivable_facts, rule_facts};
 pub use pool::{OnRecords, Pool, keep_records, pooled_records};

@@ -63,6 +63,8 @@ pub struct StrictStyleConfig {
     pub guard_clause: GuardClauseConfig,
     #[serde(skip_serializing_if = "PrimitiveObsessionConfig::is_off")]
     pub primitive_obsession: PrimitiveObsessionConfig,
+    #[serde(skip_serializing_if = "TestSleepConfig::is_off")]
+    pub test_sleep: TestSleepConfig,
     #[serde(skip_serializing_if = "ValueObjectConfig::is_off")]
     pub value_object: ValueObjectConfig,
 }
@@ -73,6 +75,7 @@ impl StrictStyleConfig {
             && !self.fn_spacing.enabled
             && !self.guard_clause.enabled
             && !self.primitive_obsession.enabled
+            && !self.test_sleep.enabled
             && !self.value_object.enabled
     }
 }
@@ -132,6 +135,19 @@ impl Default for CommentsConfig {
 }
 
 impl CommentsConfig {
+    fn is_off(&self) -> bool {
+        !self.enabled
+    }
+}
+
+/// A test that waits a fixed time instead of for what it waits on.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TestSleepConfig {
+    pub enabled: bool,
+}
+
+impl TestSleepConfig {
     fn is_off(&self) -> bool {
         !self.enabled
     }
@@ -976,6 +992,7 @@ mod tests {
         example_states_the_defaults_of::<CommentsConfig>("comments");
         example_states_the_defaults_of::<PrimitiveObsessionConfig>("primitive_obsession");
         example_states_the_defaults_of::<ValueObjectConfig>("value_object");
+        example_states_the_defaults_of::<TestSleepConfig>("test_sleep");
     }
 
     #[test]

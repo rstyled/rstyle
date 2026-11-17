@@ -175,3 +175,23 @@ fn category_policies_override_the_functions_policy() {
         assert_eq!(lines, expected);
     }
 }
+
+#[test]
+fn test_sleep_is_opt_in_and_says_where_a_test_waits() {
+    let mut f = sample("test_ready");
+    f.test_waits = vec![6, 9];
+    let mut cfg = Config::default();
+    assert!(test_sleep(&f, &cfg).is_empty());
+
+    cfg.strict_style.test_sleep.enabled = true;
+    let [found] = &test_sleep(&f, &cfg)[..] else {
+        panic!("one diagnostic for the function");
+    };
+    assert_eq!(found.rule_id, "test_sleep");
+    assert_eq!((found.actual, found.limit), (2, 0));
+    assert!(found.message.contains("line 6, 9"), "{}", found.message);
+    assert_eq!(found.details[0].lines, [6, 9]);
+
+    f.test_waits.clear();
+    assert!(test_sleep(&f, &cfg).is_empty());
+}

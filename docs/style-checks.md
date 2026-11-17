@@ -25,7 +25,7 @@ analyzed function.
 | `mutated_targets` | Too many distinct roots mutated in one function. |
 | `side_effect_density` | Too many effects for the number of statements. See below. |
 | `invalid_suppression` | An `rstyle-allow` comment with no reason or an unknown rule id. |
-| `fn_spacing`, `comments`, `guard_clause`, `primitive_obsession`, `value_object` | Off by default. See [strict style](#strict-style). |
+| `fn_spacing`, `comments`, `guard_clause`, `test_sleep`, `primitive_obsession`, `value_object` | Off by default. See [strict style](#strict-style). |
 
 A missing complexity score is reported as unavailable, never as zero, and makes the run exit 2.
 Closures count toward the function that owns them. Compiler lowering and a macro's own code add no
@@ -223,6 +223,31 @@ alone, since returning early there means restructuring the whole chain.
 | --- | --- | --- |
 | `enabled` | `false` | |
 | `min_nested_statements` | 2 | Fewer statements under the `if` than this are no main path to bring out |
+
+### `test_sleep`
+
+A test that waits a fixed time, which races what it waits on instead of awaiting it:
+
+```go
+func TestReady(t *testing.T) {
+    start()
+    time.Sleep(100 * time.Millisecond)
+    check(t)
+}
+```
+
+Await the operation, or a channel, event or callback it signals, instead. One diagnostic per function lists the lines
+it sleeps on.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | |
+
+A function is a test's when its frontend marks its file as tests: `_test.go` in Go, and a file pytest collects in
+Python. The Rust and C++ frontends mark no file yet, so the rule reports nothing there. Which calls wait a fixed time
+is data, one file per frontend namespace in [`contracts/waits`](../crates/rstyle-core/src/cpg/contracts/waits), keyed
+by operation as the effect tables are: `time.Sleep` in Go, and `time.sleep` and `asyncio.sleep` in Python. Adding a
+language needs a file and no code.
 
 ### `primitive_obsession`
 

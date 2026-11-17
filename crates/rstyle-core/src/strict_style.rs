@@ -95,6 +95,30 @@ pub fn guard_clause(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
     vec![found]
 }
 
+/// Flags a test that waits a fixed time, which races what it waits on instead of awaiting it.
+pub fn test_sleep(f: &FnFacts, cfg: &Config) -> Vec<Diagnostic> {
+    if !cfg.strict_style.test_sleep.enabled || f.test_waits.is_empty() {
+        return Vec::new();
+    }
+
+    let lines = f.test_waits.clone();
+    let actual = lines.len();
+    let written: Vec<String> = lines.iter().map(ToString::to_string).collect();
+    let message = format!(
+        "test `{}` waits a fixed time on line {}; await the operation or a signal it sends instead",
+        f.name,
+        written.join(", "),
+    );
+
+    let mut found = diagnostic(f, "test_sleep", message, Measure { actual, limit: 0 });
+    found.details = vec![Detail {
+        label: "sleep".into(),
+        count: actual,
+        lines,
+    }];
+    vec![found]
+}
+
 /// What the rules only a whole run can judge find, one list per function, in the order of `facts`.
 pub fn across_the_run(facts: &[FnFacts], cfg: &Config) -> Vec<Vec<Diagnostic>> {
     let mut found = vec![Vec::new(); facts.len()];

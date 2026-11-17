@@ -438,6 +438,9 @@ pub struct FnFacts {
     /// Each `if` that could be a guard clause.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub guard_clauses: Vec<GuardClause>,
+    /// Lines of calls that wait a fixed time, in a function its language marks a test's.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub test_waits: Vec<usize>,
     /// Dependence graph; only present when the driver ran in semantic (`patterns`) mode.
     #[serde(default)]
     pub pdg: Option<Pdg>,
@@ -495,6 +498,7 @@ pub fn sample(name: &str) -> FnFacts {
         mutated_types: vec![],
         sig: None,
         guard_clauses: vec![],
+        test_waits: vec![],
         pdg: None,
         wording: Default::default(),
     }
