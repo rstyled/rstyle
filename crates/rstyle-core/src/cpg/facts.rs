@@ -153,10 +153,9 @@ fn function_facts(
     let walk = Walk::new(&body, tables, sources, classes);
     let events = walk.events()?;
     let (mutations, mutated): (Vec<_>, Vec<_>) = mutations(&walk)?.into_iter().unzip();
-    let complexity = match measured {
-        true => Some(measure(&body, sources, &events)?),
-        false => None,
-    };
+    let complexity = measured
+        .then(|| measure(&body, sources, &events))
+        .transpose()?;
 
     let signature = &function.signature;
     let (line, column) = sources.location(&signature.span)?;
