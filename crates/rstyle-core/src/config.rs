@@ -140,8 +140,8 @@ impl CommentsConfig {
     }
 }
 
-/// A test that waits a fixed time instead of for what it waits on. On unless a project turns it off.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+/// A test that waits a fixed time instead of for what it waits on. Off unless a project turns it on.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TestSleepConfig {
     pub enabled: bool,
@@ -150,12 +150,6 @@ pub struct TestSleepConfig {
 impl TestSleepConfig {
     fn is_off(&self) -> bool {
         !self.enabled
-    }
-}
-
-impl Default for TestSleepConfig {
-    fn default() -> Self {
-        Self { enabled: true }
     }
 }
 
@@ -941,8 +935,7 @@ mod tests {
     fn a_baseline_compares_strict_style_only_once_a_rule_is_on() {
         let policy = |input: &str| serde_json::to_value(Config::parse(input).unwrap()).unwrap();
         let off = policy("[strict_style.guard_clause]\nenabled = false");
-        let rules = off["strict_style"].as_object().unwrap();
-        assert_eq!(rules.keys().collect::<Vec<_>>(), ["test_sleep"], "{off}");
+        assert!(off.get("strict_style").is_none(), "{off}");
         assert_eq!(off, policy(""));
 
         let tuned = "[strict_style.guard_clause]\nmin_nested_statements = 5";
@@ -1023,21 +1016,24 @@ mod tests {
         let tuned = "[strict_style.value_object]\nmin_functions = 5\nplaceholders = [\"x\"]";
         assert_eq!(policy(tuned), policy(""));
 
-        // One rule on leaves the others out, beside test_sleep, which is on by default.
+        // One rule on leaves the others out.
         let on = policy("[strict_style.guard_clause]\nenabled = true");
         let rules = on["strict_style"].as_object().unwrap();
-        let keys = rules.keys().collect::<Vec<_>>();
-        assert_eq!(keys, ["guard_clause", "test_sleep"], "{on}");
+        assert_eq!(rules.keys().collect::<Vec<_>>(), ["guard_clause"], "{on}");
     }
 
     #[test]
-    fn test_sleep_is_on_by_default() {
-        assert!(Config::default().strict_style.test_sleep.enabled);
-        let off = Config::parse("[strict_style.test_sleep]\nenabled = false").unwrap();
-        assert!(!off.strict_style.test_sleep.enabled);
+    fn test_sleep_is_off_until_a_project_turns_it_on() {
+        let default = Config::default();
+        assert!(!default.strict_style.test_sleep.enabled);
+        let off = serde_json::to_value(default).unwrap();
+        assert!(off.get("strict_style").is_none(), "nothing on: {off}");
 
-        let policy = serde_json::to_value(off).unwrap();
-        assert!(policy.get("strict_style").is_none(), "nothing on: {policy}");
+        let on = Config::parse("[strict_style.test_sleep]\nenabled = true").unwrap();
+        assert!(on.strict_style.test_sleep.enabled);
+        let on = serde_json::to_value(on).unwrap();
+        let rules = on["strict_style"].as_object().unwrap();
+        assert_eq!(rules.keys().collect::<Vec<_>>(), ["test_sleep"], "{on}");
     }
 
     #[test]

@@ -90,7 +90,7 @@ fn cpg_check_applies_an_explicit_config() {
 }
 
 #[test]
-fn cpg_check_reports_a_go_and_a_python_test_that_sleeps_unless_test_sleep_is_off() {
+fn cpg_check_reports_a_go_and_a_python_test_that_sleeps_once_test_sleep_is_on() {
     let testdata = workspace_root().join("crates/rstyle-core/src/cpg/testdata");
     let read = |name: &str| -> Value {
         serde_json::from_str(&std::fs::read_to_string(testdata.join(name)).unwrap()).unwrap()
@@ -99,16 +99,16 @@ fn cpg_check_reports_a_go_and_a_python_test_that_sleeps_unless_test_sleep_is_off
         read("test-sleep-go.cpg.json"),
         read("test-sleep-py.cpg.json"),
     ];
+    let off = check(&documents, &["--format", "json"]);
+    assert_eq!(off.status.code(), Some(0), "{off:?}");
+
     let dir = tempfile::tempdir().unwrap();
     let config = dir.path().join("rstyle.toml");
-    std::fs::write(&config, "[strict_style.test_sleep]\nenabled = false\n").unwrap();
-    let off = check(
+    std::fs::write(&config, "[strict_style.test_sleep]\nenabled = true\n").unwrap();
+    let on = check(
         &documents,
         &["--format", "json", "--config", config.to_str().unwrap()],
     );
-    assert_eq!(off.status.code(), Some(0), "{off:?}");
-
-    let on = check(&documents, &["--format", "json"]);
     assert_eq!(on.status.code(), Some(1), "{on:?}");
     let report: Value = serde_json::from_slice(&on.stdout).unwrap();
     let mut found: Vec<(String, Value)> = report["diagnostics"]
