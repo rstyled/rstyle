@@ -26,7 +26,6 @@ analyzed function.
 | `side_effect_density` | Too many effects for the number of statements. See below. |
 | `invalid_suppression` | An `rstyle-allow` comment with no reason or an unknown rule id. |
 | `fn_spacing`, `comments`, `guard_clause`, `primitive_obsession`, `value_object` | Off by default. See [strict style](#strict-style). |
-| `test_sleep` | A test that waits a fixed time. On by default. See [`test_sleep`](#test_sleep). |
 
 A missing complexity score is reported as unavailable, never as zero, and makes the run exit 2.
 Closures count toward the function that owns them. Compiler lowering and a macro's own code add no
@@ -224,35 +223,6 @@ alone, since returning early there means restructuring the whole chain.
 | --- | --- | --- |
 | `enabled` | `false` | |
 | `min_nested_statements` | 2 | Fewer statements under the `if` than this are no main path to bring out |
-
-### `test_sleep`
-
-A test that waits a fixed time, which races what it waits on instead of awaiting it:
-
-```go
-func TestReady(t *testing.T) {
-    start()
-    time.Sleep(100 * time.Millisecond)
-    check(t)
-}
-```
-
-Await the operation, or a channel, event or callback it signals, instead. One diagnostic per function lists the lines
-it sleeps on.
-
-Unlike the other strict style rules, it is on by default: a fixed wait in a test is a race, not a matter of taste. A
-test that has to let real time pass, such as one of a timeout or a backoff, says so with
-`rstyle-allow(test_sleep): reason`, and a project turns the rule off with `enabled = false`.
-
-| Setting | Default | Meaning |
-| --- | --- | --- |
-| `enabled` | `true` | |
-
-A function is a test's when its frontend marks its file as tests: `_test.go` in Go, and a file pytest collects in
-Python. The Rust and C++ frontends mark no file yet, so the rule reports nothing there. Which calls wait a fixed time
-is data, one file per frontend namespace in [`contracts/waits`](../crates/rstyle-core/src/cpg/contracts/waits), keyed
-by operation as the effect tables are: `time.Sleep` in Go, and `time.sleep` and `asyncio.sleep` in Python. Adding a
-language needs a file and no code.
 
 ### `primitive_obsession`
 

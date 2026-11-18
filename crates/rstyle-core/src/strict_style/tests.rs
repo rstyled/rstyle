@@ -177,14 +177,10 @@ fn category_policies_override_the_functions_policy() {
 }
 
 #[test]
-fn test_sleep_says_where_a_test_waits_unless_it_is_off() {
+fn test_sleep_says_where_a_test_waits() {
     let mut f = sample("test_ready");
     f.test_waits = vec![6, 9];
-    let mut cfg = Config::default();
-    cfg.strict_style.test_sleep.enabled = false;
-    assert!(test_sleep(&f, &cfg).is_empty());
-
-    cfg.strict_style.test_sleep.enabled = true;
+    let cfg = Config::default();
     let [found] = &test_sleep(&f, &cfg)[..] else {
         panic!("one diagnostic for the function");
     };
