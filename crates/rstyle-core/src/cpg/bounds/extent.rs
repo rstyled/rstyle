@@ -1,8 +1,11 @@
 //! Immutable standard-library extents, identified by resolved types and by the extent
 //! roles their methods have in the library contracts.
 
-use super::super::model::{DefinitionKind, Node, NodeKind, Type, TypeKind};
+use super::super::model::{
+    DefinitionKind, Dispatch, Node, NodeKind, RefStatus, TargetKind, Type, TypeKind,
+};
 use super::Collector;
+use super::allocation::named_function;
 use super::facts::{Facts, is_shared_reference, shared_target};
 use crate::runtime_bounds::contracts::{Contracts, ExtentRole, Runs};
 use crate::runtime_bounds::{Field, Value};
@@ -32,9 +35,32 @@ impl<'a> Collector<'_, '_, 'a> {
         let Some(receiver) = extent_receiver(self.facts, expression)? else {
             return Ok(None);
         };
+        self.sequence_extent(receiver)
+    }
+
+    /// A compiler-known fixed length, an exact native-allocation relation, or the length of
+    /// a selected stable place. Requiring a place also keeps length reads from hiding
+    /// evaluation of a computed receiver.
+    pub(super) fn sequence_extent(&self, receiver: &'a Node) -> Result<Option<Value>, String> {
+        let Some(place) = self.place(receiver)? else {
+            return Ok(None);
+        };
+        if let Some(length) = self
+            .facts
+            .ty(receiver)
+            .and_then(|ty| fixed_length(self.facts, ty))
+        {
+            let representable =
+                self.facts.pointer_bits == 64 || length < (1u64 << self.facts.pointer_bits);
+            return Ok(representable.then_some(Value::Const(length)));
+        }
+        if let Some(length) = self.allocation_extent(receiver)? {
+            return Ok(Some(length));
+        }
+
         Ok(self
-            .place(receiver)?
-            .and_then(|place| self.extents.get(&place.key()))
+            .extents
+            .get(&place.key())
             .map(|label| Value::Input(label.clone())))
     }
 
@@ -47,18 +73,51 @@ pub(super) fn is_vec(facts: &Facts<'_, '_>, ty: &Type) -> bool {
     facts.type_key(ty) == Some("Vec") && facts.standard_definition(ty.definition.as_deref())
 }
 
-/// The method call's receiver, when the call reads a standard extent's length.
+/// The measured operand of a resolved standard length operation.
 pub(super) fn extent_receiver<'a>(
     facts: &Facts<'_, 'a>,
     expression: &'a Node,
 ) -> Result<Option<&'a Node>, String> {
-    if !is_method(facts, expression) || expression.children.len() != 1 {
+    if !is_method(facts, expression) {
+        return Ok(ordinary_length(facts, expression));
+    }
+    if expression.children.len() != 1 {
         return Ok(None);
     }
     if !has_role(facts, expression, ExtentRole::Length) {
         return Ok(None);
     }
     facts.body.child(expression, 0).map(Some)
+}
+
+/// A native one-argument function keeps its callee and operand evaluation in the IR.
+pub(super) fn ordinary_length<'a>(facts: &Facts<'_, 'a>, call: &Node) -> Option<&'a Node> {
+    let reference = facts.reference(call)?;
+    let definition = facts.declared(reference)?;
+    let role = definition
+        .operation
+        .as_deref()
+        .and_then(|key| Contracts::embedded().extent(key))?;
+    if call.kind != NodeKind::Call
+        || call.children.len() != 2
+        || facts.adjusted_of(call)
+        || reference.status != RefStatus::Resolved
+        || reference.dispatch != Some(Dispatch::Builtin)
+        || reference.arguments.is_some()
+        || reference.target.as_ref()?.kind != TargetKind::Definition
+        || !definition.standard
+        || definition.kind != DefinitionKind::Function
+        || role.role != ExtentRole::Length
+    {
+        return None;
+    }
+    let callee = facts.body.child(call, 0).ok()?;
+    let named = named_function(facts, callee, &definition.id);
+    let receiver = facts.body.child(call, 1).ok()?;
+    let native = facts
+        .ty(receiver)
+        .is_some_and(|ty| ty.kind == TypeKind::Sequence);
+    (named && native && facts.integer(facts.ty(call)).is_some()).then_some(receiver)
 }
 
 pub(super) fn is_method(facts: &Facts<'_, '_>, call: &Node) -> bool {
@@ -223,7 +282,8 @@ fn compact(snippet: &str) -> String {
 }
 
 /// Adjustments that keep a place shared: built-in dereferences of shared references,
-/// `Vec`'s shared dereference to its slice, and shared borrows.
+/// `Vec`'s shared dereference to its slice, shared borrows, and a shared array-to-slice
+/// coercion that preserves the element type.
 pub(super) fn standard_adjustments(facts: &Facts<'_, '_>, expression: &Node) -> bool {
     let Some(adjustments) = &expression.adjustments else {
         return true;
@@ -242,6 +302,7 @@ pub(super) fn standard_adjustments(facts: &Facts<'_, '_>, expression: &Node) -> 
                         .is_some_and(|ty| ty.kind == TypeKind::Sequence && ty.fixed != Some(true))
             }
             ("auto_ref", Some("shared")) => true,
+            ("unsize", _) => shared_array_to_slice(facts, current, target),
             _ => false,
         };
         if !allowed {
@@ -250,6 +311,32 @@ pub(super) fn standard_adjustments(facts: &Facts<'_, '_>, expression: &Node) -> 
         current = target;
     }
     true
+}
+
+fn shared_array_to_slice(facts: &Facts<'_, '_>, from: Option<&Type>, to: Option<&Type>) -> bool {
+    let (Some(from), Some(to)) = (from, to) else {
+        return false;
+    };
+    if !is_shared_reference(Some(from)) || !is_shared_reference(Some(to)) {
+        return false;
+    }
+    let (Some(from), Some(to)) = (shared_target(facts, from), shared_target(facts, to)) else {
+        return false;
+    };
+
+    from.kind == TypeKind::Sequence
+        && from.fixed == Some(true)
+        && to.kind == TypeKind::Sequence
+        && to.fixed != Some(true)
+        && from.element.is_some()
+        && from.element == to.element
+}
+
+fn fixed_length(facts: &Facts<'_, '_>, ty: &Type) -> Option<u64> {
+    let ty = shared_target(facts, ty)?;
+    (ty.kind == TypeKind::Sequence && ty.fixed == Some(true))
+        .then_some(ty.length)
+        .flatten()
 }
 
 pub(super) fn iteration_receiver<'a>(
@@ -272,5 +359,5 @@ pub(super) fn extent_type(facts: &Facts<'_, '_>, ty: &Type) -> bool {
         (ty.kind == TypeKind::Sequence && ty.fixed != Some(true))
             || ty.kind == TypeKind::Set
             || is_vec(facts, ty)
-    })
+    }) || (is_shared_reference(Some(ty)) && fixed_length(facts, ty).is_some())
 }

@@ -1,0 +1,1981 @@
+{
+  "coverage": {
+    "capabilities": {
+      "aliasing": {
+        "description": "Places come from rustc's expression-use visitor for writes and exclusive borrows only",
+        "status": "approximated"
+      },
+      "constant-values": {
+        "description": "Constant values are not emitted",
+        "status": "unsupported"
+      },
+      "dispatch": {
+        "description": "Static, method, dynamic and function-value dispatch from typeck; selected trait implementations from instance resolution",
+        "status": "supported"
+      },
+      "evaluation-order": {
+        "description": "Operands, assignments and branches in the order the language specifies",
+        "status": "supported"
+      },
+      "exceptional-flow": {
+        "description": "A panic ends its path; unwinding is not a transfer",
+        "status": "unsupported"
+      },
+      "generic-instances": {
+        "description": "Instances are not recorded",
+        "status": "unsupported"
+      },
+      "implicit-calls": {
+        "description": "Destructors and implicit conversions are not emitted",
+        "status": "unsupported"
+      },
+      "integer-semantics": {
+        "description": "Integer widths and signedness are recorded where types are",
+        "status": "approximated"
+      },
+      "lifetimes": {
+        "description": "Lifetimes are not emitted",
+        "status": "unsupported"
+      },
+      "macro-provenance": {
+        "description": "Macro-expanded and desugared nodes carry their outermost call site",
+        "status": "supported"
+      },
+      "mutability": {
+        "description": "Binding mutability from HIR binding modes",
+        "status": "supported"
+      },
+      "resolution": {
+        "description": "Paths and calls are resolved by rustc; built-in operators carry no references",
+        "status": "approximated"
+      },
+      "types": {
+        "description": "Types are recorded for signatures, places and called values only",
+        "status": "approximated"
+      }
+    },
+    "layers": {
+      "ast": {
+        "description": "The HIR tree with for, while and ? restored to their source shape",
+        "status": "supported"
+      },
+      "cfg": {
+        "description": "Every transfer but unwinding; closure bodies are opaque and coroutine bodies run in place",
+        "status": "approximated"
+      },
+      "evidence": {
+        "description": "Coverage declarations only",
+        "status": "approximated"
+      },
+      "extension": {
+        "description": "Reference patterns use rust:reference-pattern",
+        "status": "supported"
+      },
+      "method": {
+        "description": "Identity, spans, parameters and receiver; generics and lifetimes are not emitted",
+        "status": "approximated"
+      },
+      "place": {
+        "description": "Writes and exclusive borrows from rustc's expression-use visitor",
+        "status": "approximated"
+      },
+      "ref": {
+        "description": "Paths, calls and method calls",
+        "status": "approximated"
+      },
+      "symbol": {
+        "description": "Bindings with their reads and writes",
+        "status": "supported"
+      },
+      "type": {
+        "description": "Signature, place and called-value types",
+        "status": "approximated"
+      },
+      "unit": {
+        "description": "Unit files with content, target and edition",
+        "status": "supported"
+      },
+      "value": {
+        "description": "No compile-time values are emitted",
+        "status": "unsupported"
+      }
+    }
+  },
+  "document": "unit",
+  "layout": "bundled",
+  "producer": {
+    "name": "rstyle-driver",
+    "namespace": "rust",
+    "revision": "03bb587eee9eb8a88f5f2124158ba8995f6aa8b9",
+    "version": "0.1.0"
+  },
+  "profile": {
+    "id": "compat.cpg",
+    "version": "0.1.0"
+  },
+  "schema_version": "0.1.0",
+  "unit": {
+    "configuration": [
+      "debug_assertions",
+      "fmt_debug=\"full\"",
+      "overflow_checks",
+      "panic=\"unwind\"",
+      "relocation_model=\"pic\"",
+      "target_abi=\"\"",
+      "target_arch=\"aarch64\"",
+      "target_endian=\"little\"",
+      "target_env=\"gnu\"",
+      "target_family=\"unix\"",
+      "target_feature=\"neon\"",
+      "target_feature=\"outline-atomics\"",
+      "target_has_atomic",
+      "target_has_atomic=\"128\"",
+      "target_has_atomic=\"16\"",
+      "target_has_atomic=\"32\"",
+      "target_has_atomic=\"64\"",
+      "target_has_atomic=\"8\"",
+      "target_has_atomic=\"ptr\"",
+      "target_has_atomic_load_store",
+      "target_has_atomic_load_store=\"128\"",
+      "target_has_atomic_load_store=\"16\"",
+      "target_has_atomic_load_store=\"32\"",
+      "target_has_atomic_load_store=\"64\"",
+      "target_has_atomic_load_store=\"8\"",
+      "target_has_atomic_load_store=\"ptr\"",
+      "target_has_atomic_primitive_alignment=\"128\"",
+      "target_has_atomic_primitive_alignment=\"16\"",
+      "target_has_atomic_primitive_alignment=\"32\"",
+      "target_has_atomic_primitive_alignment=\"64\"",
+      "target_has_atomic_primitive_alignment=\"8\"",
+      "target_has_atomic_primitive_alignment=\"ptr\"",
+      "target_has_reliable_f128",
+      "target_has_reliable_f128_math",
+      "target_has_reliable_f16",
+      "target_has_reliable_f16_math",
+      "target_has_reliable_f16b",
+      "target_has_threads",
+      "target_object_format=\"elf\"",
+      "target_os=\"linux\"",
+      "target_pointer_width=\"64\"",
+      "target_thread_local",
+      "target_vendor=\"unknown\"",
+      "ub_checks",
+      "unix"
+    ],
+    "definitions": [
+      {
+        "compilation": "4fb79f9e16feedc9",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "32f06e8b887aa93fcf2246c66949279d",
+            "crate_name": "alloc",
+            "def_kind": "Struct",
+            "def_path": "alloc[4fb7]::alloc::Global",
+            "def_path_hash": "DefPathHash(Fingerprint(5744235351073811913, 16543959175931616724))",
+            "generics": {
+              "count": 0,
+              "own": [],
+              "parented": false
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/liballoc-87b71dd0d25fbaca.rmeta",
+            "stable_crate_id": "StableCrateId(5744235351073811913)"
+          }
+        },
+        "id": "def:alloc::alloc::Global",
+        "kind": "type",
+        "modifiers": [],
+        "name": "std::alloc::Global",
+        "scope": "library",
+        "stable_identity": "alloc::alloc::Global",
+        "standard": true
+      },
+      {
+        "compilation": "4fb79f9e16feedc9",
+        "destructor": true,
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "32f06e8b887aa93fcf2246c66949279d",
+            "crate_name": "alloc",
+            "def_kind": "Struct",
+            "def_path": "alloc[4fb7]::vec::Vec",
+            "def_path_hash": "DefPathHash(Fingerprint(5744235351073811913, 9377798807082633567))",
+            "diagnostic": "Vec",
+            "generics": {
+              "count": 2,
+              "own": [
+                "type",
+                "type"
+              ],
+              "parented": false
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/liballoc-87b71dd0d25fbaca.rmeta",
+            "stable_crate_id": "StableCrateId(5744235351073811913)"
+          }
+        },
+        "id": "def:alloc::vec::Vec",
+        "kind": "type",
+        "modifiers": [],
+        "name": "std::vec::Vec",
+        "scope": "library",
+        "stable_identity": "alloc::vec::Vec",
+        "standard": true
+      },
+      {
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "Struct",
+            "def_path": "core[4de9]::iter::adapters::enumerate::Enumerate",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 13302864022801940918))",
+            "diagnostic": "Enumerate",
+            "generics": {
+              "count": 1,
+              "own": [
+                "type"
+              ],
+              "parented": false
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::iter::adapters::enumerate::Enumerate",
+        "kind": "type",
+        "modifiers": [],
+        "name": "std::iter::Enumerate",
+        "scope": "library",
+        "stable_identity": "core::iter::adapters::enumerate::Enumerate",
+        "standard": true
+      },
+      {
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "Struct",
+            "def_path": "core[4de9]::iter::adapters::filter_map::FilterMap",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 4968481827512702266))",
+            "generics": {
+              "count": 2,
+              "own": [
+                "type",
+                "type"
+              ],
+              "parented": false
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::iter::adapters::filter_map::FilterMap",
+        "kind": "type",
+        "modifiers": [],
+        "name": "std::iter::FilterMap",
+        "scope": "library",
+        "stable_identity": "core::iter::adapters::filter_map::FilterMap",
+        "standard": true
+      },
+      {
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "Trait",
+            "def_path": "core[4de9]::iter::traits::iterator::Iterator",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 1577146506677873524))",
+            "diagnostic": "Iterator",
+            "generics": {
+              "count": 1,
+              "own": [
+                "type"
+              ],
+              "parented": false
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::iter::traits::iterator::Iterator",
+        "kind": "trait",
+        "modifiers": [],
+        "name": "std::iter::Iterator",
+        "scope": "library",
+        "stable_identity": "core::iter::traits::iterator::Iterator",
+        "standard": true
+      },
+      {
+        "callable": {
+          "generics": 1,
+          "modifiers": [],
+          "parameters": [],
+          "receiver": "type:Self#Self=0",
+          "result": "type:B#B=1"
+        },
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "AssocFn",
+            "def_path": "core[4de9]::iter::traits::iterator::Iterator::collect",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 15856992926220802674))",
+            "diagnostic": "iterator_collect_fn",
+            "generics": {
+              "count": 2,
+              "own": [
+                "type"
+              ],
+              "parented": true
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::iter::traits::iterator::Iterator::collect",
+        "iteration": true,
+        "kind": "method",
+        "modifiers": [],
+        "name": "std::iter::Iterator::collect",
+        "operation": "rust:Iterator.collect",
+        "owner": "def:core::iter::traits::iterator::Iterator",
+        "scope": "library",
+        "stable_identity": "core::iter::traits::iterator::Iterator::collect",
+        "standard": true
+      },
+      {
+        "callable": {
+          "generics": 0,
+          "modifiers": [
+            "const"
+          ],
+          "parameters": [],
+          "receiver": "type:Self#Self=0",
+          "result": "type:std::iter::Enumerate<Self>#Self=0"
+        },
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "AssocFn",
+            "def_path": "core[4de9]::iter::traits::iterator::Iterator::enumerate",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 1626617519353976140))",
+            "diagnostic": "enumerate_method",
+            "generics": {
+              "count": 1,
+              "own": [],
+              "parented": true
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::iter::traits::iterator::Iterator::enumerate",
+        "iteration": true,
+        "kind": "method",
+        "modifiers": [],
+        "name": "std::iter::Iterator::enumerate",
+        "operation": "rust:Iterator.enumerate",
+        "owner": "def:core::iter::traits::iterator::Iterator",
+        "scope": "library",
+        "stable_identity": "core::iter::traits::iterator::Iterator::enumerate",
+        "standard": true
+      },
+      {
+        "callable": {
+          "generics": 2,
+          "modifiers": [
+            "const"
+          ],
+          "parameters": [
+            "type:F#F=2"
+          ],
+          "receiver": "type:Self#Self=0",
+          "result": "type:std::iter::FilterMap<Self, F>#F=2,Self=0"
+        },
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "AssocFn",
+            "def_path": "core[4de9]::iter::traits::iterator::Iterator::filter_map",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 4817457787948936194))",
+            "generics": {
+              "count": 3,
+              "own": [
+                "type",
+                "type"
+              ],
+              "parented": true
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::iter::traits::iterator::Iterator::filter_map",
+        "iteration": true,
+        "kind": "method",
+        "modifiers": [],
+        "name": "std::iter::Iterator::filter_map",
+        "operation": "rust:Iterator.filter_map",
+        "owner": "def:core::iter::traits::iterator::Iterator",
+        "scope": "library",
+        "stable_identity": "core::iter::traits::iterator::Iterator::filter_map",
+        "standard": true
+      },
+      {
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "Enum",
+            "def_path": "core[4de9]::option::Option",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 5328416817104062757))",
+            "diagnostic": "Option",
+            "generics": {
+              "count": 1,
+              "own": [
+                "type"
+              ],
+              "parented": false
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::option::Option",
+        "kind": "type",
+        "modifiers": [],
+        "name": "std::option::Option",
+        "scope": "library",
+        "stable_identity": "core::option::Option",
+        "standard": true
+      },
+      {
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "Impl { of_trait: false }",
+            "def_path": "core[4de9]::option::{impl#0}",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 16360160618824369919))",
+            "generics": {
+              "count": 1,
+              "own": [
+                "type"
+              ],
+              "parented": false
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::option::{impl#0}",
+        "kind": "other",
+        "modifiers": [],
+        "name": "std::option::Option<T>",
+        "scope": "library",
+        "stable_identity": "core::option::{impl#0}",
+        "standard": true
+      },
+      {
+        "callable": {
+          "generics": 2,
+          "modifiers": [
+            "const"
+          ],
+          "owner_type": "type:std::option::Option<T>#T=0",
+          "parameters": [
+            "type:F#F=2"
+          ],
+          "receiver": "type:std::option::Option<T>#T=0",
+          "result": "type:std::option::Option<U>#U=1"
+        },
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "AssocFn",
+            "def_path": "core[4de9]::option::{impl#0}::map",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 15936537518612647875))",
+            "generics": {
+              "count": 3,
+              "own": [
+                "type",
+                "type"
+              ],
+              "parented": true
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::option::{impl#0}::map",
+        "kind": "method",
+        "modifiers": [],
+        "name": "std::option::Option::<T>::map",
+        "operation": "rust:Option.map",
+        "owner": "def:core::option::{impl#0}",
+        "scope": "library",
+        "stable_identity": "core::option::{impl#0}::map",
+        "standard": true
+      },
+      {
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "Struct",
+            "def_path": "core[4de9]::slice::iter::Iter",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 1733685945491952114))",
+            "diagnostic": "SliceIter",
+            "generics": {
+              "count": 2,
+              "own": [
+                "lifetime",
+                "type"
+              ],
+              "parented": false
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::slice::iter::Iter",
+        "kind": "type",
+        "modifiers": [],
+        "name": "std::slice::Iter",
+        "scope": "library",
+        "stable_identity": "core::slice::iter::Iter",
+        "standard": true
+      },
+      {
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "Impl { of_trait: false }",
+            "def_path": "core[4de9]::slice::{impl#0}",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 10323675038705367239))",
+            "generics": {
+              "count": 1,
+              "own": [
+                "type"
+              ],
+              "parented": false
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::slice::{impl#0}",
+        "kind": "other",
+        "modifiers": [],
+        "name": "core::slice::<impl [T]>",
+        "scope": "library",
+        "stable_identity": "core::slice::{impl#0}",
+        "standard": true
+      },
+      {
+        "callable": {
+          "generics": 0,
+          "modifiers": [
+            "const"
+          ],
+          "owner_type": "type:[T]#T=0",
+          "parameters": [],
+          "receiver": "type:&[T]#T=0",
+          "result": "type:std::slice::Iter<'_, T>#T=0"
+        },
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "AssocFn",
+            "def_path": "core[4de9]::slice::{impl#0}::iter",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 11479879540585859404))",
+            "diagnostic": "slice_iter",
+            "generics": {
+              "count": 1,
+              "own": [],
+              "parented": true
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::slice::{impl#0}::iter",
+        "kind": "method",
+        "modifiers": [],
+        "name": "core::slice::<impl [T]>::iter",
+        "operation": "rust:slice.iter",
+        "owner": "def:core::slice::{impl#0}",
+        "scope": "library",
+        "stable_identity": "core::slice::{impl#0}::iter",
+        "standard": true
+      },
+      {
+        "compilation": "a737b693207a2d6c",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_name": "rstyle_core",
+            "def_kind": "Struct",
+            "def_path": "rstyle_core[a737]::align::Matching",
+            "def_path_hash": "DefPathHash(Fingerprint(12049300071074377068, 14784030072679246817))",
+            "generics": {
+              "count": 0,
+              "own": [],
+              "parented": false
+            },
+            "parent": "rstyle_core[a737]::align",
+            "stable_crate_id": "StableCrateId(12049300071074377068)"
+          }
+        },
+        "id": "def:rstyle_core::align::Matching",
+        "kind": "type",
+        "modifiers": [],
+        "name": "align::Matching",
+        "scope": "unit",
+        "span": {
+          "end": 4579,
+          "file": "file:crates/rstyle-core/src/align.rs",
+          "start": 4493
+        },
+        "stable_identity": "rstyle_core::align::Matching"
+      },
+      {
+        "compilation": "a737b693207a2d6c",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_name": "rstyle_core",
+            "def_kind": "Impl { of_trait: false }",
+            "def_path": "rstyle_core[a737]::align::{impl#5}",
+            "def_path_hash": "DefPathHash(Fingerprint(12049300071074377068, 3457236468241951341))",
+            "generics": {
+              "count": 0,
+              "own": [],
+              "parented": false
+            },
+            "parent": "rstyle_core[a737]::align",
+            "stable_crate_id": "StableCrateId(12049300071074377068)"
+          }
+        },
+        "id": "def:rstyle_core::align::{impl#5}",
+        "kind": "other",
+        "modifiers": [],
+        "name": "align::Matching",
+        "scope": "unit",
+        "span": {
+          "end": 5221,
+          "file": "file:crates/rstyle-core/src/align.rs",
+          "start": 4581
+        },
+        "stable_identity": "rstyle_core::align::{impl#5}"
+      },
+      {
+        "callable": {
+          "generics": 0,
+          "modifiers": [],
+          "owner_type": "type:align::Matching",
+          "parameters": [],
+          "receiver": "type:&align::Matching",
+          "result": "type:std::vec::Vec<(usize, usize)>"
+        },
+        "compilation": "a737b693207a2d6c",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_name": "rstyle_core",
+            "def_kind": "AssocFn",
+            "def_path": "rstyle_core[a737]::align::{impl#5}::pairs",
+            "def_path_hash": "DefPathHash(Fingerprint(12049300071074377068, 351042658632615843))",
+            "generics": {
+              "count": 0,
+              "own": [],
+              "parented": true
+            },
+            "ident_span": {
+              "end": 5067,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5062
+            },
+            "inherent_impl": "def:rstyle_core::align::{impl#5}",
+            "parent": "rstyle_core[a737]::align::{impl#5}",
+            "stable_crate_id": "StableCrateId(12049300071074377068)"
+          }
+        },
+        "id": "def:rstyle_core::align::{impl#5}::pairs",
+        "kind": "method",
+        "modifiers": [],
+        "name": "align::Matching::pairs",
+        "owner": "def:rstyle_core::align::{impl#5}",
+        "scope": "unit",
+        "stable_identity": "rstyle_core::align::{impl#5}::pairs"
+      },
+      {
+        "compilation": "a737b693207a2d6c",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_name": "rstyle_core",
+            "def_kind": "Closure",
+            "def_path": "rstyle_core[a737]::align::{impl#5}::pairs::{closure#0}",
+            "def_path_hash": "DefPathHash(Fingerprint(12049300071074377068, 8859193184977192106))",
+            "parent": "rstyle_core[a737]::align::{impl#5}::pairs",
+            "stable_crate_id": "StableCrateId(12049300071074377068)"
+          }
+        },
+        "id": "def:rstyle_core::align::{impl#5}::pairs::{closure#0}",
+        "kind": "other",
+        "modifiers": [],
+        "name": "align::Matching::pairs::{closure#0}",
+        "scope": "unit",
+        "stable_identity": "rstyle_core::align::{impl#5}::pairs::{closure#0}"
+      },
+      {
+        "compilation": "a737b693207a2d6c",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_name": "rstyle_core",
+            "def_kind": "Closure",
+            "def_path": "rstyle_core[a737]::align::{impl#5}::pairs::{closure#0}::{closure#0}",
+            "def_path_hash": "DefPathHash(Fingerprint(12049300071074377068, 17223653202446905118))",
+            "parent": "rstyle_core[a737]::align::{impl#5}::pairs::{closure#0}",
+            "stable_crate_id": "StableCrateId(12049300071074377068)"
+          }
+        },
+        "id": "def:rstyle_core::align::{impl#5}::pairs::{closure#0}::{closure#0}",
+        "kind": "other",
+        "modifiers": [],
+        "name": "align::Matching::pairs::{closure#0}::{closure#0}",
+        "scope": "unit",
+        "stable_identity": "rstyle_core::align::{impl#5}::pairs::{closure#0}::{closure#0}"
+      }
+    ],
+    "files": [
+      {
+        "content": "//! Alignment of two dependence graphs: which node corresponds to which, and where the\n//! matched nodes differ (the *holes*). Holes are the substitution table of the\n//! anti-unification: `T0 = Dog | Cat`, `M0 = bark | meow`.\n\nuse crate::facts::{NodeKind, Pdg, PdgNode};\nuse crate::shape::adt_diffs;\nuse crate::wl::{Nb, Wl};\nuse serde::Serialize;\nuse std::collections::BTreeMap;\n\n#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]\n#[serde(rename_all = \"snake_case\")]\npub enum HoleKind {\n    Type,\n    /// Callee with a receiver.\n    Method,\n    /// Callee without a receiver, or a fn item passed as a value.\n    FreeFn,\n    Literal,\n    Field,\n    /// Operator of a canonical comparison (`<` vs `==` against a literal bound).\n    Op,\n}\n\nimpl HoleKind {\n    fn prefix(self) -> char {\n        match self {\n            Self::Type => 'T',\n            Self::Method => 'M',\n            Self::FreeFn => 'F',\n            Self::Literal => 'L',\n            Self::Field => 'D',\n            Self::Op => 'O',\n        }\n    }\n}\n\nimpl Hole {\n    /// Variable name of the `index`-th hole of a kind: `T0`, `M1`, ...\n    pub fn var_name(kind: HoleKind, index: usize) -> String {\n        format!(\"{}{index}\", kind.prefix())\n    }\n}\n\n/// One substitution `a -> b`. Every site where the same pair occurs shares the variable.\n#[derive(Debug, Clone, PartialEq, Eq, Serialize)]\npub struct Hole {\n    pub kind: HoleKind,\n    pub var: String,\n    pub a: String,\n    pub b: String,\n    /// Aligned node pairs `(node in a, node in b)` where the substitution applies.\n    pub sites: Vec<(usize, usize)>,\n}\n\n#[derive(Debug, Clone, PartialEq, Eq)]\npub struct Alignment {\n    pub pairs: Vec<(usize, usize)>,\n    pub holes: Vec<Hole>,\n    /// Aligned pairs over the larger node count, in thousandths.\n    pub coverage_milli: u32,\n}\n\n/// Everything alignment reads, bundled so helpers stay within the parameter limit.\npub struct Ctx<'a> {\n    pub pa: &'a Pdg,\n    pub pb: &'a Pdg,\n    pub wa: &'a Wl,\n    pub wb: &'a Wl,\n    ca: &'a [u64],\n    cb: &'a [u64],\n    oa: Vec<usize>,\n    ob: Vec<usize>,\n}\n\nimpl<'a> Ctx<'a> {\n    pub fn new(pa: &'a Pdg, wa: &'a Wl, pb: &'a Pdg, wb: &'a Wl) -> Ctx<'a> {\n        let (ca, cb) = (wa.colors_with(wb), wb.colors_with(wa));\n        Ctx {\n            pa,\n            pb,\n            wa,\n            wb,\n            ca,\n            cb,\n            oa: ordinals(wa, ca),\n            ob: ordinals(wb, cb),\n        }\n    }\n}\n\nimpl<'a> Ctx<'a> {\n    /// Number of WL levels both graphs support (`wl::levels`).\n    fn levels_used(&self) -> usize {\n        crate::wl::levels(self.wa, self.wb)\n    }\n\n    /// The same graphs compared by the colors of WL refinement `level` (0 = raw labels).\n    fn at_level(&self, level: usize) -> Ctx<'a> {\n        Ctx {\n            ca: &self.wa.rounds[level],\n            cb: &self.wb.rounds[level],\n            oa: self.oa.clone(),\n            ob: self.ob.clone(),\n            ..*self\n        }\n    }\n}\n\n/// Depth-first visit order. Children are taken by (edge tag, color, index).\nstruct Dfs<'a> {\n    graph: &'a crate::wl::Graph,\n    colors: &'a [u64],\n    seen: Vec<bool>,\n    order: Vec<usize>,\n}\n\nimpl Dfs<'_> {\n    fn children(&self, v: usize) -> Vec<usize> {\n        let mut kids: Vec<&Nb> = self.graph.out[v].iter().collect();\n        kids.sort_by_key(|nb| (nb.tag, self.colors[nb.node], nb.node));\n        kids.iter().rev().map(|nb| nb.node).collect()\n    }\n\n    fn from(&mut self, start: usize) {\n        let mut stack = vec![start];\n        while let Some(v) = stack.pop() {\n            if !std::mem::replace(&mut self.seen[v], true) {\n                self.order.push(v);\n                stack.extend(self.children(v));\n            }\n        }\n    }\n}\n\n/// Deterministic DFS ordinal of every node: roots by (color, index), then anything left\n/// (cycles) by index. Symmetric graphs still get one fixed order.\nfn ordinals(w: &Wl, colors: &[u64]) -> Vec<usize> {\n    let n = colors.len();\n    let mut roots: Vec<usize> = (0..n).filter(|v| w.graph.inc[*v].is_empty()).collect();\n\n    roots.sort_by_key(|v| (colors[*v], *v));\n    let mut dfs = Dfs {\n        graph: &w.graph,\n        colors,\n        seen: vec![false; n],\n        order: Vec::with_capacity(n),\n    };\n    roots\n        .into_iter()\n        .chain(0..n)\n        .for_each(|start| dfs.from(start));\n    let mut ordinal = vec![0; n];\n    dfs.order\n        .iter()\n        .enumerate()\n        .for_each(|(i, v)| ordinal[*v] = i);\n    ordinal\n}\n\n#[derive(Debug, Clone)]\npub struct Matching {\n    pub fwd: Vec<Option<usize>>,\n    back: Vec<Option<usize>>,\n}\n\nimpl Matching {\n    pub fn new(na: usize, nb: usize) -> Matching {\n        Matching {\n            fwd: vec![None; na],\n            back: vec![None; nb],\n        }\n    }\n\n    pub fn link(mut self, a: usize, b: usize) -> Matching {\n        self.fwd[a] = Some(b);\n        self.back[b] = Some(a);\n        self\n    }\n\n    fn unlink(mut self, a: usize) -> Matching {\n        if let Some(b) = self.fwd[a].take() {\n            self.back[b] = None;\n        }\n        self\n    }\n\n    pub fn pairs(&self) -> Vec<(usize, usize)> {\n        let linked = self.fwd.iter().enumerate();\n        linked.filter_map(|(a, b)| b.map(|b| (a, b))).collect()\n    }\n}\n\nfn has_edge(list: &[Nb], node: usize, tag: u64) -> bool {\n    list.iter().any(|nb| nb.node == node && nb.tag == tag)\n}\n\n/// For each neighbour in `from_side` whose node is matched (through `image_of`), whether\n/// the same-tag edge to its image exists in `to_side`. Applied to both edge directions.\nfn mirrored<'a>(\n    sides: [(&'a [Nb], &'a [Nb]); 2],\n    image_of: &'a [Option<usize>],\n) -> impl Iterator<Item = bool> + 'a {\n    sides.into_iter().flat_map(move |(from_side, to_side)| {\n        from_side.iter().filter_map(move |nb| {\n            let image = image_of[nb.node]?;\n            Some(has_edge(to_side, image, nb.tag))\n        })\n    })\n}\n\n/// Neighbours of `a` that are matched, split into those the counterpart `b` mirrors\n/// (agree) and those it does not (conflict).\nfn evidence(ctx: &Ctx<'_>, m: &Matching, a: usize, b: usize) -> (usize, usize) {\n    let sides = [\n        (&ctx.wa.graph.inc[a][..], &ctx.wb.graph.inc[b][..]),\n        (&ctx.wa.graph.out[a][..], &ctx.wb.graph.out[b][..]),\n    ];\n    mirrored(sides, &m.fwd).fold((0, 0), |(agree, conflict), ok| {\n        (agree + usize::from(ok), conflict + usize::from(!ok))\n    })\n}\n\n/// Edges of `b` into matched nodes that `a` does not mirror.\nfn reverse_conflicts(ctx: &Ctx<'_>, m: &Matching, a: usize, b: usize) -> usize {\n    let sides = [\n        (&ctx.wb.graph.inc[b][..], &ctx.wa.graph.inc[a][..]),\n        (&ctx.wb.graph.out[b][..], &ctx.wa.graph.out[a][..]),\n    ];\n    mirrored(sides, &m.back).filter(|ok| !ok).count()\n}\n\nfn classes(colors: &[u64], ordinal: &[usize]) -> BTreeMap<u64, Vec<usize>> {\n    let mut by_color: BTreeMap<u64, Vec<usize>> = BTreeMap::new();\n    for (v, color) in colors.iter().enumerate() {\n        by_color.entry(*color).or_default().push(v);\n    }\n    by_color\n        .values_mut()\n        .for_each(|nodes| nodes.sort_by_key(|v| ordinal[*v]));\n    by_color\n}\n\nfn unique_pairs(ctx: &Ctx<'_>) -> Vec<(usize, usize)> {\n    let (ka, kb) = (classes(ctx.ca, &ctx.oa), classes(ctx.cb, &ctx.ob));\n    ka.iter()\n        .filter_map(\n            |(color, nodes)| match (nodes.as_slice(), kb.get(color)?.as_slice()) {\n                ([a], [b]) => Some((*a, *b)),\n                _ => None,\n            },\n        )\n        .collect()\n}\n\n/// Best unmatched same-color partner of `a`: most mirrored neighbours, then lowest ordinal.\nfn best_partner(\n    ctx: &Ctx<'_>,\n    m: &Matching,\n    a: usize,\n    kb: &BTreeMap<u64, Vec<usize>>,\n) -> Option<(usize, usize)> {\n    let candidates = kb.get(&ctx.ca[a])?.iter().filter(|b| m.back[**b].is_none());\n    let scored = candidates.map(|b| (evidence(ctx, m, a, *b), *b));\n    let best = scored\n        .filter(|((_, conflict), _)| *conflict == 0)\n        .min_by_key(|((agree, _), b)| (usize::MAX - agree, ctx.ob[*b]))?;\n    Some((best.0.0, best.1))\n}\n\n/// One pass over unmatched nodes in ordinal order. With `need_evidence`, a node is only\n/// matched when a neighbour already vouches for the partner.\nfn pass(ctx: &Ctx<'_>, m: Matching, need_evidence: bool) -> (Matching, bool) {\n    let kb = classes(ctx.cb, &ctx.ob);\n    let mut order: Vec<usize> = (0..ctx.ca.len()).collect();\n    order.sort_by_key(|a| ctx.oa[*a]);\n    order.into_iter().fold((m, false), |(m, moved), a| {\n        let pick = if m.fwd[a].is_some() {\n            None\n        } else {\n            best_partner(ctx, &m, a, &kb)\n        };\n        match pick {\n            Some((agree, b)) if agree > 0 || !need_evidence => (m.link(a, b), true),\n            _ => (m, moved),\n        }\n    })\n}\n\n/// Repeats evidence-backed passes to a fixpoint; `greedy` then matches what is left by ordinal.\nfn settle(ctx: &Ctx<'_>, start: Matching, greedy: bool) -> Matching {\n    let mut m = start;\n    loop {\n        let (next, moved) = pass(ctx, m, true);\n        m = next;\n        if !moved {\n            return if greedy { pass(ctx, m, false).0 } else { m };\n        }\n    }\n}\n\nfn holey(kind: NodeKind) -> bool {\n    matches!(kind, NodeKind::Call | NodeKind::Lit | NodeKind::Field)\n}\n\n/// Pairs unmatched same-kind leaf-like nodes whose label differs (a different callee\n/// signature class, say) but whose matched neighbours all agree.\nfn complete(ctx: &Ctx<'_>, start: Matching, strict: bool) -> Matching {\n    let mut order: Vec<usize> = (0..ctx.ca.len()).collect();\n    order.sort_by_key(|a| ctx.oa[*a]);\n    order.into_iter().fold(start, |m, a| {\n        if m.fwd[a].is_some() || !holey(ctx.pa.nodes[a].kind) {\n            return m;\n        }\n        let fits = (0..ctx.cb.len())\n            .filter(|b| m.back[*b].is_none() && ctx.pb.nodes[*b].kind == ctx.pa.nodes[a].kind);\n        let best = fits\n            .map(|b| (evidence(ctx, &m, a, b), b))\n            .filter(|((agree, conflict), _)| *agree > 0 && *conflict == 0)\n            .filter(|(_, b)| !strict || reverse_conflicts(ctx, &m, a, *b) == 0)\n            .min_by_key(|((agree, _), b)| (usize::MAX - agree, ctx.ob[*b]));\n        match best {\n            Some((_, b)) => m.link(a, b),\n            None => m,\n        }\n    })\n}\n\nfn violations(ctx: &Ctx<'_>, m: &Matching, a: usize, b: usize) -> usize {\n    evidence(ctx, m, a, b).1 + reverse_conflicts(ctx, m, a, b)\n}\n\n/// Drops pairs whose edges are not mirrored, worst first, until the matching is\n/// edge-consistent.\npub fn prune(ctx: &Ctx<'_>, start: Matching) -> Matching {\n    let mut m = start;\n    loop {\n        let worst = m\n            .pairs()\n            .into_iter()\n            .map(|(a, b)| (violations(ctx, &m, a, b), a))\n            .filter(|(count, _)| *count > 0)\n            .max();\n        match worst {\n            Some((_, a)) => m = m.unlink(a),\n            None => return m,\n        }\n    }\n}\n\nfn is_method(node: &PdgNode) -> bool {\n    node.callee_sig\n        .as_ref()\n        .is_some_and(|sig| sig.receiver != crate::facts::Receiver::None)\n}\n\nfn callee_diff(a: &PdgNode, b: &PdgNode) -> Option<(HoleKind, String, String)> {\n    let (x, y) = (a.callee_id.as_ref()?, b.callee_id.as_ref()?);\n    let kind = if a.kind == NodeKind::Call && (is_method(a) || is_method(b)) {\n        HoleKind::Method\n    } else {\n        HoleKind::FreeFn\n    };\n    (x != y).then(|| (kind, x.clone(), y.clone()))\n}\n\nfn text_diff(a: &PdgNode, b: &PdgNode) -> Option<(HoleKind, String, String)> {\n    let kind = match a.kind {\n        NodeKind::Lit if a.callee_id.is_none() => HoleKind::Literal,\n        NodeKind::Field => HoleKind::Field,\n        NodeKind::Op if a.detail.starts_with(\"cmp:\") => {\n            let (x, y) = (&a.detail[4..], &b.detail[4..]);\n            return (a.detail != b.detail && b.detail.starts_with(\"cmp:\"))\n                .then(|| (HoleKind::Op, x.to_string(), y.to_string()));\n        }\n        _ => return None,\n    };\n    (a.detail != b.detail).then(|| (kind, a.detail.clone(), b.detail.clone()))\n}\n\nfn type_diffs(a: &PdgNode, b: &PdgNode) -> Vec<(HoleKind, String, String)> {\n    match (&a.ty, &b.ty) {\n        (Some(x), Some(y)) => adt_diffs(x, y)\n            .into_iter()\n            .map(|(p, q)| (HoleKind::Type, p, q))\n            .collect(),\n        _ => vec![],\n    }\n}\n\nfn node_diffs(a: &PdgNode, b: &PdgNode) -> Vec<(HoleKind, String, String)> {\n    callee_diff(a, b)\n        .into_iter()\n        .chain(text_diff(a, b))\n        .chain(type_diffs(a, b))\n        .collect()\n}\n\ntype HoleKey = (HoleKind, String, String);\n\nfn hole_table(ctx: &Ctx<'_>, pairs: &[(usize, usize)]) -> BTreeMap<HoleKey, Vec<(usize, usize)>> {\n    let diffs = pairs.iter().flat_map(|&(a, b)| {\n        let found = node_diffs(&ctx.pa.nodes[a], &ctx.pb.nodes[b]);\n        found.into_iter().map(move |key| (key, (a, b)))\n    });\n    diffs.fold(BTreeMap::new(), |mut table, (key, site)| {\n        table.entry(key).or_default().push(site);\n        table\n    })\n}\n\n/// Substitution table of an alignment: equal `(kind, a, b)` triples share one variable.\npub fn holes_of(ctx: &Ctx<'_>, pairs: &[(usize, usize)]) -> Vec<Hole> {\n    let mut ordered: Vec<_> = hole_table(ctx, pairs).into_iter().collect();\n\n    ordered.sort_by_key(|(key, sites)| (sites[0].0, key.0));\n    let mut counts: BTreeMap<HoleKind, usize> = BTreeMap::new();\n    let mut name = |kind: HoleKind| {\n        let count = counts.entry(kind).or_insert(0);\n        *count += 1;\n        Hole::var_name(kind, *count - 1)\n    };\n    ordered\n        .into_iter()\n        .map(|((kind, a, b), sites)| Hole {\n            kind,\n            var: name(kind),\n            a,\n            b,\n            sites,\n        })\n        .collect()\n}\n\n/// Links the pairs that are unique in their color class and still unmatched.\nfn seeded(ctx: &Ctx<'_>, m: Matching) -> Matching {\n    unique_pairs(ctx).into_iter().fold(m, |m, (a, b)| {\n        if m.fwd[a].is_none() && m.back[b].is_none() {\n            m.link(a, b)\n        } else {\n            m\n        }\n    })\n}\n\n/// Pairs after one pipeline step (cumulative, so `prune` steps can shrink the set).\n#[derive(Debug, Clone, PartialEq, Eq, Serialize)]\npub struct Stage {\n    pub name: &'static str,\n    pub pairs: Vec<(usize, usize)>,\n}\n\npub fn align(ctx: &Ctx<'_>) -> Alignment {\n    align_staged(ctx).0\n}\n\n/// Alignment pipeline variants. `Baseline` is the default used by `align`.\n#[derive(Debug, Clone, Copy, PartialEq, Eq)]\npub enum Variant {\n    Baseline,\n    /// Skip the refined-color stages; start from raw labels.\n    LabelsOnly,\n    /// No prune after `complete`.\n    NoFinalPrune,\n    /// `complete` also rejects pairs with reverse conflicts (what prune checks).\n    CompleteChecked,\n    /// Seed and settle at every WL level from deepest to raw labels, pruning after each.\n    CoarseToFine,\n    /// `CoarseToFine` plus `CompleteChecked`.\n    Combined,\n}\n\ntype Step<'a> = (&'static str, Box<dyn Fn(Matching) -> Matching + 'a>);\n\nfn grow<'a>(c: &'a Ctx<'a>, name: &'static str, greedy: bool) -> Step<'a> {\n    (name, Box::new(move |m| settle(c, seeded(c, m), greedy)))\n}\n\nfn prune_step<'a>(ctx: &'a Ctx<'a>, name: &'static str) -> Step<'a> {\n    (name, Box::new(|m| prune(ctx, m)))\n}\n\nconst LEVEL_NAMES: [&str; 4] = [\"level0\", \"level1\", \"level2\", \"level3\"];\n\n/// Refined-color stages, then raw labels (the pipeline before `complete`).\nfn pairing_steps<'a>(ctx: &'a Ctx<'a>, levels: &'a [Ctx<'a>], v: Variant) -> Vec<Step<'a>> {\n    let labels = &levels[0];\n    match v {\n        Variant::LabelsOnly => vec![\n            grow(labels, \"labels\", false),\n            prune_step(ctx, \"prune_labels\"),\n        ],\n        Variant::CoarseToFine | Variant::Combined => levels\n            .iter()\n            .enumerate()\n            .rev()\n            .flat_map(|(k, c)| {\n                [\n                    grow(c, LEVEL_NAMES[k.min(3)], k == levels.len() - 1),\n                    prune_step(ctx, \"prune\"),\n                ]\n            })\n            .collect(),\n        _ => vec![\n            (\"seed\", Box::new(|m| seeded(ctx, m))),\n            (\"settle\", Box::new(|m| settle(ctx, m, true))),\n            prune_step(ctx, \"prune\"),\n            // Nodes whose neighbourhood differs still pair by label.\n            grow(labels, \"labels\", false),\n            prune_step(ctx, \"prune_labels\"),\n        ],\n    }\n}\n\nfn steps<'a>(ctx: &'a Ctx<'a>, levels: &'a [Ctx<'a>], v: Variant) -> Vec<Step<'a>> {\n    let strict = matches!(v, Variant::CompleteChecked | Variant::Combined);\n    let tail: Vec<Step<'a>> = vec![(\"complete\", Box::new(move |m| complete(ctx, m, strict)))];\n    let last = (v != Variant::NoFinalPrune).then(|| prune_step(ctx, \"final\"));\n    pairing_steps(ctx, levels, v)\n        .into_iter()\n        .chain(tail)\n        .chain(last)\n        .collect()\n}\n\n/// `align`, also reporting the matching after every step (for the walkthrough site).\npub fn align_staged(ctx: &Ctx<'_>) -> (Alignment, Vec<Stage>) {\n    align_variant(ctx, Variant::Baseline)\n}\n\npub fn align_variant(ctx: &Ctx<'_>, v: Variant) -> (Alignment, Vec<Stage>) {\n    let depth = ctx.wa.rounds.len().min(ctx.levels_used());\n    let levels: Vec<Ctx<'_>> = (0..depth.max(1)).map(|k| ctx.at_level(k)).collect();\n    let empty = Matching::new(ctx.ca.len(), ctx.cb.len());\n    let (_, stages) =\n        steps(ctx, &levels, v)\n            .iter()\n            .fold((empty, Vec::new()), |(m, mut stages), (name, run)| {\n                let next = run(m);\n                stages.push(Stage {\n                    name,\n                    pairs: next.pairs(),\n                });\n                (next, stages)\n            });\n    let pairs = stages.last().map_or_else(Vec::new, |s| s.pairs.clone());\n    let larger = ctx.ca.len().max(ctx.cb.len()).max(1);\n    let alignment = Alignment {\n        coverage_milli: (pairs.len() * 1000 / larger) as u32,\n        holes: holes_of(ctx, &pairs),\n        pairs,\n    };\n\n    (alignment, stages)\n}\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n    use crate::facts::TyShape;\n    use crate::pdgtest::*;\n\n    fn run(a: &Pdg, b: &Pdg) -> Alignment {\n        let (wa, wb) = (Wl::new(a), Wl::new(b));\n        align(&Ctx::new(a, &wa, b, &wb))\n    }\n\n    fn kinds(al: &Alignment) -> Vec<(HoleKind, String, String)> {\n        al.holes\n            .iter()\n            .map(|h| (h.kind, h.a.clone(), h.b.clone()))\n            .collect()\n    }\n\n    #[test]\n    fn canonical_comparison_operators_differ_as_an_op_hole() {\n        let graph = |operator: &str| Pdg {\n            nodes: vec![\n                node(NodeKind::Loop),\n                PdgNode {\n                    lit_kind: Some(\"int\".into()),\n                    detail: \"3\".into(),\n                    ..node(NodeKind::Lit)\n                },\n                PdgNode {\n                    detail: format!(\"cmp:{operator}\"),\n                    ..node(NodeKind::Op)\n                },\n                node(NodeKind::Case),\n            ],\n            edges: vec![data(0, 2, 0), data(1, 2, 1), data(2, 3, 0)],\n        };\n        let al = run(&graph(\"<\"), &graph(\"==\"));\n        assert_eq!(al.coverage_milli, 1000);\n        assert_eq!(\n            kinds(&al),\n            [(HoleKind::Op, \"<\".to_string(), \"==\".to_string())]\n        );\n        assert_eq!(al.holes[0].var, \"O0\");\n        assert!(run(&graph(\"<\"), &graph(\"<\")).holes.is_empty());\n    }\n\n    #[test]\n    fn dog_cat_yields_exactly_t_and_m_holes() {\n        let al = run(&emit_loop(\"Dog\", \"bark\"), &emit_loop(\"Cat\", \"meow\"));\n        assert_eq!(al.pairs.len(), 6);\n        assert_eq!(al.coverage_milli, 1000);\n        let expected = [\n            (HoleKind::Type, \"k::Dog\".to_string(), \"k::Cat\".to_string()),\n            (\n                HoleKind::Method,\n                \"k::Dog::bark\".to_string(),\n                \"k::Cat::meow\".to_string(),\n            ),\n        ];\n        assert_eq!(kinds(&al), expected);\n        assert_eq!(\n            (al.holes[0].var.as_str(), al.holes[1].var.as_str()),\n            (\"T0\", \"M0\")\n        );\n    }\n\n    #[test]\n    fn repeated_pair_reuses_hole_var() {\n        let al = run(&emit_loop(\"Dog\", \"bark\"), &emit_loop(\"Cat\", \"meow\"));\n        let t = &al.holes[0];\n        // `&[Dog] -> &[Cat]` on the parameter and `&Dog -> &Cat` on the loop item: one variable.\n        assert_eq!(t.sites, [(0, 0), (2, 2)]);\n        assert_eq!(\n            al.holes.iter().filter(|h| h.kind == HoleKind::Type).count(),\n            1\n        );\n    }\n\n    #[test]\n    fn same_callee_not_a_hole() {\n        let al = run(&emit_loop(\"Dog\", \"bark\"), &emit_loop(\"Dog\", \"bark\"));\n        assert!(al.holes.is_empty());\n        assert_eq!(al.coverage_milli, 1000);\n    }\n\n    #[test]\n    fn symmetric_graph_alignment_deterministic() {\n        let twin = Pdg {\n            nodes: vec![\n                crate::pdgtest::node(NodeKind::Param),\n                crate::pdgtest::node(NodeKind::Param),\n                push_call(),\n                push_call(),\n            ],\n            edges: vec![data(0, 2, 0), data(1, 3, 0)],\n        };\n        let flipped = permuted(&twin, 1);\n        let first = run(&twin, &flipped);\n        assert_eq!(first.pairs.len(), 4);\n        assert!(first.holes.is_empty());\n        assert_eq!(first.pairs, run(&twin, &flipped).pairs);\n        let (wa, wb) = (Wl::new(&twin), Wl::new(&flipped));\n        let ctx = Ctx::new(&twin, &wa, &flipped, &wb);\n        let m = first\n            .pairs\n            .iter()\n            .fold(Matching::new(4, 4), |m, p| m.link(p.0, p.1));\n        assert_eq!(\n            prune(&ctx, m).pairs().len(),\n            4,\n            \"alignment must be edge-consistent\"\n        );\n    }\n\n    #[test]\n    fn edge_inconsistent_match_rejected() {\n        let linked = Pdg {\n            nodes: vec![push_call(), push_call()],\n            edges: vec![data(0, 1, 0)],\n        };\n        let loose = Pdg {\n            nodes: vec![push_call(), push_call()],\n            edges: vec![],\n        };\n        let (wa, wb) = (Wl::new(&linked), Wl::new(&loose));\n        let ctx = Ctx::new(&linked, &wa, &loose, &wb);\n        let both = Matching::new(2, 2).link(0, 0).link(1, 1);\n        let kept = prune(&ctx, both).pairs();\n        assert_eq!(kept.len(), 1, \"one of the two clashing pairs must go\");\n        assert_eq!(prune(&ctx, Matching::new(2, 2).link(0, 0)).pairs().len(), 1);\n    }\n\n    #[test]\n    fn differing_sig_class_still_pairs_as_hole() {\n        let mut other = emit_loop(\"Cat\", \"meow\");\n        other.nodes[4].callee_sig.as_mut().expect(\"sig\").ret = TyShape::Prim(\"u8\".into());\n        let al = run(&emit_loop(\"Dog\", \"bark\"), &other);\n        assert!(al.holes.iter().any(|h| h.kind == HoleKind::Method));\n        assert_eq!(al.pairs.len(), 6);\n    }\n\n    #[test]\n    fn every_variant_fully_aligns_a_dog_cat_pair() {\n        let (a, b) = (emit_loop(\"Dog\", \"bark\"), emit_loop(\"Cat\", \"meow\"));\n        let (wa, wb) = (Wl::new(&a), Wl::new(&b));\n        let ctx = Ctx::new(&a, &wa, &b, &wb);\n        for v in [\n            Variant::Baseline,\n            Variant::LabelsOnly,\n            Variant::NoFinalPrune,\n            Variant::CompleteChecked,\n            Variant::CoarseToFine,\n            Variant::Combined,\n        ] {\n            let al = align_variant(&ctx, v).0;\n            assert_eq!(al.coverage_milli, 1000, \"{v:?}\");\n            assert_eq!(al.holes.len(), 2, \"{v:?}\");\n        }\n    }\n}\n",
+        "digest": "sha256:ce33a2d3c9250893e3ff157e4b22d049e6445b4840c1f5c5b0f64d2e958305c5",
+        "id": "file:crates/rstyle-core/src/align.rs",
+        "origin": "source",
+        "path": "crates/rstyle-core/src/align.rs"
+      },
+      {
+        "content": "//! Pure evaluation of style rules over facts extracted by `rstyle-driver`.\n\npub mod advisory;\npub mod align;\npub mod candidates;\npub mod cli_args;\npub mod clip;\npub mod cluster;\npub mod complexity;\npub mod complexity_report;\npub mod config;\npub mod cpg;\npub mod defects_report;\npub mod dispatch;\npub mod exclusions;\npub mod facts;\npub mod filter;\npub mod graph;\npub mod groups;\npub mod ledger;\npub mod lines;\npub mod locator;\npub mod merge_risk;\npub mod normalize;\npub mod paths;\npub mod patterns_report;\npub mod pdg_builder;\n#[cfg(test)]\nmod pdgtest;\npub mod prep;\npub mod report;\npub mod rules;\npub mod runtime_bounds;\npub mod sarif;\npub mod shape;\npub mod sigmine;\npub mod spacing;\npub mod stacking;\npub mod strict_style;\npub mod suppress;\npub mod unified;\npub mod versioned;\npub mod wl;\npub mod wl_trace;\npub mod wording;\n\nuse config::Config;\nuse facts::FnFacts;\nuse report::{Diagnostic, Report, Summary};\nuse std::borrow::Cow;\nuse std::collections::BTreeMap;\nuse suppress::Suppression;\n\nfn rule_diagnostics(f: &FnFacts, effects: &[rules::Effect], cfg: &Config) -> Vec<Diagnostic> {\n    let source_lines = lines::code_lines(&f.source);\n    [\n        rules::fn_length_with_lines(f, cfg, source_lines),\n        rules::fn_params(f, cfg),\n        strict_style::fn_spacing(f, cfg),\n        rules::complexity(f, cfg),\n        rules::mutation_budget(f, &cfg.mutation_budget),\n        rules::side_effect_density_with_lines(f, effects, cfg, || source_lines),\n        strict_style::guard_clause(f, cfg),\n    ]\n    .concat()\n}\n\nfn invalid_suppression(f: &FnFacts, message: &str) -> Diagnostic {\n    Diagnostic {\n        path: f.path.clone(),\n        line: f.line,\n        column: f.column,\n        rule_id: \"invalid_suppression\".into(),\n        message: format!(\"function `{}`: {message}\", f.name),\n        actual: 1,\n        limit: 0,\n        details: vec![],\n        source: f.whole_lines(),\n    }\n}\n\nfn function_diagnostics(\n    f: &FnFacts,\n    effects: &[rules::Effect],\n    cfg: &Config,\n    across_the_run: Vec<Diagnostic>,\n) -> (Vec<Diagnostic>, Suppression) {\n    let mut out = rule_diagnostics(f, effects, cfg);\n    out.extend(across_the_run);\n\n    let suppression = suppress::parse(&f.preceding_line);\n    match &suppression {\n        Suppression::None => {}\n        Suppression::Allow(rules) => out.retain(|d| !rules.contains(&d.rule_id)),\n        Suppression::Invalid(message) => out.push(invalid_suppression(f, message)),\n    }\n    (out, suppression)\n}\n\nfn effect_counts<'a>(effects: impl Iterator<Item = &'a rules::Effect>) -> BTreeMap<String, usize> {\n    let mut counts = BTreeMap::new();\n    for effect in effects {\n        *counts.entry(effect.kind.name().to_string()).or_default() += 1;\n    }\n    counts\n}\n\nfn summarize(\n    facts: &[FnFacts],\n    effects: &[Vec<rules::Effect>],\n    policies: &[Cow<Config>],\n    violations: usize,\n) -> Summary {\n    let (density_sum, max_density_milli) = facts\n        .iter()\n        .zip(effects)\n        .zip(policies)\n        .map(|((f, e), policy)| rules::density_milli(f, e, policy))\n        .fold((0u128, 0), |(sum, maximum), density| {\n            (sum + density as u128, maximum.max(density))\n        });\n    let measured = facts\n        .iter()\n        .filter(|fact| fact.complexity.is_some())\n        .count();\n    Summary {\n        functions: facts.len(),\n        violations,\n        complexity_measured: measured,\n        complexity_unavailable: facts.len() - measured,\n        mean_density_milli: (density_sum / facts.len().max(1) as u128) as usize,\n        density_sum_milli: usize::try_from(density_sum).ok(),\n        max_density_milli,\n        effect_counts: effect_counts(effects.iter().flatten()),\n    }\n}\n\n/// Observed effects and existing suppression boundaries for a borrowed graph owner.\npub trait EffectSource: graph::EffectInput {\n    fn direct_effects(&self, config: &Config) -> Vec<rules::Effect>;\n    fn effect_boundary(&self) -> bool;\n}\n\nimpl<F: std::borrow::Borrow<FnFacts>> EffectSource for F {\n    fn direct_effects(&self, config: &Config) -> Vec<rules::Effect> {\n        rules::effects_of(self.borrow(), config)\n    }\n    fn effect_boundary(&self) -> bool {\n        graph::is_boundary(self.borrow())\n    }\n}\n\n/// Direct effects of every function plus what it inherits through the call graph.\npub fn all_effects<F: EffectSource>(\n    facts: &[F],\n    graph: &graph::Graph,\n    cfg: &Config,\n) -> Vec<Vec<rules::Effect>> {\n    let mut direct: Vec<_> = facts.iter().map(|f| f.direct_effects(cfg)).collect();\n    graph.add_open_calls(&mut direct);\n\n    let boundary: Vec<_> = facts.iter().map(EffectSource::effect_boundary).collect();\n    let inputs = graph::Inputs {\n        facts,\n        graph,\n        direct: &direct,\n        boundary: &boundary,\n    };\n    graph::propagate(&inputs, cfg.side_effects.transitive_depth)\n}\n\n/// Evaluates all rules. Input order does not matter: facts are merged first.\npub fn evaluate(facts: Vec<FnFacts>, cfg: &Config) -> Result<Report, String> {\n    evaluate_and_retain(facts, cfg).map(|(report, _)| report)\n}\n\n/// Return the merged, path-selected observations for another consumer without copying bodies.\npub fn evaluate_and_retain(\n    facts: Vec<FnFacts>,\n    cfg: &Config,\n) -> Result<(Report, Vec<FnFacts>), String> {\n    evaluate_inputs(facts, cfg, Retention::Report, None)\n        .map(|evaluation| (evaluation.report, evaluation.facts))\n}\n\n/// Completed diagnostic ownership follows report sorting without location-based inference.\npub struct Evaluation {\n    pub report: Report,\n    pub facts: Vec<FnFacts>,\n    /// One index into `facts` for each diagnostic in `report`.\n    pub diagnostic_owners: Vec<usize>,\n    /// Explicit consumers may retain completed suppression scopes and excluded observations.\n    pub scopes: Option<Scopes>,\n    /// Opt-in completed effects, keyed by the original selected owner ID.\n    pub effects: Option<BTreeMap<String, Vec<rules::Effect>>>,\n}\n\n#[derive(Default)]\npub struct Scopes {\n    /// Aligned with the selected facts, from their completed rule evaluation.\n    pub suppressions: Vec<Suppression>,\n    pub excluded: Vec<FnFacts>,\n}\n\n#[derive(Clone, Copy)]\npub enum Retention {\n    Report,\n    Owners,\n    Scopes,\n}\n\npub fn evaluate_with_owners(facts: Vec<FnFacts>, cfg: &Config) -> Result<Evaluation, String> {\n    evaluate_inputs(facts, cfg, Retention::Owners, None)\n}\n\n/// Retain completed numeric scope outcomes without evaluating a rule or parsing a comment again.\npub fn evaluate_with_scopes(facts: Vec<FnFacts>, cfg: &Config) -> Result<Evaluation, String> {\n    evaluate_inputs(facts, cfg, Retention::Scopes, None)\n}\n\n/// Evaluate with only the requested run-local metadata retained.\npub fn evaluate_retained(\n    facts: Vec<FnFacts>,\n    cfg: &Config,\n    retention: Retention,\n) -> Result<Evaluation, String> {\n    evaluate_inputs(facts, cfg, retention, None)\n}\n\n/// Consume completed effects from the same policy and scoped owners; missing results are errors.\n/// The consumer resolves cross-unit targets; core still owns propagation and rule policy.\npub fn evaluate_with_effects(\n    facts: Vec<FnFacts>,\n    cfg: &Config,\n    retention: Retention,\n    effects: BTreeMap<String, Vec<rules::Effect>>,\n) -> Result<Evaluation, String> {\n    evaluate_inputs(facts, cfg, retention, Some(effects))\n}\n\n/// Retain the effects already used for diagnostics, moving their vectors without reevaluation.\n/// Supplied effects must belong to these scoped owners and the same configuration, as in\n/// `evaluate_with_effects`. Retention of effects is independent of diagnostic scope metadata.\npub fn evaluate_retaining_effects(\n    facts: Vec<FnFacts>,\n    cfg: &Config,\n    retention: Retention,\n    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,\n) -> Result<Evaluation, String> {\n    evaluate_observations(\n        EvaluationInputs {\n            facts,\n            retention,\n            completed,\n            retain_effects: true,\n        },\n        cfg,\n    )\n}\n\n/// Selected compiler observations and completed effects for consumers that do not request rules.\npub struct EffectObservations {\n    pub facts: Vec<FnFacts>,\n    pub effects: BTreeMap<String, Vec<rules::Effect>>,\n}\n\n/// Reuse observation ordering, merging and path exclusions without evaluating effects or rules.\npub fn selected_observations(facts: Vec<FnFacts>, cfg: &Config) -> Result<Vec<FnFacts>, String> {\n    select_facts(facts, cfg, &mut None)\n}\n\n/// Reuse the evaluator's merge, exclusion and propagation steps without numeric diagnostics.\n/// Supplied effects have the same owner/configuration contract as `evaluate_with_effects`.\npub fn effect_observations(\n    facts: Vec<FnFacts>,\n    cfg: &Config,\n    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,\n) -> Result<EffectObservations, String> {\n    let facts = selected_observations(facts, cfg)?;\n    let effects = match completed {\n        Some(completed) => take_completed_effects(&facts, completed)?,\n        None => all_effects(&facts, &graph::build(&facts), cfg),\n    };\n    Ok(EffectObservations {\n        effects: own_effects(&facts, effects),\n        facts,\n    })\n}\n\nfn own_effects(\n    facts: &[FnFacts],\n    effects: Vec<Vec<rules::Effect>>,\n) -> BTreeMap<String, Vec<rules::Effect>> {\n    facts\n        .iter()\n        .zip(effects)\n        .map(|(fact, effects)| (fact.id.clone(), effects))\n        .collect()\n}\n\nstruct EvaluationInputs {\n    facts: Vec<FnFacts>,\n    retention: Retention,\n    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,\n    retain_effects: bool,\n}\n\nstruct RuleInputs<'a> {\n    facts: &'a [FnFacts],\n    effects: &'a [Vec<rules::Effect>],\n    /// Read for rules across the whole run.\n    cfg: &'a Config,\n    /// One per fact: the run's config with its path's overrides merged in.\n    policies: &'a [Cow<'a, Config>],\n}\n\nfn evaluated_diagnostics(\n    inputs: RuleInputs<'_>,\n    retention: Retention,\n    scopes: &mut Option<Scopes>,\n) -> (Vec<usize>, Vec<Diagnostic>) {\n    if matches!(retention, Retention::Report) {\n        let mut diagnostics = collect_diagnostics(inputs, |_, diagnostic| diagnostic, None);\n        report::sort(&mut diagnostics);\n        return (Vec::new(), diagnostics);\n    }\n    let mut owned = collect_diagnostics(\n        inputs,\n        |owner, diagnostic| (owner, diagnostic),\n        scopes.as_mut().map(|scopes| &mut scopes.suppressions),\n    );\n    owned.sort_by(|(_, a), (_, b)| report::ordering(a, b));\n    owned.into_iter().unzip()\n}\n\nfn collect_diagnostics<T>(\n    inputs: RuleInputs<'_>,\n    emit: impl Fn(usize, Diagnostic) -> T,\n    mut scopes: Option<&mut Vec<Suppression>>,\n) -> Vec<T> {\n    let across_the_run = strict_style::across_the_run(inputs.facts, inputs.cfg);\n    inputs\n        .facts\n        .iter()\n        .zip(inputs.effects)\n        .zip(inputs.policies)\n        .zip(across_the_run)\n        .enumerate()\n        .flat_map(|(owner, (((f, e), policy), across_the_run))| {\n            let emit = &emit;\n            let (diagnostics, suppression) = function_diagnostics(f, e, policy, across_the_run);\n            if let Some(scopes) = scopes.as_mut() {\n                scopes.push(suppression);\n            }\n            diagnostics\n                .into_iter()\n                .map(move |diagnostic| emit(owner, diagnostic))\n        })\n        .collect()\n}\n\nfn evaluate_inputs(\n    facts: Vec<FnFacts>,\n    cfg: &Config,\n    retention: Retention,\n    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,\n) -> Result<Evaluation, String> {\n    evaluate_observations(\n        EvaluationInputs {\n            facts,\n            retention,\n            completed,\n            retain_effects: false,\n        },\n        cfg,\n    )\n}\n\nfn evaluate_observations(inputs: EvaluationInputs, cfg: &Config) -> Result<Evaluation, String> {\n    let EvaluationInputs {\n        facts,\n        retention,\n        completed,\n        retain_effects,\n    } = inputs;\n    let mut scopes = matches!(retention, Retention::Scopes).then(Scopes::default);\n    let facts = select_facts(facts, cfg, &mut scopes)?;\n    let graph = graph::build(&facts);\n    let effects = completed_effects(&facts, &graph, cfg, completed)?;\n    let policies: Vec<_> = facts.iter().map(|f| cfg.for_path(&f.path)).collect();\n\n    let (diagnostic_owners, diagnostics) = evaluated_diagnostics(\n        RuleInputs {\n            facts: &facts,\n            effects: &effects,\n            cfg,\n            policies: &policies,\n        },\n        retention,\n        &mut scopes,\n    );\n    let summary = summarize(&facts, &effects, &policies, diagnostics.len());\n    let fix_groups = groups::build(&facts, &graph, &diagnostics, cfg);\n    let functions = complexity_report::findings(&facts, &diagnostics);\n    let effects = retain_effects.then(|| own_effects(&facts, effects));\n    Ok(Evaluation {\n        report: Report {\n            diagnostics,\n            summary,\n            fix_groups,\n            functions,\n        },\n        facts,\n        diagnostic_owners,\n        scopes,\n        effects,\n    })\n}\n\nfn select_facts(\n    facts: Vec<FnFacts>,\n    cfg: &Config,\n    scopes: &mut Option<Scopes>,\n) -> Result<Vec<FnFacts>, String> {\n    let excluded = exclusions::Matcher::compile(&cfg.exclude.0)?;\n    Ok(facts::merge(facts)\n        .into_iter()\n        .filter_map(|fact| {\n            if excluded.is_excluded(std::path::Path::new(&fact.path)) {\n                if let Some(scopes) = scopes.as_mut() {\n                    scopes.excluded.push(fact);\n                }\n                None\n            } else {\n                Some(fact)\n            }\n        })\n        .collect())\n}\n\nfn completed_effects(\n    facts: &[FnFacts],\n    graph: &graph::Graph,\n    cfg: &Config,\n    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,\n) -> Result<Vec<Vec<rules::Effect>>, String> {\n    match completed {\n        None => Ok(all_effects(facts, graph, cfg)),\n        Some(completed) => take_completed_effects(facts, completed),\n    }\n}\n\nfn take_completed_effects(\n    facts: &[FnFacts],\n    mut completed: BTreeMap<String, Vec<rules::Effect>>,\n) -> Result<Vec<Vec<rules::Effect>>, String> {\n    facts\n        .iter()\n        .map(|fact| {\n            completed\n                .remove(&fact.id)\n                .ok_or_else(|| \"Missing completed compiler effects\".to_string())\n        })\n        .collect()\n}\n\n#[cfg(test)]\nmod tests {\n    mod completed_effects;\n    use super::*;\n    use facts::{MutationEvent, sample};\n\n    fn four_params(name: &str) -> FnFacts {\n        FnFacts {\n            params: 5,\n            ..sample(name)\n        }\n    }\n\n    #[test]\n    fn source_rules_preserve_independent_line_limits_across_nested_comments() {\n        let mut facts = sample(\"source\");\n        facts.source = \"fn source() {\\n/* outer\\n/* nested */\\n*/\\nvalue();\\n}\\n\".into();\n        facts.statements = 3;\n        let effects = [rules::Effect {\n            kind: facts::EffectKind::Io,\n            label: \"write\".into(),\n            line: 5,\n            via: None,\n        }];\n        let mut config = Config::default();\n        config.fn_length.max_lines = 2;\n        config.side_effects.min_lines = 3;\n\n        let (diagnostics, _) = function_diagnostics(&facts, &effects, &config, vec![]);\n        assert_eq!(diagnostics.len(), 2);\n        assert_eq!(diagnostics[0].rule_id, \"fn_length\");\n        assert_eq!(diagnostics[0].actual, 3);\n        assert_eq!(diagnostics[1].rule_id, \"side_effect_density\");\n        assert_eq!(diagnostics[1].actual, 1000);\n        config.side_effects.min_lines = 4;\n        let (diagnostics, _) = function_diagnostics(&facts, &effects, &config, vec![]);\n        assert_eq!(diagnostics.len(), 1);\n        assert_eq!(diagnostics[0].rule_id, \"fn_length\");\n    }\n\n    #[test]\n    fn default_evaluation_keeps_no_owner_roster_and_preserves_the_report() {\n        let plain = evaluate_inputs(\n            vec![four_params(\"original\")],\n            &Config::default(),\n            Retention::Report,\n            None,\n        )\n        .unwrap();\n        let owned =\n            evaluate_with_owners(vec![four_params(\"original\")], &Config::default()).unwrap();\n        assert!(plain.scopes.is_none());\n        assert_eq!(\n            plain.report.summary.density_sum_milli,\n            Some(plain.report.summary.mean_density_milli)\n        );\n        assert!(owned.scopes.is_none());\n        assert_eq!(plain.diagnostic_owners.capacity(), 0);\n        assert_eq!(plain.report, owned.report);\n        assert_eq!(owned.diagnostic_owners, vec![0]);\n    }\n\n    #[test]\n    fn borrowed_completed_effects_preserve_reports_and_require_every_selected_owner() {\n        let facts = four_params(\"owner\");\n        let buffer = facts.source.as_ptr();\n        let config = Config::default();\n        let borrowed = vec![&facts];\n        let graph = graph::build_resolved(&borrowed, |_, _| Vec::new());\n        let effects = all_effects(&borrowed, &graph, &config);\n        let completed = BTreeMap::from([(facts.id.clone(), effects.into_iter().next().unwrap())]);\n        let expected = evaluate(vec![facts.clone()], &config).unwrap();\n        let evaluated =\n            evaluate_with_effects(vec![facts], &config, Retention::Scopes, completed).unwrap();\n        assert_eq!(evaluated.report, expected);\n        assert_eq!(evaluated.facts[0].source.as_ptr(), buffer);\n        assert!(\n            evaluate_with_effects(\n                vec![four_params(\"missing\")],\n                &config,\n                Retention::Report,\n                BTreeMap::new()\n            )\n            .is_err()\n        );\n    }\n\n    #[test]\n    fn completed_scopes_retain_suppressions_and_move_excluded_source_buffers() {\n        let mut excluded = four_params(\"excluded\");\n        excluded.path = \"generated/file.rs\".into();\n        let buffer = excluded.source.as_ptr();\n        let mut allowed = four_params(\"allowed\");\n        allowed.preceding_line = \"// rstyle-allow(fn_params): fixture\".into();\n        let config: Config = toml::from_str(\"exclude=['generated/**']\").unwrap();\n        let original = vec![excluded, allowed, four_params(\"reported\")];\n        let expected = evaluate(original.clone(), &config).unwrap();\n        let evaluated = evaluate_with_scopes(original, &config).unwrap();\n        assert_eq!(evaluated.report, expected);\n        let scopes = evaluated.scopes.unwrap();\n        assert_eq!(scopes.excluded.len(), 1);\n        assert_eq!(scopes.excluded[0].source.as_ptr(), buffer);\n        assert_eq!(scopes.suppressions.len(), evaluated.facts.len());\n        for (fact, suppression) in evaluated.facts.iter().zip(&scopes.suppressions) {\n            match fact.name.as_str() {\n                \"allowed\" => assert_eq!(suppression, &Suppression::Allow(vec![\"fn_params\".into()])),\n                \"reported\" => assert_eq!(suppression, &Suppression::None),\n                other => panic!(\"unexpected selected owner: {other}\"),\n            }\n        }\n        assert_eq!(evaluated.report.diagnostics.len(), 1);\n        assert_eq!(\n            evaluated.facts[evaluated.diagnostic_owners[0]].name,\n            \"reported\"\n        );\n    }\n\n    #[test]\n    fn completed_diagnostic_owners_survive_sorting_and_shared_source_positions() {\n        let mut first = four_params(\"zeta\");\n        first.path = \"same.rs\".into();\n        first.line = 3;\n        first.column = 8;\n        let mut second = four_params(\"alpha\");\n        second.path = \"same.rs\".into();\n        second.line = 3;\n        second.column = 2;\n        let buffers = [first.source.as_ptr(), second.source.as_ptr()];\n        let evaluated = evaluate_with_owners(vec![first, second], &Config::default()).unwrap();\n        let associations: Vec<_> = evaluated\n            .report\n            .diagnostics\n            .iter()\n            .zip(&evaluated.diagnostic_owners)\n            .map(|(diagnostic, owner)| {\n                (\n                    diagnostic.column,\n                    diagnostic.rule_id.as_str(),\n                    evaluated.facts[*owner].name.as_str(),\n                )\n            })\n            .collect();\n        assert_eq!(\n            associations,\n            vec![(2, \"fn_params\", \"alpha\"), (8, \"fn_params\", \"zeta\")]\n        );\n        assert!(\n            evaluated\n                .facts\n                .iter()\n                .all(|fact| buffers.contains(&fact.source.as_ptr()))\n        );\n    }\n\n    #[test]\n    fn suppression_removes_only_named_rule() {\n        let mut f = four_params(\"f\");\n        f.preceding_line = \"// rstyle-allow(fn_params): ffi shim\".into();\n        f.mutations = (1..=4)\n            .map(|line| MutationEvent {\n                origin: crate::facts::MutationOrigin::Source,\n                root: \"v\".into(),\n                field_path: String::new(),\n                line,\n                escapes: true,\n                delegated: false,\n            })\n            .collect();\n        let report = evaluate(vec![f], &Config::default()).unwrap();\n        let ids: Vec<_> = report\n            .diagnostics\n            .iter()\n            .map(|d| d.rule_id.as_str())\n            .collect();\n        assert_eq!(ids, [\"mutation_per_target\"]);\n    }\n\n    #[test]\n    fn suppression_without_reason_is_reported() {\n        let mut f = four_params(\"f\");\n        f.preceding_line = \"// rstyle-allow(fn_params)\".into();\n        let report = evaluate(vec![f], &Config::default()).unwrap();\n        let ids: Vec<_> = report\n            .diagnostics\n            .iter()\n            .map(|d| d.rule_id.as_str())\n            .collect();\n        assert_eq!(ids, [\"fn_params\", \"invalid_suppression\"]);\n    }\n\n    #[test]\n    fn output_is_independent_of_input_order() {\n        let mut b = four_params(\"b\");\n        b.path = \"src/b.rs\".into();\n        let one = evaluate(vec![four_params(\"a\"), b.clone()], &Config::default()).unwrap();\n        let two = evaluate(vec![b, four_params(\"a\")], &Config::default()).unwrap();\n        assert_eq!(one, two);\n    }\n\n    #[test]\n    fn excluded_paths_are_dropped() {\n        let mut f = four_params(\"f\");\n        f.path = \"target/gen/x.rs\".into();\n        let report = evaluate(vec![f], &Config::default()).unwrap();\n        assert_eq!(report.summary.functions, 0);\n        assert!(report.diagnostics.is_empty());\n    }\n\n    #[test]\n    fn retained_inputs_follow_policy_exclusions_without_copying_body_buffers() {\n        let mut kept = four_params(\"kept\");\n        kept.pdg = Some(crate::pdgtest::emit_loop(\"Cow\", \"value\"));\n        let source = kept.source.as_ptr();\n        let nodes = kept.pdg.as_ref().unwrap().nodes.as_ptr();\n        let mut excluded = sample(\"excluded\");\n        excluded.path = \"target/generated.rs\".into();\n        let (report, retained) =\n            evaluate_and_retain(vec![excluded, kept], &Config::default()).unwrap();\n        assert_eq!(report.summary.functions, 1);\n        assert!(\n            report\n                .diagnostics\n                .iter()\n                .any(|row| row.rule_id == \"fn_params\")\n        );\n        assert_eq!(retained.len(), 1);\n        assert_eq!(retained[0].source.as_ptr(), source);\n        assert_eq!(retained[0].pdg.as_ref().unwrap().nodes.as_ptr(), nodes);\n    }\n\n    #[test]\n    fn summary_math() {\n        let mut heavy = sample(\"heavy\");\n        heavy.line = 5;\n        heavy.statements = 4;\n        heavy.calls = vec![facts::CallEvent {\n            callee: \"std::fs::write\".into(),\n            line: 6,\n            dynamic: false,\n            library: None,\n            library_callee: None,\n        }];\n        let report = evaluate(vec![sample(\"pure\"), heavy], &Config::default()).unwrap();\n        assert_eq!(report.summary.functions, 2);\n        assert_eq!(report.summary.max_density_milli, 750);\n        assert_eq!(report.summary.mean_density_milli, 375);\n        assert_eq!(report.summary.effect_counts[\"io\"], 1);\n    }\n\n    #[test]\n    fn overrides_apply_per_function_path() {\n        let cfg = Config::parse(\n            r#\"\n[[overrides]]\npaths = [\"**/adapters/**\"]\nfn_params = { max_params = 5 }\nside_effects.weights = { io = 1 }\n\"#,\n        )\n        .unwrap();\n        let writer = |path: &str| FnFacts {\n            path: path.into(),\n            source: format!(\"fn w() {{\\n{}}}\", \"w();\\n\".repeat(10)),\n            statements: 4,\n            calls: vec![facts::CallEvent {\n                callee: \"std::fs::write\".into(),\n                line: 2,\n                dynamic: false,\n                library: None,\n                library_callee: None,\n            }],\n            ..four_params(&path.replace('/', \"_\"))\n        };\n        let report = evaluate(\n            vec![\n                writer(\"src/adapters/store.rs\"),\n                writer(\"src/domain/rules.rs\"),\n            ],\n            &cfg,\n        )\n        .unwrap();\n        let rules: Vec<_> = report\n            .diagnostics\n            .iter()\n            .map(|d| (d.path.as_str(), d.rule_id.as_str()))\n            .collect();\n        assert_eq!(\n            rules,\n            [\n                (\"src/domain/rules.rs\", \"fn_params\"),\n                (\"src/domain/rules.rs\", \"side_effect_density\"),\n            ]\n        );\n    }\n}\n",
+        "digest": "sha256:eee14f7d38c14823aafbc8844a0841f3da605c61d683e11fecf143431acc585b",
+        "id": "file:crates/rstyle-core/src/lib.rs",
+        "origin": "source",
+        "path": "crates/rstyle-core/src/lib.rs"
+      }
+    ],
+    "functions": [
+      {
+        "accesses": [
+          {
+            "mode": "read",
+            "node": "ff0e90ca0.10",
+            "symbol": "sff0e90ca0.2"
+          },
+          {
+            "mode": "write",
+            "node": "ff0e90ca0.13",
+            "symbol": "sff0e90ca0.13"
+          },
+          {
+            "mode": "read",
+            "node": "ff0e90ca0.18",
+            "symbol": "sff0e90ca0.13"
+          },
+          {
+            "mode": "write",
+            "node": "ff0e90ca0.23",
+            "symbol": "sff0e90ca0.23"
+          },
+          {
+            "mode": "write",
+            "node": "ff0e90ca0.24",
+            "symbol": "sff0e90ca0.24"
+          },
+          {
+            "mode": "read",
+            "node": "ff0e90ca0.27",
+            "symbol": "sff0e90ca0.24"
+          },
+          {
+            "mode": "read",
+            "node": "ff0e90ca0.29",
+            "symbol": "sff0e90ca0.23"
+          },
+          {
+            "mode": "write",
+            "node": "ff0e90ca0.31",
+            "symbol": "sff0e90ca0.31"
+          },
+          {
+            "mode": "read",
+            "node": "ff0e90ca0.33",
+            "symbol": "sff0e90ca0.23"
+          },
+          {
+            "mode": "read",
+            "node": "ff0e90ca0.35",
+            "symbol": "sff0e90ca0.31"
+          }
+        ],
+        "cfg": {
+          "edges": [
+            {
+              "id": "e0",
+              "kind": "normal",
+              "source": "entry",
+              "target": "ff0e90ca0.10"
+            },
+            {
+              "id": "e1",
+              "kind": "normal",
+              "source": "ff0e90ca0.10",
+              "target": "ff0e90ca0.9"
+            },
+            {
+              "id": "e2",
+              "kind": "normal",
+              "source": "ff0e90ca0.9",
+              "target": "ff0e90ca0.7"
+            },
+            {
+              "id": "e3",
+              "kind": "normal",
+              "source": "ff0e90ca0.7",
+              "target": "ff0e90ca0.5"
+            },
+            {
+              "id": "e4",
+              "kind": "normal",
+              "source": "ff0e90ca0.5",
+              "target": "ff0e90ca0.12"
+            },
+            {
+              "id": "e5",
+              "kind": "normal",
+              "source": "ff0e90ca0.12",
+              "target": "ff0e90ca0.13"
+            },
+            {
+              "id": "e6",
+              "kind": "normal",
+              "source": "ff0e90ca0.13",
+              "target": "ff0e90ca0.18"
+            },
+            {
+              "id": "e7",
+              "kind": "normal",
+              "source": "ff0e90ca0.18",
+              "target": "ff0e90ca0.20"
+            },
+            {
+              "id": "e8",
+              "kind": "normal",
+              "source": "ff0e90ca0.20",
+              "target": "ff0e90ca0.16"
+            },
+            {
+              "id": "e9",
+              "kind": "normal",
+              "source": "ff0e90ca0.16",
+              "target": "ff0e90ca0.14"
+            },
+            {
+              "id": "e10",
+              "kind": "normal",
+              "source": "ff0e90ca0.14",
+              "target": "ff0e90ca0.39"
+            },
+            {
+              "id": "e11",
+              "kind": "normal",
+              "source": "ff0e90ca0.39",
+              "target": "exit"
+            }
+          ],
+          "entry": "entry",
+          "exits": [
+            {
+              "id": "exit",
+              "kind": "normal"
+            }
+          ]
+        },
+        "definition": "def:rstyle_core::align::{impl#5}::pairs",
+        "id": "fn:rstyle_core::align::{impl#5}::pairs",
+        "name": "align::Matching::pairs",
+        "nodes": [
+          {
+            "binding_mode": "value",
+            "children": [],
+            "id": "ff0e90ca0.13",
+            "kind": "pattern_binding",
+            "original_kind": "pat_binding",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5118,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5112
+            },
+            "type": "type:std::iter::Enumerate<std::slice::Iter<'_, std::option::Option<usize>>>"
+          },
+          {
+            "adjustments": [
+              {
+                "kind": "auto_deref",
+                "target": "type:align::Matching"
+              }
+            ],
+            "children": [],
+            "id": "ff0e90ca0.10",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5125,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5121
+            },
+            "type": "type:&align::Matching"
+          },
+          {
+            "adjustments": [
+              {
+                "kind": "overloaded_deref",
+                "mode": "shared",
+                "target": "type:[std::option::Option<usize>]"
+              },
+              {
+                "kind": "auto_ref",
+                "mode": "shared",
+                "target": "type:&[std::option::Option<usize>]"
+              }
+            ],
+            "children": [
+              "ff0e90ca0.10"
+            ],
+            "id": "ff0e90ca0.9",
+            "kind": "field_access",
+            "member": "fwd",
+            "member_index": 0,
+            "original_kind": "expr_field",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5129,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5121
+            },
+            "type": "type:std::vec::Vec<std::option::Option<usize>>"
+          },
+          {
+            "children": [
+              "ff0e90ca0.9"
+            ],
+            "id": "ff0e90ca0.7",
+            "kind": "call",
+            "original_kind": "expr_method_call",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5136,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5121
+            },
+            "type": "type:std::slice::Iter<'_, std::option::Option<usize>>"
+          },
+          {
+            "children": [
+              "ff0e90ca0.7"
+            ],
+            "id": "ff0e90ca0.5",
+            "kind": "call",
+            "original_kind": "expr_method_call",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5148,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5121
+            },
+            "type": "type:std::iter::Enumerate<std::slice::Iter<'_, std::option::Option<usize>>>"
+          },
+          {
+            "children": [
+              "ff0e90ca0.13",
+              "ff0e90ca0.5"
+            ],
+            "id": "ff0e90ca0.12",
+            "kind": "local_declaration",
+            "original_kind": "stmt_let",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5149,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5108
+            },
+            "type": "type:std::iter::Enumerate<std::slice::Iter<'_, std::option::Option<usize>>>"
+          },
+          {
+            "children": [],
+            "id": "ff0e90ca0.18",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5164,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5158
+            },
+            "type": "type:std::iter::Enumerate<std::slice::Iter<'_, std::option::Option<usize>>>"
+          },
+          {
+            "binding_mode": "value",
+            "children": [],
+            "id": "ff0e90ca0.23",
+            "kind": "pattern_binding",
+            "original_kind": "pat_binding",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5179,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5178
+            },
+            "type": "type:usize"
+          },
+          {
+            "binding_mode": "value",
+            "children": [],
+            "id": "ff0e90ca0.24",
+            "kind": "pattern_binding",
+            "original_kind": "pat_binding",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5182,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5181
+            },
+            "type": "type:&std::option::Option<usize>"
+          },
+          {
+            "children": [
+              "ff0e90ca0.23",
+              "ff0e90ca0.24"
+            ],
+            "id": "ff0e90ca0.22",
+            "kind": "pattern_tuple",
+            "original_kind": "pat_tuple",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5183,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5177
+            },
+            "type": "type:(usize, &std::option::Option<usize>)"
+          },
+          {
+            "adjustments": [
+              {
+                "kind": "auto_deref",
+                "target": "type:std::option::Option<usize>"
+              }
+            ],
+            "children": [],
+            "id": "ff0e90ca0.27",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5186,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5185
+            },
+            "type": "type:&std::option::Option<usize>"
+          },
+          {
+            "binding_mode": "value",
+            "children": [],
+            "id": "ff0e90ca0.31",
+            "kind": "pattern_binding",
+            "original_kind": "pat_binding",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5193,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5192
+            },
+            "type": "type:usize"
+          },
+          {
+            "children": [],
+            "id": "ff0e90ca0.33",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5197,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5196
+            },
+            "type": "type:usize"
+          },
+          {
+            "children": [],
+            "id": "ff0e90ca0.35",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5200,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5199
+            },
+            "type": "type:usize"
+          },
+          {
+            "children": [
+              "ff0e90ca0.33",
+              "ff0e90ca0.35"
+            ],
+            "id": "ff0e90ca0.32",
+            "kind": "tuple",
+            "original_kind": "expr_tup",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5201,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5195
+            },
+            "type": "type:(usize, usize)"
+          },
+          {
+            "captures": [
+              {
+                "mode": "shared",
+                "path": [],
+                "symbol": "sff0e90ca0.23",
+                "type": "type:usize"
+              }
+            ],
+            "children": [
+              "ff0e90ca0.31",
+              "ff0e90ca0.32"
+            ],
+            "id": "ff0e90ca0.29",
+            "kind": "closure",
+            "original_kind": "expr_closure",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5201,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5191
+            },
+            "type": "type:{closure@crates/rstyle-core/src/align.rs:190:42: 190:45}"
+          },
+          {
+            "children": [
+              "ff0e90ca0.27",
+              "ff0e90ca0.29"
+            ],
+            "id": "ff0e90ca0.25",
+            "kind": "call",
+            "original_kind": "expr_method_call",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5202,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5185
+            },
+            "type": "type:std::option::Option<(usize, usize)>"
+          },
+          {
+            "captures": [],
+            "children": [
+              "ff0e90ca0.22",
+              "ff0e90ca0.25"
+            ],
+            "id": "ff0e90ca0.20",
+            "kind": "closure",
+            "original_kind": "expr_closure",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5202,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5176
+            },
+            "type": "type:{closure@crates/rstyle-core/src/align.rs:190:27: 190:35}"
+          },
+          {
+            "children": [
+              "ff0e90ca0.18",
+              "ff0e90ca0.20"
+            ],
+            "id": "ff0e90ca0.16",
+            "kind": "call",
+            "original_kind": "expr_method_call",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5203,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5158
+            },
+            "type": "type:std::iter::FilterMap<std::iter::Enumerate<std::slice::Iter<'_, std::option::Option<usize>>>, {closure@crates/rstyle-core/src/align.rs:190:27: 190:35}>"
+          },
+          {
+            "children": [
+              "ff0e90ca0.16"
+            ],
+            "id": "ff0e90ca0.14",
+            "kind": "call",
+            "original_kind": "expr_method_call",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5213,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5158
+            },
+            "type": "type:std::vec::Vec<(usize, usize)>"
+          },
+          {
+            "children": [
+              "ff0e90ca0.12",
+              "ff0e90ca0.14"
+            ],
+            "id": "ff0e90ca0.39",
+            "kind": "block",
+            "original_kind": "expr_block",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 5219,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5098
+            },
+            "type": "type:std::vec::Vec<(usize, usize)>"
+          }
+        ],
+        "places": [],
+        "refs": [
+          {
+            "node": "ff0e90ca0.10",
+            "status": "resolved",
+            "target": {
+              "id": "sff0e90ca0.2",
+              "kind": "symbol"
+            }
+          },
+          {
+            "calls_back": {
+              "reason": "callable arguments, or bounds on types outside the standard library",
+              "value": false
+            },
+            "dispatch": "method",
+            "instance_arguments": [
+              "type:std::option::Option<usize>"
+            ],
+            "node": "ff0e90ca0.7",
+            "signature": {
+              "parameters": [
+                "type:&[std::option::Option<usize>]"
+              ],
+              "result": "type:std::slice::Iter<'_, std::option::Option<usize>>"
+            },
+            "status": "resolved",
+            "target": {
+              "id": "def:core::slice::{impl#0}::iter",
+              "kind": "definition"
+            }
+          },
+          {
+            "calls_back": {
+              "reason": "callable arguments, or bounds on types outside the standard library",
+              "value": false
+            },
+            "dispatch": "method",
+            "instance_arguments": [
+              "type:std::slice::Iter<'_, std::option::Option<usize>>"
+            ],
+            "item": "type:&std::option::Option<usize>",
+            "node": "ff0e90ca0.5",
+            "selected": {
+              "id": "def:core::iter::traits::iterator::Iterator::enumerate",
+              "kind": "definition"
+            },
+            "selected_arguments": [
+              "type:std::slice::Iter<'_, std::option::Option<usize>>"
+            ],
+            "signature": {
+              "parameters": [
+                "type:std::slice::Iter<'_, std::option::Option<usize>>"
+              ],
+              "result": "type:std::iter::Enumerate<std::slice::Iter<'_, std::option::Option<usize>>>"
+            },
+            "status": "resolved",
+            "target": {
+              "id": "def:core::iter::traits::iterator::Iterator::enumerate",
+              "kind": "definition"
+            }
+          },
+          {
+            "node": "ff0e90ca0.18",
+            "status": "resolved",
+            "target": {
+              "id": "sff0e90ca0.13",
+              "kind": "symbol"
+            }
+          },
+          {
+            "node": "ff0e90ca0.27",
+            "status": "resolved",
+            "target": {
+              "id": "sff0e90ca0.24",
+              "kind": "symbol"
+            }
+          },
+          {
+            "node": "ff0e90ca0.33",
+            "status": "resolved",
+            "target": {
+              "id": "sff0e90ca0.23",
+              "kind": "symbol"
+            }
+          },
+          {
+            "node": "ff0e90ca0.35",
+            "status": "resolved",
+            "target": {
+              "id": "sff0e90ca0.31",
+              "kind": "symbol"
+            }
+          },
+          {
+            "calls_back": {
+              "reason": "callable arguments, or bounds on types outside the standard library",
+              "value": true
+            },
+            "dispatch": "method",
+            "instance_arguments": [
+              "type:usize",
+              "type:(usize, usize)",
+              "type:{closure@crates/rstyle-core/src/align.rs:190:42: 190:45}"
+            ],
+            "node": "ff0e90ca0.25",
+            "signature": {
+              "parameters": [
+                "type:std::option::Option<usize>",
+                "type:{closure@crates/rstyle-core/src/align.rs:190:42: 190:45}"
+              ],
+              "result": "type:std::option::Option<(usize, usize)>"
+            },
+            "status": "resolved",
+            "target": {
+              "id": "def:core::option::{impl#0}::map",
+              "kind": "definition"
+            }
+          },
+          {
+            "calls_back": {
+              "reason": "callable arguments, or bounds on types outside the standard library",
+              "value": true
+            },
+            "dispatch": "method",
+            "instance_arguments": [
+              "type:std::iter::Enumerate<std::slice::Iter<'_, std::option::Option<usize>>>",
+              "type:(usize, usize)",
+              "type:{closure@crates/rstyle-core/src/align.rs:190:27: 190:35}"
+            ],
+            "item": "type:(usize, &std::option::Option<usize>)",
+            "node": "ff0e90ca0.16",
+            "selected": {
+              "id": "def:core::iter::traits::iterator::Iterator::filter_map",
+              "kind": "definition"
+            },
+            "selected_arguments": [
+              "type:std::iter::Enumerate<std::slice::Iter<'_, std::option::Option<usize>>>",
+              "type:(usize, usize)",
+              "type:{closure@crates/rstyle-core/src/align.rs:190:27: 190:35}"
+            ],
+            "signature": {
+              "parameters": [
+                "type:std::iter::Enumerate<std::slice::Iter<'_, std::option::Option<usize>>>",
+                "type:{closure@crates/rstyle-core/src/align.rs:190:27: 190:35}"
+              ],
+              "result": "type:std::iter::FilterMap<std::iter::Enumerate<std::slice::Iter<'_, std::option::Option<usize>>>, {closure@crates/rstyle-core/src/align.rs:190:27: 190:35}>"
+            },
+            "status": "resolved",
+            "target": {
+              "id": "def:core::iter::traits::iterator::Iterator::filter_map",
+              "kind": "definition"
+            }
+          },
+          {
+            "calls_back": {
+              "reason": "callable arguments, or bounds on types outside the standard library",
+              "value": true
+            },
+            "dispatch": "method",
+            "instance_arguments": [
+              "type:std::iter::FilterMap<std::iter::Enumerate<std::slice::Iter<'_, std::option::Option<usize>>>, {closure@crates/rstyle-core/src/align.rs:190:27: 190:35}>",
+              "type:std::vec::Vec<(usize, usize)>"
+            ],
+            "item": "type:(usize, usize)",
+            "node": "ff0e90ca0.14",
+            "selected": {
+              "id": "def:core::iter::traits::iterator::Iterator::collect",
+              "kind": "definition"
+            },
+            "selected_arguments": [
+              "type:std::iter::FilterMap<std::iter::Enumerate<std::slice::Iter<'_, std::option::Option<usize>>>, {closure@crates/rstyle-core/src/align.rs:190:27: 190:35}>",
+              "type:std::vec::Vec<(usize, usize)>"
+            ],
+            "signature": {
+              "parameters": [
+                "type:std::iter::FilterMap<std::iter::Enumerate<std::slice::Iter<'_, std::option::Option<usize>>>, {closure@crates/rstyle-core/src/align.rs:190:27: 190:35}>"
+              ],
+              "result": "type:std::vec::Vec<(usize, usize)>"
+            },
+            "status": "resolved",
+            "target": {
+              "id": "def:core::iter::traits::iterator::Iterator::collect",
+              "kind": "definition"
+            }
+          }
+        ],
+        "root": "ff0e90ca0.39",
+        "signature": {
+          "constants": [],
+          "generics": [],
+          "lifetimes": [
+            {
+              "elided": true,
+              "id": "lifetime:rstyle_core::align::{impl#5}::pairs::'_",
+              "name": "'_",
+              "position": 0,
+              "span": {
+                "end": 5069,
+                "file": "file:crates/rstyle-core/src/align.rs",
+                "start": 5068
+              }
+            }
+          ],
+          "modifiers": [],
+          "outlives": [],
+          "owner_type": "type:align::Matching",
+          "parameters": [],
+          "receiver": {
+            "annotation": {
+              "end": 5073,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5068
+            },
+            "symbol": "sff0e90ca0.2",
+            "type": "type:&align::Matching"
+          },
+          "result": "type:std::vec::Vec<(usize, usize)>",
+          "result_span": {
+            "end": 5097,
+            "file": "file:crates/rstyle-core/src/align.rs",
+            "start": 5078
+          },
+          "span": {
+            "end": 5097,
+            "file": "file:crates/rstyle-core/src/align.rs",
+            "start": 5055
+          }
+        },
+        "span": {
+          "end": 5219,
+          "file": "file:crates/rstyle-core/src/align.rs",
+          "start": 5055
+        },
+        "symbols": [
+          {
+            "declared": {
+              "end": 5073,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5069
+            },
+            "id": "sff0e90ca0.2",
+            "kind": "receiver",
+            "mutable": false,
+            "name": "self",
+            "scope": "ff0e90ca0",
+            "type": "type:&align::Matching"
+          },
+          {
+            "declared": {
+              "end": 5118,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5112
+            },
+            "id": "sff0e90ca0.13",
+            "kind": "local",
+            "mutable": false,
+            "name": "linked",
+            "node": "ff0e90ca0.13",
+            "scope": "ff0e90ca0",
+            "type": "type:std::iter::Enumerate<std::slice::Iter<'_, std::option::Option<usize>>>"
+          },
+          {
+            "declared": {
+              "end": 5179,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5178
+            },
+            "id": "sff0e90ca0.23",
+            "kind": "local",
+            "mutable": false,
+            "name": "a",
+            "node": "ff0e90ca0.23",
+            "scope": "ff0e90ca0",
+            "type": "type:usize"
+          },
+          {
+            "declared": {
+              "end": 5182,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5181
+            },
+            "id": "sff0e90ca0.24",
+            "kind": "local",
+            "mutable": false,
+            "name": "b",
+            "node": "ff0e90ca0.24",
+            "scope": "ff0e90ca0",
+            "type": "type:&std::option::Option<usize>"
+          },
+          {
+            "declared": {
+              "end": 5193,
+              "file": "file:crates/rstyle-core/src/align.rs",
+              "start": 5192
+            },
+            "id": "sff0e90ca0.31",
+            "kind": "local",
+            "mutable": false,
+            "name": "b",
+            "node": "ff0e90ca0.31",
+            "scope": "ff0e90ca0",
+            "type": "type:usize"
+          }
+        ],
+        "values": []
+      }
+    ],
+    "id": "unit:rstyle_core-a737b693207a2d6c",
+    "imports": [],
+    "instances": [],
+    "language": {
+      "name": "rust",
+      "version": "2024"
+    },
+    "namespaces": [],
+    "root_file": "file:crates/rstyle-core/src/lib.rs",
+    "semantics": {
+      "debug_assertions": true,
+      "exceptions": "unwind",
+      "integer_overflow": "checked",
+      "optimization": "No"
+    },
+    "target": {
+      "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128-Fn32",
+      "pointer_width": 64,
+      "triple": "aarch64-unknown-linux-gnu"
+    },
+    "toolchain": {
+      "commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+      "name": "rustc",
+      "version": "1.101.0-nightly (5c543b0b8 2026-09-29)"
+    },
+    "types": [
+      {
+        "id": "type:&[T]#T=0",
+        "kind": "reference",
+        "mode": "shared",
+        "spelling": "&[T]",
+        "target": "type:[T]#T=0"
+      },
+      {
+        "id": "type:&[std::option::Option<usize>]",
+        "kind": "reference",
+        "mode": "shared",
+        "spelling": "&[std::option::Option<usize>]",
+        "target": "type:[std::option::Option<usize>]"
+      },
+      {
+        "id": "type:&align::Matching",
+        "kind": "reference",
+        "mode": "shared",
+        "spelling": "&align::Matching",
+        "target": "type:align::Matching"
+      },
+      {
+        "id": "type:&std::option::Option<usize>",
+        "kind": "reference",
+        "mode": "shared",
+        "spelling": "&std::option::Option<usize>",
+        "target": "type:std::option::Option<usize>"
+      },
+      {
+        "id": "type:&usize",
+        "kind": "reference",
+        "mode": "shared",
+        "spelling": "&usize",
+        "target": "type:usize"
+      },
+      {
+        "id": "type:(&usize,)",
+        "items": [
+          "type:&usize"
+        ],
+        "kind": "tuple",
+        "spelling": "(&usize,)"
+      },
+      {
+        "id": "type:((usize, &std::option::Option<usize>),)",
+        "items": [
+          "type:(usize, &std::option::Option<usize>)"
+        ],
+        "kind": "tuple",
+        "spelling": "((usize, &std::option::Option<usize>),)"
+      },
+      {
+        "id": "type:()",
+        "kind": "unit",
+        "spelling": "()"
+      },
+      {
+        "id": "type:(usize, &std::option::Option<usize>)",
+        "items": [
+          "type:usize",
+          "type:&std::option::Option<usize>"
+        ],
+        "kind": "tuple",
+        "spelling": "(usize, &std::option::Option<usize>)"
+      },
+      {
+        "id": "type:(usize, usize)",
+        "items": [
+          "type:usize",
+          "type:usize"
+        ],
+        "kind": "tuple",
+        "spelling": "(usize, usize)"
+      },
+      {
+        "id": "type:(usize,)",
+        "items": [
+          "type:usize"
+        ],
+        "kind": "tuple",
+        "spelling": "(usize,)"
+      },
+      {
+        "id": "type:B#B=1",
+        "index": 1,
+        "kind": "parameter",
+        "spelling": "B"
+      },
+      {
+        "id": "type:F#F=2",
+        "index": 2,
+        "kind": "parameter",
+        "spelling": "F"
+      },
+      {
+        "id": "type:Self#Self=0",
+        "index": 0,
+        "kind": "parameter",
+        "spelling": "Self"
+      },
+      {
+        "id": "type:T#T=0",
+        "index": 0,
+        "kind": "parameter",
+        "spelling": "T"
+      },
+      {
+        "id": "type:U#U=1",
+        "index": 1,
+        "kind": "parameter",
+        "spelling": "U"
+      },
+      {
+        "element": "type:T#T=0",
+        "id": "type:[T]#T=0",
+        "key": "rust:slice",
+        "kind": "sequence",
+        "spelling": "[T]"
+      },
+      {
+        "element": "type:std::option::Option<usize>",
+        "id": "type:[std::option::Option<usize>]",
+        "key": "rust:slice",
+        "kind": "sequence",
+        "spelling": "[std::option::Option<usize>]"
+      },
+      {
+        "arguments": [],
+        "definition": "def:rstyle_core::align::Matching",
+        "fields": [
+          {
+            "name": "fwd",
+            "type": "type:std::vec::Vec<std::option::Option<usize>>"
+          },
+          {
+            "name": "back",
+            "type": "type:std::vec::Vec<std::option::Option<usize>>"
+          }
+        ],
+        "id": "type:align::Matching",
+        "kind": "record",
+        "modifiers": [
+          "rust:needs-drop"
+        ],
+        "spelling": "align::Matching"
+      },
+      {
+        "arguments": [],
+        "definition": "def:alloc::alloc::Global",
+        "id": "type:std::alloc::Global",
+        "key": "rust:global_alloc_ty",
+        "kind": "record",
+        "modifiers": [
+          "rust:copy"
+        ],
+        "spelling": "std::alloc::Global"
+      },
+      {
+        "arguments": [
+          "type:Self#Self=0"
+        ],
+        "definition": "def:core::iter::adapters::enumerate::Enumerate",
+        "id": "type:std::iter::Enumerate<Self>#Self=0",
+        "key": "rust:Enumerate",
+        "kind": "record",
+        "spelling": "std::iter::Enumerate<Self>"
+      },
+      {
+        "arguments": [
+          "type:std::slice::Iter<'_, std::option::Option<usize>>"
+        ],
+        "definition": "def:core::iter::adapters::enumerate::Enumerate",
+        "id": "type:std::iter::Enumerate<std::slice::Iter<'_, std::option::Option<usize>>>",
+        "key": "rust:Enumerate",
+        "kind": "record",
+        "spelling": "std::iter::Enumerate<std::slice::Iter<'_, std::option::Option<usize>>>"
+      },
+      {
+        "arguments": [
+          "type:Self#Self=0",
+          "type:F#F=2"
+        ],
+        "definition": "def:core::iter::adapters::filter_map::FilterMap",
+        "id": "type:std::iter::FilterMap<Self, F>#F=2,Self=0",
+        "kind": "record",
+        "spelling": "std::iter::FilterMap<Self, F>"
+      },
+      {
+        "arguments": [
+          "type:std::iter::Enumerate<std::slice::Iter<'_, std::option::Option<usize>>>",
+          "type:{closure@crates/rstyle-core/src/align.rs:190:27: 190:35}"
+        ],
+        "definition": "def:core::iter::adapters::filter_map::FilterMap",
+        "id": "type:std::iter::FilterMap<std::iter::Enumerate<std::slice::Iter<'_, std::option::Option<usize>>>, {closure@crates/rstyle-core/src/align.rs:190:27: 190:35}>",
+        "kind": "record",
+        "spelling": "std::iter::FilterMap<std::iter::Enumerate<std::slice::Iter<'_, std::option::Option<usize>>>, {closure@crates/rstyle-core/src/align.rs:190:27: 190:35}>"
+      },
+      {
+        "arguments": [
+          "type:(usize, usize)"
+        ],
+        "definition": "def:core::option::Option",
+        "id": "type:std::option::Option<(usize, usize)>",
+        "key": "rust:Option",
+        "kind": "sum",
+        "modifiers": [
+          "rust:copy",
+          "rust:unit-or-record-variant"
+        ],
+        "spelling": "std::option::Option<(usize, usize)>"
+      },
+      {
+        "arguments": [
+          "type:T#T=0"
+        ],
+        "definition": "def:core::option::Option",
+        "id": "type:std::option::Option<T>#T=0",
+        "key": "rust:Option",
+        "kind": "sum",
+        "modifiers": [
+          "rust:unit-or-record-variant"
+        ],
+        "spelling": "std::option::Option<T>"
+      },
+      {
+        "arguments": [
+          "type:U#U=1"
+        ],
+        "definition": "def:core::option::Option",
+        "id": "type:std::option::Option<U>#U=1",
+        "key": "rust:Option",
+        "kind": "sum",
+        "modifiers": [
+          "rust:unit-or-record-variant"
+        ],
+        "spelling": "std::option::Option<U>"
+      },
+      {
+        "arguments": [
+          "type:usize"
+        ],
+        "definition": "def:core::option::Option",
+        "id": "type:std::option::Option<usize>",
+        "key": "rust:Option",
+        "kind": "sum",
+        "modifiers": [
+          "rust:copy",
+          "rust:unit-or-record-variant"
+        ],
+        "spelling": "std::option::Option<usize>"
+      },
+      {
+        "arguments": [
+          "type:T#T=0"
+        ],
+        "definition": "def:core::slice::iter::Iter",
+        "id": "type:std::slice::Iter<'_, T>#T=0",
+        "key": "rust:SliceIter",
+        "kind": "record",
+        "modifiers": [
+          "rust:lifetime-arguments"
+        ],
+        "spelling": "std::slice::Iter<'_, T>"
+      },
+      {
+        "arguments": [
+          "type:std::option::Option<usize>"
+        ],
+        "definition": "def:core::slice::iter::Iter",
+        "id": "type:std::slice::Iter<'_, std::option::Option<usize>>",
+        "key": "rust:SliceIter",
+        "kind": "record",
+        "modifiers": [
+          "rust:lifetime-arguments"
+        ],
+        "spelling": "std::slice::Iter<'_, std::option::Option<usize>>"
+      },
+      {
+        "arguments": [
+          "type:(usize, usize)",
+          "type:std::alloc::Global"
+        ],
+        "definition": "def:alloc::vec::Vec",
+        "id": "type:std::vec::Vec<(usize, usize)>",
+        "key": "rust:Vec",
+        "kind": "record",
+        "modifiers": [
+          "rust:needs-drop"
+        ],
+        "spelling": "std::vec::Vec<(usize, usize)>"
+      },
+      {
+        "arguments": [
+          "type:std::option::Option<usize>",
+          "type:std::alloc::Global"
+        ],
+        "definition": "def:alloc::vec::Vec",
+        "id": "type:std::vec::Vec<std::option::Option<usize>>",
+        "key": "rust:Vec",
+        "kind": "record",
+        "modifiers": [
+          "rust:needs-drop"
+        ],
+        "spelling": "std::vec::Vec<std::option::Option<usize>>"
+      },
+      {
+        "bits": 64,
+        "id": "type:usize",
+        "key": "rust:usize",
+        "kind": "integer",
+        "pointer_sized": true,
+        "signed": false,
+        "spelling": "usize"
+      },
+      {
+        "definition": "def:rstyle_core::align::{impl#5}::pairs::{closure#0}",
+        "environment": "type:()",
+        "id": "type:{closure@crates/rstyle-core/src/align.rs:190:27: 190:35}",
+        "kind": "closure",
+        "parameters": [
+          "type:((usize, &std::option::Option<usize>),)"
+        ],
+        "result": "type:std::option::Option<(usize, usize)>",
+        "spelling": "{closure@crates/rstyle-core/src/align.rs:190:27: 190:35}"
+      },
+      {
+        "definition": "def:rstyle_core::align::{impl#5}::pairs::{closure#0}::{closure#0}",
+        "environment": "type:(&usize,)",
+        "id": "type:{closure@crates/rstyle-core/src/align.rs:190:42: 190:45}",
+        "kind": "closure",
+        "parameters": [
+          "type:(usize,)"
+        ],
+        "result": "type:(usize, usize)",
+        "spelling": "{closure@crates/rstyle-core/src/align.rs:190:42: 190:45}"
+      }
+    ],
+    "values": []
+  }
+}

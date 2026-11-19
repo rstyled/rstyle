@@ -1,0 +1,3077 @@
+{
+  "schema_version": "0.1.0",
+  "profile": {
+    "id": "compat.cpg",
+    "version": "0.1.0"
+  },
+  "layout": "bundled",
+  "document": "unit",
+  "producer": {
+    "name": "rstyle-go",
+    "version": "0.2.0",
+    "namespace": "go"
+  },
+  "coverage": {
+    "capabilities": {
+      "aliasing": {
+        "status": "approximated",
+        "description": "places record the writes the effect analysis observes, with its escape decision, and each address taken as a raw place; reads and arguments have no places, and a slice, map or pointer that two bindings share isn't tracked"
+      },
+      "constant-values": {
+        "status": "approximated",
+        "description": "literal values only; constant expressions and iota are not evaluated"
+      },
+      "dispatch": {
+        "status": "approximated",
+        "description": "interface method calls stay dynamic; implementations are not selected"
+      },
+      "evaluation-order": {
+        "status": "approximated",
+        "description": "the CFG follows Go's specified order, except that a select's channels and values are evaluated in the arm that runs them rather than on entry"
+      },
+      "exceptional-flow": {
+        "status": "approximated",
+        "description": "panic and calls known never to return have edges; a panic from a callee or the runtime, recover, and the deferred calls that run on the way out do not"
+      },
+      "generic-instances": {
+        "status": "unsupported",
+        "description": "instances are not recorded; a call through a type parameter is a dependent reference"
+      },
+      "implicit-calls": {
+        "status": "not_applicable",
+        "description": "Go has no destructors, implicit conversions that run code, or overloaded dereferences"
+      },
+      "integer-semantics": {
+        "status": "supported",
+        "description": "widths and signedness come from go/types; signed and unsigned overflow wrap"
+      },
+      "lifetimes": {
+        "status": "not_applicable",
+        "description": "Go is garbage collected"
+      },
+      "macro-provenance": {
+        "status": "not_applicable",
+        "description": "Go has no macros; header statements and implicit switch alternatives carry desugaring provenance"
+      },
+      "mutability": {
+        "status": "approximated",
+        "description": "a binding is immutable when nothing replaces it, takes its address or writes part of its own value; named results stay mutable, since a return writes them; package variables are definitions of kind other, because core reads a static as a constant and each use of a mutable static as a global effect"
+      },
+      "resolution": {
+        "status": "supported",
+        "description": "go/types resolves references; a function outside the typed build overrides this as unknown"
+      },
+      "types": {
+        "status": "approximated",
+        "description": "every typed node refers to a structured type; named types omit their members, and channels and complex numbers are opaque"
+      }
+    },
+    "layers": {
+      "ast": {
+        "status": "supported",
+        "description": "every statement and expression; constructs without a neutral kind are registered go: extensions"
+      },
+      "cfg": {
+        "status": "approximated",
+        "description": "edges between the nodes of a function's own body; a closure's body has none, since it runs when called, and a deferred call stays at its defer statement"
+      },
+      "evidence": {
+        "status": "supported",
+        "description": "coverage per document, with an override per function"
+      },
+      "extension": {
+        "status": "supported",
+        "description": "registered go: extensions"
+      },
+      "method": {
+        "status": "supported",
+        "description": "identity, spans, parameters, receiver, results and generics"
+      },
+      "place": {
+        "status": "approximated",
+        "description": "writes from the effect analysis, with their field, index and dereference steps; which element an index writes isn't tracked"
+      },
+      "ref": {
+        "status": "supported",
+        "description": "identifiers and calls; a call through a function value that is not a local name is unresolved"
+      },
+      "symbol": {
+        "status": "supported",
+        "description": "locals, parameters, receivers and named results, with an access per reference"
+      },
+      "type": {
+        "status": "approximated",
+        "description": "structured types from go/types; named types omit their members"
+      },
+      "unit": {
+        "status": "supported",
+        "description": "packages, files with content, imports and referenced definitions"
+      },
+      "value": {
+        "status": "approximated",
+        "description": "literal values only"
+      }
+    }
+  },
+  "unit": {
+    "id": "unit:github.com/commonfabric/bay/internal/manifest",
+    "language": {
+      "name": "go",
+      "version": "go1.27.2"
+    },
+    "toolchain": {
+      "name": "go",
+      "version": "go1.27.2"
+    },
+    "target": {
+      "triple": "linux-arm64",
+      "pointer_width": 64
+    },
+    "configuration": [],
+    "semantics": {
+      "integer_overflow": "wrapping",
+      "exceptions": "unwind"
+    },
+    "files": [
+      {
+        "id": "file:internal/manifest/manifest.go",
+        "path": "internal/manifest/manifest.go",
+        "digest": "sha256:6356d6aac78ee76a7b3241a01663cfc0aaa4c9f90118908454b7c0eb6cc07325",
+        "origin": "source",
+        "content": "// Package manifest tracks all active docks, bays, and surfaces.\n// The manifest is persisted as JSON at ~/.local/share/bay/manifest.json.\npackage manifest\n\nimport (\n\t\"encoding/json\"\n\t\"fmt\"\n\t\"os\"\n\t\"path/filepath\"\n\t\"sort\"\n\t\"strconv\"\n\t\"strings\"\n\n\t\"github.com/commonfabric/bay/internal/config\"\n)\n\n// CurrentVersion is the manifest schema version.\nconst CurrentVersion = 7\n\n// BayType constants.\nconst (\n\tBayTypeWorktree BayType = \"worktree\"\n\tBayTypeExternal BayType = \"external\"\n\t// BayTypeHome is the dock's canonical-checkout pseudo-bay. It is\n\t// backed by Dock.Path, has no worktree metadata, and is never deleted\n\t// by worktree lifecycle paths.\n\tBayTypeHome BayType = \"home\"\n)\n\n// HomeBayID is the reserved ID/Name for every dock's home pseudo-bay.\nconst HomeBayID = \"home\"\n\n// Description provenance values for Bay.DescriptionSource. An empty\n// source means \"not set by the auto-description backstop\" \u2014 either a\n// legacy manifest or a pre-existing manual description \u2014 and the\n// backstop leaves it untouched. See docs/design/auto-descriptions.md.\nconst (\n\t// DescriptionSourceUser marks a description set explicitly via\n\t// `bay describe` or `bay new --description`. The backstop never\n\t// overwrites it.\n\tDescriptionSourceUser = \"user\"\n\t// DescriptionSourceAuto marks a description generated by the\n\t// auto-description backstop. Only auto (or empty) descriptions are\n\t// eligible for (re)generation.\n\tDescriptionSourceAuto = \"auto\"\n)\n\n// BayLabel returns the canonical display label for a bay identified by\n// its stable ID and (optional) Name \u2014 \"home\" for the home pseudo-bay,\n// the bare ID when Name is empty or matches it, and \"<id>.<name>\"\n// otherwise. The same rule backs every human-facing surface (picker,\n// tmux tabs, status line, ls/tree/show, pwd) so unnamed bays render as\n// their ID rather than blank.\n//\n// Callers that have a full *Bay should prefer engine.BayCompactLabel,\n// which also takes the path-derived dir tag into account (relevant for\n// external bays whose ID was migrated to b<N>).\nfunc BayLabel(id, name string) string {\n\tif id == HomeBayID || name == HomeBayID {\n\t\treturn HomeBayID\n\t}\n\tif id == \"\" {\n\t\treturn name\n\t}\n\tif name == \"\" || name == id {\n\t\treturn id\n\t}\n\treturn id + \".\" + name\n}\n\n// SurfaceType constants \u2014 the semantic role of a surface.\nconst (\n\tSurfaceTypeAgent  SurfaceType = \"agent\"\n\tSurfaceTypeEditor SurfaceType = \"editor\"\n\tSurfaceTypeShell  SurfaceType = \"shell\"\n\tSurfaceTypeCmd    SurfaceType = \"cmd\"\n)\n\n// SyncStatus constants \u2014 bay/surface sync health.\ntype SyncStatus = string\n\nconst (\n\tSyncStatusOK      SyncStatus = \"ok\"\n\tSyncStatusStale   SyncStatus = \"stale\"\n\tSyncStatusMissing SyncStatus = \"missing\"\n)\n\n// SurfaceBackend constants \u2014 how bay interacts with a surface.\nconst (\n\tSurfaceBackendTmux SurfaceBackend = \"tmux-pane\"\n\tSurfaceBackendGUI  SurfaceBackend = \"gui-app\"\n)\n\ntype BayType string\ntype SurfaceType string\ntype SurfaceBackend string\n\n// PrepareStatus is the persisted lifecycle state for one prepare step.\ntype PrepareStatus string\n\n// PrepareStatus constants.\nconst (\n\tPrepareStatusPending PrepareStatus = \"pending\"\n\tPrepareStatusRunning PrepareStatus = \"running\"\n\tPrepareStatusReady   PrepareStatus = \"ready\"\n\tPrepareStatusFailed  PrepareStatus = \"failed\"\n\tPrepareStatusStale   PrepareStatus = \"stale\"\n)\n\n// Repo is the legacy pre-v6 representation of a managed git checkout.\n// It is kept only so v5 manifests can be migrated into dock-owned paths.\ntype Repo struct {\n\tName        string `json:\"name\"`\n\tPath        string `json:\"path\"`\n\tWorktreeDir string `json:\"worktree_dir,omitempty\"`\n}\n\n// Manifest is the top-level structure persisted as JSON.\ntype Manifest struct {\n\tVersion int    `json:\"version\"`\n\tRepos   []Repo `json:\"repos,omitempty\"`\n\tDocks   []Dock `json:\"docks\"`\n\t// Describe records recent auto-description summarizer outcomes across\n\t// all bays; nil until the worker has run the summarizer once.\n\tDescribe *DescribeStatus `json:\"describe_status,omitempty\"`\n}\n\n// DescribeStatus is the auto-description summarizer's recent health, kept so\n// `bay doctor` can report a summarizer that keeps failing (retired model,\n// missing CLI, expired login) instead of leaving that only in\n// logs/describe.log. Only summarizer outcomes count: runs that skip the\n// summarizer (no signal, unchanged input) leave it alone, and any success\n// clears the failure streak.\ntype DescribeStatus struct {\n\tLastSuccessAt       int64  `json:\"last_success_at,omitempty\"`\n\tConsecutiveFailures int    `json:\"consecutive_failures,omitempty\"`\n\tFailingSince        int64  `json:\"failing_since,omitempty\"` // start of the current failure streak\n\tLastFailureAt       int64  `json:\"last_failure_at,omitempty\"`\n\tLastError           string `json:\"last_error,omitempty\"` // one line, from the most recent failure\n}\n\n// RecordDescribeSuccess notes that the summarizer produced a usable\n// description at now (unix seconds), ending any failure streak.\nfunc (m *Manifest) RecordDescribeSuccess(now int64) {\n\tm.Describe = &DescribeStatus{LastSuccessAt: now}\n}\n\n// RecordDescribeFailure notes that a summarizer run failed at now with the\n// given one-line error, extending the current failure streak.\nfunc (m *Manifest) RecordDescribeFailure(now int64, msg string) {\n\tif m.Describe == nil {\n\t\tm.Describe = &DescribeStatus{}\n\t}\n\ts := m.Describe\n\tif s.ConsecutiveFailures == 0 {\n\t\ts.FailingSince = now\n\t}\n\ts.ConsecutiveFailures++\n\ts.LastFailureAt = now\n\ts.LastError = msg\n}\n\n// Dock represents a tmux session and its associated terminal window.\ntype Dock struct {\n\tName                 string              `json:\"name\"`           // unique; matches config key and tmux session name\n\tPath                 string              `json:\"path,omitempty\"` // git checkout this dock owns\n\tWorktreeDir          string              `json:\"worktree_dir,omitempty\"`\n\tRepo                 string              `json:\"repo,omitempty\"`       // legacy v5 default repo; migrated to Path/WorktreeDir\n\tAgent                string              `json:\"agent,omitempty\"`      // default agent\n\tAgentArgs            map[string][]string `json:\"agent_args,omitempty\"` // per-agent args\n\tHost                 *GUIAttrs           `json:\"host,omitempty\"`       // terminal window hosting this dock's tmux session; nil if unmanaged\n\tSessionID            string              `json:\"session_id,omitempty\"` // identifies the tmux session bay set up; matched against the @bay-session-id session option to detect server restarts\n\tTrustPromptDismissed bool                `json:\"trust_prompt_dismissed,omitempty\"`\n\tSurfaces             []Surface           `json:\"surfaces,omitempty\"` // dock-level surfaces (e.g., dock-scoped editor)\n\tBays                 []Bay               `json:\"bays\"`\n\tClosedEntries        []ClosedEntry       `json:\"closed_entries,omitempty\"` // undo-close queue (see docs/design/undo-close.md)\n}\n\n// EffectiveWorktreeDir returns the dock's worktree directory, defaulting to\n// {path}-worktrees.\nfunc (d Dock) EffectiveWorktreeDir() string {\n\tif d.WorktreeDir != \"\" {\n\t\treturn config.ExpandPath(d.WorktreeDir)\n\t}\n\treturn config.ExpandPath(d.Path) + \"-worktrees\"\n}\n\n// Bay represents a unit of work \u2014 typically one branch/PR.\ntype Bay struct {\n\tID          string  `json:\"id\"`                    // stable handle (current ^b[1-9]\\d*$, legacy ^w[1-9]\\d*$); set at creation, never changes; unique within dock\n\tName        string  `json:\"name\"`                  // user-facing display label, renameable; not a CLI key. Empty until set explicitly or filled from a branch.\n\tType        BayType `json:\"type\"`                  // \"worktree\", \"external\", or \"home\"\n\tPath        string  `json:\"path,omitempty\"`        // absolute path to the working directory\n\tDescription string  `json:\"description,omitempty\"` // short free-form label shown in picker/ls/tree\n\t// Auto-description backstop state (docs/design/auto-descriptions.md).\n\t// Source distinguishes user-set from auto-generated descriptions so\n\t// the backstop never clobbers human intent; SummarizedAt + InputHash\n\t// let it skip redundant summarizer runs. StableStreak counts\n\t// consecutive worker runs that found nothing changed, so the monitor\n\t// backs off re-probing a quiet bay instead of dispatching every cycle.\n\tDescriptionSource       string          `json:\"description_source,omitempty\"`\n\tDescriptionSummarizedAt int64           `json:\"description_summarized_at,omitempty\"`\n\tDescriptionInputHash    string          `json:\"description_input_hash,omitempty\"`\n\tDescriptionStableStreak int             `json:\"description_stable_streak,omitempty\"`\n\tLastFocused             int             `json:\"last_focused,omitempty\"`     // surface ID; 0 = none yet\n\tLastActive              int64           `json:\"last_active,omitempty\"`      // unix timestamp; updated by bay commands\n\tPendingCloseAt          int64           `json:\"pending_close_at,omitempty\"` // unix ts; non-zero = scheduled for auto-close at this time unless a surface is re-added first\n\tSurfaces                []Surface       `json:\"surfaces\"`\n\tPrepare                 []PrepareStep   `json:\"prepare\"`\n\tPendingSurfaces         []PendingLaunch `json:\"pending_surfaces\"`\n\tWorktree                *WorktreeAttrs  `json:\"worktree,omitempty\"` // type=worktree only\n\n\t// DeprecatedStatus exists only for v2\u2192v3 manifest migration. Cleared after\n\t// migration. The \"status\" JSON tag is reserved by this field.\n\tDeprecatedStatus string `json:\"status,omitempty\"`\n}\n\n// PrepareStep records the state of one configured prepare step for a bay.\ntype PrepareStep struct {\n\tName           string        `json:\"name\"`\n\tStatus         PrepareStatus `json:\"status\"`\n\tStartedAt      int64         `json:\"started_at,omitempty\"`\n\tFinishedAt     int64         `json:\"finished_at,omitempty\"`\n\tHeartbeatAt    int64         `json:\"heartbeat_at,omitempty\"`\n\tPID            int           `json:\"pid,omitempty\"`\n\tDefinitionHash string        `json:\"definition_hash,omitempty\"`\n\tRunLogOffset   int64         `json:\"run_log_offset,omitempty\"`\n}\n\n// PrepareSetupSummary returns the compact non-ready setup state for display.\nfunc PrepareSetupSummary(steps []PrepareStep) string {\n\tfor _, status := range []PrepareStatus{\n\t\tPrepareStatusRunning,\n\t\tPrepareStatusFailed,\n\t\tPrepareStatusStale,\n\t\tPrepareStatusPending,\n\t} {\n\t\tfor _, step := range steps {\n\t\t\tif step.Status == status {\n\t\t\t\treturn string(status) + \":\" + step.Name\n\t\t\t}\n\t\t}\n\t}\n\treturn \"\"\n}\n\n// PendingLaunch reserves the manifest shape used by later prepare phases to\n// swap blocked placeholder panes into real bay surfaces.\ntype PendingLaunch struct {\n\tCreatedAt int64       `json:\"created_at,omitempty\"`\n\tKind      SurfaceType `json:\"kind\"`\n\tName      string      `json:\"name,omitempty\"`\n\tAgent     string      `json:\"agent,omitempty\"`\n\tCommand   string      `json:\"command,omitempty\"`\n\tSplitDir  string      `json:\"split_dir,omitempty\"`\n\tTmux      *TmuxAttrs  `json:\"tmux,omitempty\"`\n}\n\n// WorktreeAttrs holds git worktree metadata. Only present for worktree bays.\ntype WorktreeAttrs struct {\n\tRepo        string `json:\"repo,omitempty\"` // legacy v5 repo key; migrated to parent dock\n\tBranch      string `json:\"branch\"`\n\tPR          string `json:\"pr,omitempty\"`            // PR number (display-only)\n\tPRCheckedAt int64  `json:\"pr_checked_at,omitempty\"` // unix seconds of last gh pr view; 0 = never\n\tMerged      bool   `json:\"merged,omitempty\"`        // true when branch has been merged into default\n}\n\n// IsMerged reports whether this bay's branch has been merged into the default branch.\nfunc (b *Bay) IsMerged() bool {\n\treturn b.Worktree != nil && b.Worktree.Merged\n}\n\n// Generated bay ID prefixes. New bays use CurrentBayIDPrefix; LegacyBayIDPrefix\n// remains recognized so existing manifests keep their stable handles.\nconst (\n\tCurrentBayIDPrefix = \"b\"\n\tLegacyBayIDPrefix  = \"w\"\n)\n\n// IsBayID reports whether s matches a generated bay ID pattern: lowercase\n// 'b' or legacy 'w' followed by a positive integer with no leading zeros.\n// The pattern is reserved \u2014 bay Names cannot match it, which keeps the ID\n// and Name namespaces disjoint.\nfunc IsBayID(s string) bool {\n\t_, _, ok := parseBayID(s)\n\treturn ok\n}\n\n// IsReservedBayID reports whether s is reserved by bay as a non-generated\n// bay ID. Reserved IDs are addressable but cannot be used by normal bays.\nfunc IsReservedBayID(s string) bool {\n\treturn s == HomeBayID\n}\n\n// IsHomeBay reports whether bay should be treated as the dock home pseudo-bay.\n// Use it for normal behavior checks where BayTypeHome or the reserved home ID\n// is enough to keep home out of worktree-only lifecycle paths.\nfunc IsHomeBay(bay *Bay) bool {\n\treturn bay != nil && (bay.Type == BayTypeHome || IsReservedBayID(bay.ID))\n}\n\n// IsHomeLikeBay reports whether bay is trying to occupy the home namespace,\n// including the reserved display name. Use it only for shape validation and\n// malformed manifest filtering before normal home handling.\nfunc IsHomeLikeBay(bay *Bay) bool {\n\treturn IsHomeBay(bay) || (bay != nil && bay.Name == HomeBayID)\n}\n\n// parseBayID extracts the prefix and integer suffix from a generated bay ID.\n// Returns (prefix, n, true) for valid IDs (n >= 1), (\"\", 0, false) otherwise.\nfunc parseBayID(s string) (string, int, bool) {\n\tif len(s) < 2 {\n\t\treturn \"\", 0, false\n\t}\n\tprefix := s[:1]\n\tif prefix != CurrentBayIDPrefix && prefix != LegacyBayIDPrefix {\n\t\treturn \"\", 0, false\n\t}\n\trest := s[1:]\n\t// Reject any non-digit lead \u2014 strconv.Atoi accepts +/- prefixes,\n\t// but those aren't canonical bay IDs.\n\tif rest[0] < '0' || rest[0] > '9' {\n\t\treturn \"\", 0, false\n\t}\n\tif len(rest) > 1 && rest[0] == '0' { // reject leading zeros (canonical)\n\t\treturn \"\", 0, false\n\t}\n\tn, err := strconv.Atoi(rest)\n\tif err != nil || n < 1 {\n\t\treturn \"\", 0, false\n\t}\n\treturn prefix, n, true\n}\n\n// currentBayIDNum returns n for IDs matching the current-prefix pattern\n// b<N>; legacy w<N> IDs return false. Used to advance the synthesized\n// sequence without letting legacy IDs influence it.\nfunc currentBayIDNum(s string) (int, bool) {\n\tprefix, n, ok := parseBayID(s)\n\tif !ok || prefix != CurrentBayIDPrefix {\n\t\treturn 0, false\n\t}\n\treturn n, true\n}\n\n// AssignBayIDs fills in IDs for any bay in the dock whose ID\n// is currently empty. Two passes after an initial scan:\n//\n//  1. Claim the path basename as ID if it matches a generated bay ID pattern\n//     and isn't already taken in this dock. This preserves continuity for\n//     legacy manifests where path basenames are already w1/w2/... while also\n//     accepting current b<N> basenames.\n//  2. Assign next-sequential b<N> for any bay still without an ID.\n//\n// The synthesized sequence is prefix-local: legacy w<N> IDs do not make\n// the first new b<N> become b<N+1>. The three-pass structure (scan \u2192 claim \u2192\n// sequential) is required to preserve that invariant: merging scan into\n// claim risks one bay claiming an ID a later bay already\n// holds explicitly, and merging claim into sequential lets a sequential\n// fill grab a low ID before another bay's basename can claim it.\n//\n// On collisions in pass 1 (two bays sharing the same generated path\n// basename), the bay appearing first in dock.Bays wins; the\n// second falls through to pass 2. Iteration order is the manifest's\n// stored order, so the result is deterministic across runs.\n//\n// Idempotent: a bay with a non-empty ID is left alone, and the\n// function returns immediately when no fill is needed.\nfunc AssignBayIDs(dock *Dock) {\n\tneedsFill := false\n\tfor i := range dock.Bays {\n\t\tif dock.Bays[i].ID == \"\" {\n\t\t\tneedsFill = true\n\t\t\tbreak\n\t\t}\n\t}\n\tif !needsFill {\n\t\treturn\n\t}\n\n\tused := map[string]bool{}\n\tcurrentMaxN := 0\n\tfor i := range dock.Bays {\n\t\tid := dock.Bays[i].ID\n\t\tif id == \"\" {\n\t\t\tcontinue\n\t\t}\n\t\tused[id] = true\n\t\tif n, ok := currentBayIDNum(id); ok && n > currentMaxN {\n\t\t\tcurrentMaxN = n\n\t\t}\n\t}\n\tfor i := range dock.Bays {\n\t\tbay := &dock.Bays[i]\n\t\tif bay.ID != \"\" || bay.Path == \"\" {\n\t\t\tcontinue\n\t\t}\n\t\tbase := filepath.Base(bay.Path)\n\t\tif !IsBayID(base) || used[base] {\n\t\t\tcontinue\n\t\t}\n\t\tbay.ID = base\n\t\tused[base] = true\n\t\tif n, ok := currentBayIDNum(base); ok && n > currentMaxN {\n\t\t\tcurrentMaxN = n\n\t\t}\n\t}\n\tfor i := range dock.Bays {\n\t\tbay := &dock.Bays[i]\n\t\tif bay.ID != \"\" {\n\t\t\tcontinue\n\t\t}\n\t\tcurrentMaxN++\n\t\tbay.ID = fmt.Sprintf(\"%s%d\", CurrentBayIDPrefix, currentMaxN)\n\t\tused[bay.ID] = true\n\t}\n}\n\n// PRCheckTTL is how long a \"no PR found\" answer stays valid before we re-query\n// gh. Without this, opening a PR after the first check would never be picked\n// up. 5 minutes balances responsiveness (matching the typical push\u2192create-PR\n// workflow) against gh API usage \u2014 once a PR is cached, NeedsPRCheck returns\n// false and polling stops entirely, so this cost only applies to branches\n// that haven't produced a PR yet.\nconst PRCheckTTL = 300\n\n// NeedsPRCheck reports whether this worktree should have its PR number\n// re-queried via gh. Returns true when:\n//   - the worktree has a branch but no PR cached, AND\n//   - we've never checked OR the last check is older than PRCheckTTL\n//\n// Callers must additionally verify the bay path is non-empty.\nfunc (w *WorktreeAttrs) NeedsPRCheck(now int64) bool {\n\tif w == nil || w.Branch == \"\" || w.PR != \"\" {\n\t\treturn false\n\t}\n\tif w.PRCheckedAt > 0 && now-w.PRCheckedAt < PRCheckTTL {\n\t\treturn false\n\t}\n\treturn true\n}\n\n// Surface is the unit of navigation \u2014 anything you can focus and jump to.\ntype Surface struct {\n\tID      int            `json:\"id\"`      // unique within bay, stable across renames, never reused\n\tName    string         `json:\"name\"`    // unique within bay; used for fuzzy nav\n\tType    SurfaceType    `json:\"type\"`    // semantic role: agent, editor, shell, cmd\n\tBackend SurfaceBackend `json:\"backend\"` // interaction model: tmux-pane, gui-app\n\n\t// Type-specific. Nil when the type doesn't use them.\n\tAgent   *string `json:\"agent,omitempty\"`   // type=agent: agent config key\n\tCommand *string `json:\"command,omitempty\"` // type=cmd: shell command to execute\n\n\t// Backend-specific. Exactly one non-nil, matching Backend.\n\tTmux *TmuxAttrs `json:\"tmux,omitempty\"` // backend=tmux-pane\n\tGUI  *GUIAttrs  `json:\"gui,omitempty\"`  // backend=gui-app\n}\n\n// TmuxAttrs holds state for a tmux-backed surface.\ntype TmuxAttrs struct {\n\t// Ephemeral \u2014 populated at creation, cleared and repopulated on recover.\n\tPaneID   string `json:\"pane_id,omitempty\"`\n\tWindowID string `json:\"window_id,omitempty\"`\n\n\t// Stable \u2014 survives recover.\n\tLayoutGroup int    `json:\"layout_group\"`         // per-bay, starting from 1; same value = same tmux window\n\tSplitFrom   int    `json:\"split_from,omitempty\"` // surface ID; 0 = first pane in layout group\n\tSplitDir    string `json:\"split_dir,omitempty\"`  // \"h\" or \"v\"; empty for first pane in group\n}\n\n// GUIAttrs holds state for a GUI application \u2014 either a surface or a dock host.\ntype GUIAttrs struct {\n\tAppCommand string `json:\"app_command\"`         // launch command (e.g. \"cursor\", \"ghostty\")\n\tBundleID   string `json:\"bundle_id,omitempty\"` // macOS bundle ID for activation\n\tPID        int    `json:\"pid,omitempty\"`       // ephemeral; for liveness probing; 0 = not tracked\n}\n\n// ClosedEntryKind is the kind tag for a ClosedEntry.\ntype ClosedEntryKind string\n\nconst (\n\tClosedKindSurface ClosedEntryKind = \"surface\"\n\t// ClosedKindBay is reserved for Step 2 of undo-close.\n)\n\n// ClosedQueueMax caps the number of undo-close entries retained per dock.\nconst ClosedQueueMax = 10\n\n// ClosedQueueTTLSeconds is the wall-clock retention window for undo-close\n// entries. Entries older than this are pruned on next queue access.\n// 1 hour matches the Chrome-style muscle-memory case (accidental closes\n// are noticed and reversed within seconds to minutes) without allowing\n// stale entries to ambush the user hours later.\nconst ClosedQueueTTLSeconds = 60 * 60\n\n// ClosedEntry is a single record in the undo-close queue.\ntype ClosedEntry struct {\n\tClosedAt int64           `json:\"closed_at\"` // unix seconds; used for TTL expiry\n\tKind     ClosedEntryKind `json:\"kind\"`\n\tSurface  *ClosedSurface  `json:\"surface,omitempty\"` // Kind == ClosedKindSurface\n}\n\n// ClosedSurface records enough state to recreate a closed surface in its\n// parent bay. Transient fields (PaneID, WindowID, ID) are deliberately\n// omitted \u2014 they're reassigned on restore.\ntype ClosedSurface struct {\n\tBay         string      `json:\"bay\"`                    // parent bay ID at close time (the stable handle)\n\tName        string      `json:\"name\"`                   // user-facing surface name\n\tType        SurfaceType `json:\"type\"`                   // agent / shell / cmd / editor\n\tAgent       string      `json:\"agent,omitempty\"`        // type=agent\n\tCommand     string      `json:\"command,omitempty\"`      // type=cmd or type=editor\n\tSplitDir    string      `json:\"split_dir,omitempty\"`    // \"\" = root pane, \"h\"/\"v\" = split\n\tLayoutGroup int         `json:\"layout_group,omitempty\"` // original tmux window membership; restore re-joins siblings if any survive\n}\n\n// PushClosedEntry appends entry to the dock's undo-close queue, enforcing\n// the per-dock ClosedQueueMax cap by dropping the oldest entry when full.\nfunc (d *Dock) PushClosedEntry(entry ClosedEntry) {\n\td.ClosedEntries = append(d.ClosedEntries, entry)\n\tif len(d.ClosedEntries) > ClosedQueueMax {\n\t\td.ClosedEntries = d.ClosedEntries[len(d.ClosedEntries)-ClosedQueueMax:]\n\t}\n}\n\n// PruneClosedEntries drops entries whose ClosedAt is older than\n// now - ClosedQueueTTLSeconds. Returns true if anything was removed.\nfunc (d *Dock) PruneClosedEntries(now int64) bool {\n\tcutoff := now - ClosedQueueTTLSeconds\n\tbefore := len(d.ClosedEntries)\n\tkept := d.ClosedEntries[:0]\n\tfor _, e := range d.ClosedEntries {\n\t\tif e.ClosedAt > cutoff {\n\t\t\tkept = append(kept, e)\n\t\t}\n\t}\n\td.ClosedEntries = kept\n\treturn len(d.ClosedEntries) != before\n}\n\n// PeekClosedEntry prunes stale entries and returns a deep copy of the most\n// recent live entry, or nil if the queue is empty. The entry is not removed\n// \u2014 callers use RemoveClosedEntryAt after confirming the restore succeeded,\n// so a failure leaves the entry queued for retry. The deep copy guarantees\n// callers can't accidentally mutate queue state through the returned\n// Surface pointer.\nfunc (d *Dock) PeekClosedEntry(now int64) *ClosedEntry {\n\td.PruneClosedEntries(now)\n\tif len(d.ClosedEntries) == 0 {\n\t\treturn nil\n\t}\n\tentry := d.ClosedEntries[len(d.ClosedEntries)-1]\n\tif entry.Surface != nil {\n\t\tsurfaceCopy := *entry.Surface\n\t\tentry.Surface = &surfaceCopy\n\t}\n\treturn &entry\n}\n\n// RemoveClosedEntryAt removes the entry with the given ClosedAt timestamp.\n// Matching by timestamp (not index) lets Peek/Remove survive interleaved\n// pushes between the two calls \u2014 if another close happens during restore,\n// we still drop the entry we restored, not the newly-pushed one.\nfunc (d *Dock) RemoveClosedEntryAt(closedAt int64) bool {\n\tfor i := len(d.ClosedEntries) - 1; i >= 0; i-- {\n\t\tif d.ClosedEntries[i].ClosedAt == closedAt {\n\t\t\td.ClosedEntries = append(d.ClosedEntries[:i], d.ClosedEntries[i+1:]...)\n\t\t\treturn true\n\t\t}\n\t}\n\treturn false\n}\n\n// --- Constructor ---\n\n// New returns an initialized empty manifest.\nfunc New() *Manifest {\n\treturn &Manifest{\n\t\tVersion: CurrentVersion,\n\t\tDocks:   []Dock{},\n\t}\n}\n\n// --- File I/O ---\n\n// Parse decodes JSON data into a Manifest.\nfunc Parse(data []byte) (*Manifest, error) {\n\tvar m Manifest\n\tif err := json.Unmarshal(data, &m); err != nil {\n\t\treturn nil, fmt.Errorf(\"parsing manifest: %w\", err)\n\t}\n\tif m.Docks == nil {\n\t\tm.Docks = []Dock{}\n\t}\n\n\t// Migrate v2 \u2192 v3: convert status=done to Worktree.Merged=true.\n\tif m.Version < 3 {\n\t\tfor i := range m.Docks {\n\t\t\tfor j := range m.Docks[i].Bays {\n\t\t\t\tbay := &m.Docks[i].Bays[j]\n\t\t\t\tif bay.DeprecatedStatus == \"done\" && bay.Worktree != nil {\n\t\t\t\t\tbay.Worktree.Merged = true\n\t\t\t\t}\n\t\t\t\tbay.DeprecatedStatus = \"\"\n\t\t\t}\n\t\t}\n\t}\n\n\t// Fill in bay IDs. Runs unconditionally:\n\t//   - For pre-v4 manifests, bays have no ID field set.\n\t//   - Defensive: if any bay was created without an ID (e.g.,\n\t//     during the rollout window before engine wires up ID assignment\n\t//     at creation), Parse fills it in here so callers can rely on\n\t//     bay.ID being non-empty.\n\tfor i := range m.Docks {\n\t\tAssignBayIDs(&m.Docks[i])\n\t}\n\n\tif m.Version < 6 {\n\t\tif err := migrateV5ToV6(&m); err != nil {\n\t\t\treturn nil, err\n\t\t}\n\t}\n\tensureV7Defaults(&m)\n\tm.Version = CurrentVersion\n\n\treturn &m, nil\n}\n\nfunc migrateV5ToV6(m *Manifest) error {\n\trepos := map[string]Repo{}\n\tfor _, repo := range m.Repos {\n\t\trepos[repo.Name] = repo\n\t}\n\n\tdocksByRepo := map[string][]string{}\n\tfor i := range m.Docks {\n\t\tdock := &m.Docks[i]\n\t\tif dock.Repo != \"\" {\n\t\t\tdocksByRepo[dock.Repo] = append(docksByRepo[dock.Repo], dock.Name)\n\t\t}\n\t}\n\tvar conflicts []string\n\tfor repoName, dockNames := range docksByRepo {\n\t\tif len(dockNames) > 1 {\n\t\t\tconflicts = append(conflicts, fmt.Sprintf(\"repo %q is used by docks %s\", repoName, strings.Join(dockNames, \", \")))\n\t\t}\n\t}\n\tif len(conflicts) > 0 {\n\t\tsort.Strings(conflicts)\n\t\treturn fmt.Errorf(\"cannot migrate manifest v5 to v6: multiple docks share one repo; close or recreate conflicting docks first: %s\", strings.Join(conflicts, \"; \"))\n\t}\n\n\tfor i := range m.Docks {\n\t\tdock := &m.Docks[i]\n\t\tif dock.Path == \"\" {\n\t\t\tif dock.Repo == \"\" {\n\t\t\t\treturn fmt.Errorf(\"cannot migrate manifest v5 to v6: dock %q has no repo checkout\", dock.Name)\n\t\t\t}\n\t\t\trepo, ok := repos[dock.Repo]\n\t\t\tif !ok {\n\t\t\t\treturn fmt.Errorf(\"cannot migrate manifest v5 to v6: dock %q references unknown repo %q\", dock.Name, dock.Repo)\n\t\t\t}\n\t\t\tdock.Path = repo.Path\n\t\t\tdock.WorktreeDir = repo.WorktreeDir\n\t\t}\n\t\tfor j := range dock.Bays {\n\t\t\tbay := &dock.Bays[j]\n\t\t\tif bay.Worktree == nil || bay.Worktree.Repo == \"\" || bay.Worktree.Repo == dock.Repo {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\treturn fmt.Errorf(\"cannot migrate manifest v5 to v6: cross-repo bay %s:%s uses repo %q but dock uses repo %q; close or recreate the bay in a dock for repo %q before upgrading\", dock.Name, bay.ID, bay.Worktree.Repo, dock.Repo, bay.Worktree.Repo)\n\t\t}\n\t\tdock.Repo = \"\"\n\t\tfor j := range dock.Bays {\n\t\t\tif dock.Bays[j].Worktree != nil {\n\t\t\t\tdock.Bays[j].Worktree.Repo = \"\"\n\t\t\t}\n\t\t}\n\t}\n\tm.Repos = nil\n\treturn nil\n}\n\nfunc ensureV7Defaults(m *Manifest) {\n\tfor i := range m.Docks {\n\t\tif m.Docks[i].Bays == nil {\n\t\t\tm.Docks[i].Bays = []Bay{}\n\t\t}\n\t\tfor j := range m.Docks[i].Bays {\n\t\t\tbay := &m.Docks[i].Bays[j]\n\t\t\tif bay.Prepare == nil {\n\t\t\t\tbay.Prepare = []PrepareStep{}\n\t\t\t}\n\t\t\tif bay.PendingSurfaces == nil {\n\t\t\t\tbay.PendingSurfaces = []PendingLaunch{}\n\t\t\t}\n\t\t}\n\t}\n}\n\n// Load reads and parses a manifest file.\nfunc Load(path string) (*Manifest, error) {\n\tdata, err := os.ReadFile(path)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"reading manifest: %w\", err)\n\t}\n\treturn Parse(data)\n}\n\n// Save writes the manifest to a file with file locking.\n// Save writes the manifest to disk. Before overwriting, backs up the\n// current version to the backups/ directory (at most once per minute).\nfunc Save(path string, m *Manifest) error {\n\treturn WithLock(path, func() error {\n\t\t// Rolling backup before overwriting.\n\t\tBackupIfNeeded(path)\n\t\tensureV7Defaults(m)\n\n\t\tdata, err := json.MarshalIndent(m, \"\", \"  \")\n\t\tif err != nil {\n\t\t\treturn fmt.Errorf(\"encoding manifest: %w\", err)\n\t\t}\n\n\t\t// Atomic write: write to temp, then rename.\n\t\ttmpPath := path + \".tmp\"\n\t\tif err := os.WriteFile(tmpPath, data, 0o644); err != nil {\n\t\t\treturn fmt.Errorf(\"writing manifest: %w\", err)\n\t\t}\n\t\tif err := os.Rename(tmpPath, path); err != nil {\n\t\t\treturn fmt.Errorf(\"renaming manifest: %w\", err)\n\t\t}\n\t\treturn nil\n\t})\n}\n\n// LockedUpdate atomically loads the manifest, calls fn for modifications, and saves.\nfunc LockedUpdate(path string, fn func(m *Manifest) error) error {\n\treturn LockedUpdateMaybe(path, func(m *Manifest) (bool, error) {\n\t\tif err := fn(m); err != nil {\n\t\t\treturn false, err\n\t\t}\n\t\treturn true, nil\n\t})\n}\n\n// LockedUpdateMaybe atomically loads the manifest, calls fn, and saves only if fn reports changes.\nfunc LockedUpdateMaybe(path string, fn func(m *Manifest) (bool, error)) error {\n\treturn WithLock(path, func() error {\n\t\tvar m *Manifest\n\t\tdata, readErr := os.ReadFile(path)\n\t\tif readErr != nil {\n\t\t\tif os.IsNotExist(readErr) {\n\t\t\t\tm = New()\n\t\t\t} else {\n\t\t\t\treturn fmt.Errorf(\"reading manifest: %w\", readErr)\n\t\t\t}\n\t\t} else {\n\t\t\tparsed, err := Parse(data)\n\t\t\tif err != nil {\n\t\t\t\treturn err\n\t\t\t}\n\t\t\tm = parsed\n\t\t}\n\n\t\tchanged, err := fn(m)\n\t\tif err != nil {\n\t\t\treturn err\n\t\t}\n\t\tif !changed {\n\t\t\treturn nil\n\t\t}\n\n\t\t// Rolling backup before overwriting.\n\t\tif readErr == nil {\n\t\t\tBackupIfNeeded(path)\n\t\t}\n\t\tensureV7Defaults(m)\n\n\t\tencoded, err := json.MarshalIndent(m, \"\", \"  \")\n\t\tif err != nil {\n\t\t\treturn fmt.Errorf(\"encoding manifest: %w\", err)\n\t\t}\n\n\t\t// Atomic write: write to temp, then rename.\n\t\ttmpPath := path + \".tmp\"\n\t\tif err := os.WriteFile(tmpPath, encoded, 0o644); err != nil {\n\t\t\treturn fmt.Errorf(\"writing manifest: %w\", err)\n\t\t}\n\t\tif err := os.Rename(tmpPath, path); err != nil {\n\t\t\treturn fmt.Errorf(\"renaming manifest: %w\", err)\n\t\t}\n\t\treturn nil\n\t})\n}\n\n// LoadArchive reads the archive file.\nfunc LoadArchive(path string) (*Manifest, error) {\n\treturn Load(path)\n}\n\n// SaveArchive writes the archive file with locking.\nfunc SaveArchive(path string, m *Manifest) error {\n\treturn Save(path, m)\n}\n\n// AllBays returns all bays across all docks, sorted by dock then bay name.\nfunc AllBays(m *Manifest) []BayRef {\n\tvar refs []BayRef\n\tfor i := range m.Docks {\n\t\tdock := &m.Docks[i]\n\t\tfor j := range dock.Bays {\n\t\t\trefs = append(refs, BayRef{\n\t\t\t\tDock: dock.Name,\n\t\t\t\tBay:  &dock.Bays[j],\n\t\t\t})\n\t\t}\n\t}\n\tsort.Slice(refs, func(i, j int) bool {\n\t\tif refs[i].Dock != refs[j].Dock {\n\t\t\treturn refs[i].Dock < refs[j].Dock\n\t\t}\n\t\treturn refs[i].Bay.Name < refs[j].Bay.Name\n\t})\n\treturn refs\n}\n\n// BayRef is a reference to a bay within its dock.\ntype BayRef struct {\n\tDock string\n\tBay  *Bay\n}\n\n// --- Dock operations ---\n\n// FindDock returns a pointer to the dock with the given name, or nil.\nfunc (m *Manifest) FindDock(name string) *Dock {\n\tfor i := range m.Docks {\n\t\tif m.Docks[i].Name == name {\n\t\t\treturn &m.Docks[i]\n\t\t}\n\t}\n\treturn nil\n}\n\n// AddDock adds a dock. Returns an error if a dock with the same name exists.\nfunc (m *Manifest) AddDock(d Dock) error {\n\tif m.FindDock(d.Name) != nil {\n\t\treturn fmt.Errorf(\"dock %q already exists\", d.Name)\n\t}\n\tif d.Bays == nil {\n\t\td.Bays = []Bay{}\n\t}\n\tm.Docks = append(m.Docks, d)\n\treturn nil\n}\n\n// RemoveDock removes a dock by name.\nfunc (m *Manifest) RemoveDock(name string) error {\n\tfor i := range m.Docks {\n\t\tif m.Docks[i].Name == name {\n\t\t\tm.Docks = append(m.Docks[:i], m.Docks[i+1:]...)\n\t\t\treturn nil\n\t\t}\n\t}\n\treturn fmt.Errorf(\"dock %q not found\", name)\n}\n\n// --- Bay operations ---\n\n// FindBay returns the first bay with a matching non-empty Name.\n// Empty Names always return nil \u2014 multiple bays may legitimately have\n// no Name set (display falls back to ID), so an empty-string lookup is not\n// a useful identification query.\nfunc (d *Dock) FindBay(name string) *Bay {\n\tif name == \"\" {\n\t\treturn nil\n\t}\n\tfor i := range d.Bays {\n\t\tif d.Bays[i].Name == name {\n\t\t\treturn &d.Bays[i]\n\t\t}\n\t}\n\treturn nil\n}\n\n// FindBayByID returns the bay with the matching ID, or nil.\n// IDs are unique within a dock and never reused, so this is the canonical\n// lookup once the resolver moves off Name.\nfunc (d *Dock) FindBayByID(id string) *Bay {\n\tif id == \"\" {\n\t\treturn nil\n\t}\n\tfor i := range d.Bays {\n\t\tif d.Bays[i].ID == id {\n\t\t\treturn &d.Bays[i]\n\t\t}\n\t}\n\treturn nil\n}\n\n// AddBay adds a bay. Returns an error if the bay's Name is non-empty and\n// already taken in the dock. Empty-Name bays are always allowed; they'll\n// display via their ID until a Name is set.\n//\n// The reserved home handle is admitted only for BayTypeHome with the fixed\n// home shape. Normal worktree/external bays must not shadow a dock's logical\n// home target in either the ID or Name namespace.\nfunc (d *Dock) AddBay(bay Bay) error {\n\tif bay.Name != \"\" && d.FindBay(bay.Name) != nil {\n\t\treturn fmt.Errorf(\"bay %q already exists in dock %q\", bay.Name, d.Name)\n\t}\n\tif bay.Type == BayTypeHome {\n\t\tif err := validateHomeBayShape(d, &bay); err != nil {\n\t\t\treturn err\n\t\t}\n\t} else if IsReservedBayID(bay.ID) || IsReservedBayID(bay.Name) {\n\t\treturn fmt.Errorf(\"bay ID/name %q is reserved for the dock's home pseudo-bay\", HomeBayID)\n\t}\n\tif bay.Surfaces == nil {\n\t\tbay.Surfaces = []Surface{}\n\t}\n\tif bay.Prepare == nil {\n\t\tbay.Prepare = []PrepareStep{}\n\t}\n\tif bay.PendingSurfaces == nil {\n\t\tbay.PendingSurfaces = []PendingLaunch{}\n\t}\n\td.Bays = append(d.Bays, bay)\n\treturn nil\n}\n\n// RemoveBay removes a bay identified by ID. (Names are no\n// longer CLI keys; the engine layer passes the ID it received from the\n// resolver.)\n//\n// Also purges any undo-close entries that reference this bay ID:\n// IDs are reassigned from a max-of-current pool, so a future bay can\n// reclaim this ID and a stale entry would silently restore into it.\nfunc (d *Dock) RemoveBay(id string) error {\n\tfor i := range d.Bays {\n\t\tif d.Bays[i].ID == id {\n\t\t\td.Bays = append(d.Bays[:i], d.Bays[i+1:]...)\n\t\t\td.purgeClosedEntriesForBay(id)\n\t\t\treturn nil\n\t\t}\n\t}\n\treturn fmt.Errorf(\"bay %q not found in dock %q\", id, d.Name)\n}\n\nfunc (d *Dock) purgeClosedEntriesForBay(bayID string) {\n\tif len(d.ClosedEntries) == 0 {\n\t\treturn\n\t}\n\tkept := d.ClosedEntries[:0]\n\tfor _, e := range d.ClosedEntries {\n\t\tif e.Kind == ClosedKindSurface && e.Surface != nil && e.Surface.Bay == bayID {\n\t\t\tcontinue\n\t\t}\n\t\tkept = append(kept, e)\n\t}\n\td.ClosedEntries = kept\n}\n\n// FindDockSurface returns a pointer to a dock-level surface by name.\nfunc (d *Dock) FindDockSurface(name string) *Surface {\n\tfor i := range d.Surfaces {\n\t\tif d.Surfaces[i].Name == name {\n\t\t\treturn &d.Surfaces[i]\n\t\t}\n\t}\n\treturn nil\n}\n\n// AddDockSurface adds a dock-level surface with an auto-assigned ID.\nfunc (d *Dock) AddDockSurface(s Surface) (int, error) {\n\tif d.FindDockSurface(s.Name) != nil {\n\t\treturn 0, fmt.Errorf(\"dock surface %q already exists in dock %q\", s.Name, d.Name)\n\t}\n\tmax := 0\n\tfor _, s := range d.Surfaces {\n\t\tif s.ID > max {\n\t\t\tmax = s.ID\n\t\t}\n\t}\n\ts.ID = max + 1\n\td.Surfaces = append(d.Surfaces, s)\n\treturn s.ID, nil\n}\n\n// RemoveDockSurface removes a dock-level surface by name.\nfunc (d *Dock) RemoveDockSurface(name string) error {\n\tfor i := range d.Surfaces {\n\t\tif d.Surfaces[i].Name == name {\n\t\t\td.Surfaces = append(d.Surfaces[:i], d.Surfaces[i+1:]...)\n\t\t\treturn nil\n\t\t}\n\t}\n\treturn fmt.Errorf(\"dock surface %q not found in dock %q\", name, d.Name)\n}\n\n// --- Surface operations ---\n\n// NextSurfaceID returns the next surface ID (max+1) for the bay.\nfunc (b *Bay) NextSurfaceID() int {\n\tmax := 0\n\tfor _, s := range b.Surfaces {\n\t\tif s.ID > max {\n\t\t\tmax = s.ID\n\t\t}\n\t}\n\treturn max + 1\n}\n\n// FindSurface returns a pointer to the surface with the given name, or nil.\nfunc (b *Bay) FindSurface(name string) *Surface {\n\tfor i := range b.Surfaces {\n\t\tif b.Surfaces[i].Name == name {\n\t\t\treturn &b.Surfaces[i]\n\t\t}\n\t}\n\treturn nil\n}\n\n// FindSurfaceByID returns a pointer to the surface with the given ID, or nil.\nfunc (b *Bay) FindSurfaceByID(id int) *Surface {\n\tfor i := range b.Surfaces {\n\t\tif b.Surfaces[i].ID == id {\n\t\t\treturn &b.Surfaces[i]\n\t\t}\n\t}\n\treturn nil\n}\n\n// AddSurface adds a surface with an auto-assigned ID. Returns the assigned ID.\nfunc (b *Bay) AddSurface(s Surface) (int, error) {\n\tif b.FindSurface(s.Name) != nil {\n\t\treturn 0, fmt.Errorf(\"surface %q already exists in bay %q\", s.Name, b.Name)\n\t}\n\ts.ID = b.NextSurfaceID()\n\tb.Surfaces = append(b.Surfaces, s)\n\treturn s.ID, nil\n}\n\n// RemoveSurface removes a surface by name.\nfunc (b *Bay) RemoveSurface(name string) error {\n\tfor i := range b.Surfaces {\n\t\tif b.Surfaces[i].Name == name {\n\t\t\tb.Surfaces = append(b.Surfaces[:i], b.Surfaces[i+1:]...)\n\t\t\treturn nil\n\t\t}\n\t}\n\treturn fmt.Errorf(\"surface %q not found in bay %q\", name, b.Name)\n}\n\n// --- Bay resolution ---\n\n// ResolveBay resolves a query that may be \"dock:id\" or a bare ID. Returns\n// pointers to the bay and its parent dock.\n//\n// Strict resolution: only IDs are accepted as CLI keys. If the query\n// looks like a Name (i.e. it doesn't match a known ID), the error\n// message hints at the canonical ID for any bay with a matching\n// Name, so users who type a friendly Name see a one-step fix.\n//\n// \"home\" is reserved per dock. A dock-qualified home query resolves to a\n// persisted BayTypeHome entry when one exists, or a synthesized empty home\n// bay backed by Dock.Path. Bare home has no manifest-wide answer because\n// every dock has its own home; callers with current-dock context should\n// qualify it before calling this resolver.\nfunc (m *Manifest) ResolveBay(query string) (*Bay, *Dock, error) {\n\t// Try \"dock:id\" format.\n\tif parts := strings.SplitN(query, \":\", 2); len(parts) == 2 {\n\t\td := m.FindDock(parts[0])\n\t\tif d == nil {\n\t\t\treturn nil, nil, fmt.Errorf(\"dock %q not found\", parts[0])\n\t\t}\n\t\tif IsReservedBayID(parts[1]) {\n\t\t\tbay, err := resolveReservedBay(d, parts[1])\n\t\t\tif err != nil {\n\t\t\t\treturn nil, nil, err\n\t\t\t}\n\t\t\treturn bay, d, nil\n\t\t}\n\t\tbay := d.FindBayByID(parts[1])\n\t\tif bay == nil {\n\t\t\treturn nil, nil, bayNotFoundError(parts[1], parts[0], dockNameHints(d, parts[1]))\n\t\t}\n\t\treturn bay, d, nil\n\t}\n\n\tif IsReservedBayID(query) {\n\t\treturn nil, nil, fmt.Errorf(\"home requires a dock context; use \\\"<dock>:home\\\" or run from a known dock\")\n\t}\n\n\t// Bare ID: search all docks.\n\tvar matches []struct {\n\t\tbay  *Bay\n\t\tdock *Dock\n\t}\n\tfor i := range m.Docks {\n\t\tif bay := m.Docks[i].FindBayByID(query); bay != nil {\n\t\t\tmatches = append(matches, struct {\n\t\t\t\tbay  *Bay\n\t\t\t\tdock *Dock\n\t\t\t}{bay, &m.Docks[i]})\n\t\t}\n\t}\n\n\tswitch len(matches) {\n\tcase 0:\n\t\treturn nil, nil, bayNotFoundError(query, \"\", manifestNameHints(m, query))\n\tcase 1:\n\t\treturn matches[0].bay, matches[0].dock, nil\n\tdefault:\n\t\tvar docks []string\n\t\tfor _, match := range matches {\n\t\t\tdocks = append(docks, match.dock.Name)\n\t\t}\n\t\treturn nil, nil, fmt.Errorf(\"bay ID %q is ambiguous; found in docks: %s\", query, strings.Join(docks, \", \"))\n\t}\n}\n\nfunc resolveReservedBay(d *Dock, id string) (*Bay, error) {\n\tswitch id {\n\tcase HomeBayID:\n\t\treturn resolveHomeBay(d)\n\tdefault:\n\t\treturn nil, fmt.Errorf(\"bay ID %q is reserved but has no resolver\", id)\n\t}\n}\n\n// SynthesizeHomeBay returns a fresh, non-persisted home Bay value for dock.\n// Later phases can persist this same shape once home has surfaces.\nfunc SynthesizeHomeBay(d *Dock) Bay {\n\tpath := \"\"\n\tif d != nil {\n\t\tpath = d.Path\n\t}\n\treturn Bay{\n\t\tID:              HomeBayID,\n\t\tName:            HomeBayID,\n\t\tType:            BayTypeHome,\n\t\tPath:            path,\n\t\tSurfaces:        []Surface{},\n\t\tPrepare:         []PrepareStep{},\n\t\tPendingSurfaces: []PendingLaunch{},\n\t}\n}\n\n// validateHomeBayShape returns an error describing the first home pseudo-bay\n// invariant violated by b for dock d, or nil if b is well-formed. Both AddBay\n// (insert) and resolveHomeBay (read) call this so the rules live in one place.\n// Read paths add dock context to the returned error.\nfunc validateHomeBayShape(d *Dock, b *Bay) error {\n\tif b.Type != BayTypeHome {\n\t\treturn fmt.Errorf(\"non-home bay with reserved ID %q\", HomeBayID)\n\t}\n\tif b.ID != HomeBayID || b.Name != HomeBayID {\n\t\treturn fmt.Errorf(\"home bay must use reserved ID/name %q (got id=%q name=%q)\", HomeBayID, b.ID, b.Name)\n\t}\n\tif b.Path != d.Path {\n\t\treturn fmt.Errorf(\"home bay path %q does not match expected dock path %q\", b.Path, d.Path)\n\t}\n\tif b.Worktree != nil {\n\t\treturn fmt.Errorf(\"home bay %q must not have worktree metadata\", HomeBayID)\n\t}\n\treturn nil\n}\n\nfunc resolveHomeBay(d *Dock) (*Bay, error) {\n\tvar byID, byName *Bay\n\tfor i := range d.Bays {\n\t\tswitch {\n\t\tcase d.Bays[i].ID == HomeBayID:\n\t\t\tbyID = &d.Bays[i]\n\t\tcase d.Bays[i].Name == HomeBayID:\n\t\t\tbyName = &d.Bays[i]\n\t\t}\n\t}\n\tif byID != nil {\n\t\tif err := validateHomeBayShape(d, byID); err != nil {\n\t\t\treturn nil, fmt.Errorf(\"dock %q has a %w\", d.Name, err)\n\t\t}\n\t\treturn byID, nil\n\t}\n\tif byName != nil {\n\t\treturn nil, fmt.Errorf(\"dock %q has a non-home bay named %q; rename or close it before using home\", d.Name, HomeBayID)\n\t}\n\thome := SynthesizeHomeBay(d)\n\treturn &home, nil\n}\n\n// nameHint pairs an ID with its parent dock for \"did you mean\" output.\ntype nameHint struct {\n\tid   string\n\tdock string\n}\n\n// dockNameHints returns IDs of bays in d whose Name equals query.\nfunc dockNameHints(d *Dock, query string) []nameHint {\n\tvar hints []nameHint\n\tfor i := range d.Bays {\n\t\tif d.Bays[i].Name == query {\n\t\t\thints = append(hints, nameHint{id: d.Bays[i].ID, dock: d.Name})\n\t\t}\n\t}\n\treturn hints\n}\n\n// manifestNameHints returns IDs of bays across all docks whose\n// Name equals query.\nfunc manifestNameHints(m *Manifest, query string) []nameHint {\n\tvar hints []nameHint\n\tfor i := range m.Docks {\n\t\thints = append(hints, dockNameHints(&m.Docks[i], query)...)\n\t}\n\treturn hints\n}\n\n// bayNotFoundError formats a \"bay not found\" error,\n// optionally adding a \"did you mean\" pointer at the canonical ID for\n// any bay whose Name matched the query.\nfunc bayNotFoundError(query, dockName string, hints []nameHint) error {\n\tbase := fmt.Sprintf(\"bay %q not found\", query)\n\tif dockName != \"\" {\n\t\tbase = fmt.Sprintf(\"bay %q not found in dock %q\", query, dockName)\n\t}\n\tswitch len(hints) {\n\tcase 0:\n\t\treturn fmt.Errorf(\"%s\", base)\n\tcase 1:\n\t\treturn fmt.Errorf(\"%s; did you mean %q? (Names are not CLI keys; use the ID)\", base, hints[0].id)\n\tdefault:\n\t\tparts := make([]string, len(hints))\n\t\tfor i, h := range hints {\n\t\t\tparts[i] = fmt.Sprintf(\"%q (%s)\", h.id, h.dock)\n\t\t}\n\t\treturn fmt.Errorf(\"%s; did you mean one of: %s? (Names are not CLI keys; use the ID)\", base, strings.Join(parts, \", \"))\n\t}\n}\n\n// --- Validation ---\n\n// Validate checks the surface for structural errors.\nfunc (s *Surface) Validate() []string {\n\tvar errs []string\n\tif s.Backend == SurfaceBackendTmux && s.Tmux == nil {\n\t\terrs = append(errs, fmt.Sprintf(\"surface %q: backend is %q but tmux attrs is nil\", s.Name, s.Backend))\n\t}\n\tif s.Backend == SurfaceBackendGUI && s.GUI == nil {\n\t\terrs = append(errs, fmt.Sprintf(\"surface %q: backend is %q but gui attrs is nil\", s.Name, s.Backend))\n\t}\n\tif s.Tmux != nil && s.GUI != nil {\n\t\terrs = append(errs, fmt.Sprintf(\"surface %q: both tmux and gui attrs are set\", s.Name))\n\t}\n\tif s.Type == SurfaceTypeAgent && s.Agent == nil {\n\t\terrs = append(errs, fmt.Sprintf(\"surface %q: type is %q but agent is nil\", s.Name, s.Type))\n\t}\n\tif s.Type == SurfaceTypeCmd && s.Command == nil {\n\t\terrs = append(errs, fmt.Sprintf(\"surface %q: type is %q but command is nil\", s.Name, s.Type))\n\t}\n\tif s.Type != SurfaceTypeAgent && s.Agent != nil {\n\t\terrs = append(errs, fmt.Sprintf(\"surface %q: type is %q but agent is set\", s.Name, s.Type))\n\t}\n\tif s.Type != SurfaceTypeCmd && s.Command != nil {\n\t\terrs = append(errs, fmt.Sprintf(\"surface %q: type is %q but command is set\", s.Name, s.Type))\n\t}\n\treturn errs\n}\n\n// --- Private helpers ---\n\nfunc copyFile(src, dst string) error {\n\tdata, err := os.ReadFile(src)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn os.WriteFile(dst, data, 0o644)\n}\n"
+      }
+    ],
+    "namespaces": [],
+    "imports": [],
+    "definitions": [
+      {
+        "id": "def:go::error",
+        "kind": "trait",
+        "name": "error",
+        "stable_identity": "go::error",
+        "scope": "library",
+        "standard": true,
+        "operation": "go:error"
+      },
+      {
+        "id": "def:go::github.com/commonfabric/bay/internal/manifest.nameHint",
+        "kind": "type",
+        "name": "github.com/commonfabric/bay/internal/manifest.nameHint",
+        "stable_identity": "go::github.com/commonfabric/bay/internal/manifest.nameHint",
+        "scope": "unit"
+      },
+      {
+        "id": "def:go::github.com/commonfabric/bay/internal/manifest.bayNotFoundError",
+        "kind": "function",
+        "name": "bayNotFoundError",
+        "stable_identity": "go::github.com/commonfabric/bay/internal/manifest.bayNotFoundError",
+        "scope": "unit",
+        "span": {
+          "file": "file:internal/manifest/manifest.go",
+          "start": 40769,
+          "end": 41410
+        },
+        "callable": {
+          "parameters": [
+            "t1",
+            "t1",
+            "t112"
+          ],
+          "result": "t18",
+          "generics": 0,
+          "modifiers": []
+        },
+        "compilation": "github.com/commonfabric/bay/internal/manifest"
+      },
+      {
+        "id": "def:go::fmt.Errorf",
+        "kind": "function",
+        "name": "fmt.Errorf",
+        "stable_identity": "go::fmt.Errorf",
+        "scope": "library",
+        "callable": {
+          "parameters": [
+            "t1",
+            "t156"
+          ],
+          "result": "t18",
+          "generics": 0,
+          "modifiers": [
+            "variadic"
+          ]
+        },
+        "compilation": "fmt",
+        "standard": true,
+        "operation": "go:fmt.Errorf"
+      },
+      {
+        "id": "def:go::len",
+        "kind": "function",
+        "name": "len",
+        "stable_identity": "go::len",
+        "scope": "library",
+        "standard": true,
+        "operation": "go:len"
+      },
+      {
+        "id": "def:go::make",
+        "kind": "function",
+        "name": "make",
+        "stable_identity": "go::make",
+        "scope": "library",
+        "standard": true,
+        "operation": "go:make"
+      },
+      {
+        "id": "def:go::fmt.Sprintf",
+        "kind": "function",
+        "name": "fmt.Sprintf",
+        "stable_identity": "go::fmt.Sprintf",
+        "scope": "library",
+        "callable": {
+          "parameters": [
+            "t1",
+            "t156"
+          ],
+          "result": "t1",
+          "generics": 0,
+          "modifiers": [
+            "variadic"
+          ]
+        },
+        "compilation": "fmt",
+        "standard": true,
+        "operation": "go:fmt.Sprintf"
+      },
+      {
+        "id": "def:go::strings.Join",
+        "kind": "function",
+        "name": "strings.Join",
+        "stable_identity": "go::strings.Join",
+        "scope": "library",
+        "callable": {
+          "parameters": [
+            "t17",
+            "t1"
+          ],
+          "result": "t1",
+          "generics": 0,
+          "modifiers": []
+        },
+        "compilation": "strings",
+        "standard": true,
+        "operation": "go:strings.Join"
+      }
+    ],
+    "types": [
+      {
+        "id": "t0",
+        "kind": "unit",
+        "spelling": "()"
+      },
+      {
+        "id": "t1",
+        "kind": "string",
+        "spelling": "string"
+      },
+      {
+        "id": "t10",
+        "kind": "integer",
+        "spelling": "int",
+        "bits": 64,
+        "signed": true,
+        "pointer_sized": true
+      },
+      {
+        "id": "t11",
+        "kind": "bool",
+        "spelling": "bool"
+      },
+      {
+        "id": "t17",
+        "kind": "sequence",
+        "spelling": "[]string",
+        "element": "t1",
+        "fixed": false
+      },
+      {
+        "id": "t18",
+        "kind": "interface",
+        "spelling": "error",
+        "definition": "def:go::error",
+        "bounds": []
+      },
+      {
+        "id": "t113",
+        "kind": "record",
+        "spelling": "github.com/commonfabric/bay/internal/manifest.nameHint",
+        "definition": "def:go::github.com/commonfabric/bay/internal/manifest.nameHint",
+        "fields": [
+          {
+            "name": "id",
+            "type": "t1"
+          },
+          {
+            "name": "dock",
+            "type": "t1"
+          }
+        ]
+      },
+      {
+        "id": "t112",
+        "kind": "sequence",
+        "spelling": "[]github.com/commonfabric/bay/internal/manifest.nameHint",
+        "element": "t113",
+        "fixed": false
+      },
+      {
+        "id": "t119",
+        "kind": "opaque",
+        "spelling": "unknown",
+        "bounds": []
+      },
+      {
+        "id": "t149",
+        "kind": "interface",
+        "spelling": "interface{}",
+        "bounds": []
+      },
+      {
+        "id": "t156",
+        "kind": "sequence",
+        "spelling": "[]any",
+        "element": "t149",
+        "fixed": false
+      },
+      {
+        "id": "t157",
+        "kind": "function",
+        "spelling": "def:go::fmt.Errorf",
+        "definition": "def:go::fmt.Errorf",
+        "parameters": [
+          "t1",
+          "t156"
+        ],
+        "result": "t18"
+      },
+      {
+        "id": "t168",
+        "kind": "function",
+        "spelling": "def:go::len",
+        "definition": "def:go::len",
+        "parameters": [],
+        "result": "t0"
+      },
+      {
+        "id": "t171",
+        "kind": "function",
+        "spelling": "def:go::make",
+        "definition": "def:go::make",
+        "parameters": [],
+        "result": "t0"
+      },
+      {
+        "id": "t217",
+        "kind": "function",
+        "spelling": "def:go::fmt.Sprintf",
+        "definition": "def:go::fmt.Sprintf",
+        "parameters": [
+          "t1",
+          "t156"
+        ],
+        "result": "t1"
+      },
+      {
+        "id": "t228",
+        "kind": "function",
+        "spelling": "def:go::strings.Join",
+        "definition": "def:go::strings.Join",
+        "parameters": [
+          "t17",
+          "t1"
+        ],
+        "result": "t1"
+      },
+      {
+        "id": "t264",
+        "kind": "tuple",
+        "spelling": "(int, github.com/commonfabric/bay/internal/manifest.nameHint)",
+        "items": [
+          "t10",
+          "t113"
+        ]
+      }
+    ],
+    "values": [],
+    "instances": [],
+    "functions": [
+      {
+        "id": "f65",
+        "definition": "def:go::github.com/commonfabric/bay/internal/manifest.bayNotFoundError",
+        "name": "bayNotFoundError",
+        "span": {
+          "file": "file:internal/manifest/manifest.go",
+          "start": 40769,
+          "end": 41410
+        },
+        "signature": {
+          "span": {
+            "file": "file:internal/manifest/manifest.go",
+            "start": 40769,
+            "end": 40838
+          },
+          "parameters": [
+            {
+              "position": 0,
+              "symbol": "f65.s0",
+              "type": "t1",
+              "span": {
+                "file": "file:internal/manifest/manifest.go",
+                "start": 40791,
+                "end": 40796
+              },
+              "annotation": {
+                "file": "file:internal/manifest/manifest.go",
+                "start": 40807,
+                "end": 40813
+              }
+            },
+            {
+              "position": 1,
+              "symbol": "f65.s1",
+              "type": "t1",
+              "span": {
+                "file": "file:internal/manifest/manifest.go",
+                "start": 40798,
+                "end": 40806
+              },
+              "annotation": {
+                "file": "file:internal/manifest/manifest.go",
+                "start": 40807,
+                "end": 40813
+              }
+            },
+            {
+              "position": 2,
+              "symbol": "f65.s2",
+              "type": "t112",
+              "span": {
+                "file": "file:internal/manifest/manifest.go",
+                "start": 40815,
+                "end": 40820
+              },
+              "annotation": {
+                "file": "file:internal/manifest/manifest.go",
+                "start": 40821,
+                "end": 40831
+              }
+            }
+          ],
+          "result": "t18",
+          "generics": [],
+          "lifetimes": [],
+          "outlives": [],
+          "modifiers": []
+        },
+        "root": "f65.n89",
+        "nodes": [
+          {
+            "id": "f65.n0",
+            "kind": "identifier",
+            "original_kind": "SelectorExpr.qualified",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40850,
+              "end": 40861
+            },
+            "children": [],
+            "type": "t217",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n1",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40862,
+              "end": 40880
+            },
+            "children": [],
+            "type": "t1",
+            "literal": "\"bay %q not found\"",
+            "value": {
+              "kind": "string",
+              "value": "bay %q not found"
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n2",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40882,
+              "end": 40887
+            },
+            "children": [],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n3",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40850,
+              "end": 40888
+            },
+            "children": [
+              "f65.n0",
+              "f65.n1",
+              "f65.n2"
+            ],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n4",
+            "kind": "pattern_binding",
+            "original_kind": "Ident.binding",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40842,
+              "end": 40846
+            },
+            "children": [],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n5",
+            "kind": "local_declaration",
+            "original_kind": "AssignStmt.define",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40842,
+              "end": 40888
+            },
+            "children": [
+              "f65.n4",
+              "f65.n3"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n6",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40893,
+              "end": 40901
+            },
+            "children": [],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n7",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40905,
+              "end": 40907
+            },
+            "children": [],
+            "type": "t1",
+            "literal": "\"\"",
+            "value": {
+              "kind": "string",
+              "value": ""
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n8",
+            "kind": "operator",
+            "original_kind": "BinaryExpr",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40893,
+              "end": 40907
+            },
+            "children": [
+              "f65.n6",
+              "f65.n7"
+            ],
+            "type": "t11",
+            "operator": "ne",
+            "token": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40902,
+              "end": 40904
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n9",
+            "kind": "identifier",
+            "original_kind": "SelectorExpr.qualified",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40919,
+              "end": 40930
+            },
+            "children": [],
+            "type": "t217",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n10",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40931,
+              "end": 40960
+            },
+            "children": [],
+            "type": "t1",
+            "literal": "\"bay %q not found in dock %q\"",
+            "value": {
+              "kind": "string",
+              "value": "bay %q not found in dock %q"
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n11",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40962,
+              "end": 40967
+            },
+            "children": [],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n12",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40969,
+              "end": 40977
+            },
+            "children": [],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n13",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40919,
+              "end": 40978
+            },
+            "children": [
+              "f65.n9",
+              "f65.n10",
+              "f65.n11",
+              "f65.n12"
+            ],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n14",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40912,
+              "end": 40916
+            },
+            "children": [],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n15",
+            "kind": "assignment",
+            "original_kind": "AssignStmt",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40912,
+              "end": 40978
+            },
+            "children": [
+              "f65.n14",
+              "f65.n13"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n16",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40912,
+              "end": 40978
+            },
+            "children": [
+              "f65.n15"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n17",
+            "kind": "block",
+            "original_kind": "BlockStmt",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40908,
+              "end": 40981
+            },
+            "children": [
+              "f65.n16"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n18",
+            "kind": "if",
+            "original_kind": "IfStmt",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40890,
+              "end": 40981
+            },
+            "children": [
+              "f65.n8",
+              "f65.n17"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n19",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40890,
+              "end": 40981
+            },
+            "children": [
+              "f65.n18"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n20",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40990,
+              "end": 40993
+            },
+            "children": [],
+            "type": "t168",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n21",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40994,
+              "end": 40999
+            },
+            "children": [],
+            "type": "t112",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n22",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40990,
+              "end": 41000
+            },
+            "children": [
+              "f65.n20",
+              "f65.n21"
+            ],
+            "type": "t10",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n23",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41009,
+              "end": 41010
+            },
+            "children": [],
+            "type": "t10",
+            "literal": "0",
+            "value": {
+              "kind": "integer",
+              "value": "0"
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n24",
+            "kind": "pattern_literal",
+            "original_kind": "CaseClause.value",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41009,
+              "end": 41010
+            },
+            "children": [
+              "f65.n23"
+            ],
+            "type": "t10",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n25",
+            "kind": "identifier",
+            "original_kind": "SelectorExpr.qualified",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41021,
+              "end": 41031
+            },
+            "children": [],
+            "type": "t157",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n26",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41032,
+              "end": 41036
+            },
+            "children": [],
+            "type": "t1",
+            "literal": "\"%s\"",
+            "value": {
+              "kind": "string",
+              "value": "%s"
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n27",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41038,
+              "end": 41042
+            },
+            "children": [],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n28",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41021,
+              "end": 41043
+            },
+            "children": [
+              "f65.n25",
+              "f65.n26",
+              "f65.n27"
+            ],
+            "type": "t18",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n29",
+            "kind": "return",
+            "original_kind": "ReturnStmt",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41014,
+              "end": 41043
+            },
+            "children": [
+              "f65.n28"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n30",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41014,
+              "end": 41043
+            },
+            "children": [
+              "f65.n29"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n31",
+            "kind": "block",
+            "original_kind": "Clause.body",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41014,
+              "end": 41043
+            },
+            "children": [
+              "f65.n30"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n32",
+            "kind": "match_arm",
+            "original_kind": "CaseClause",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41004,
+              "end": 41043
+            },
+            "children": [
+              "f65.n24",
+              "f65.n31"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n33",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41050,
+              "end": 41051
+            },
+            "children": [],
+            "type": "t10",
+            "literal": "1",
+            "value": {
+              "kind": "integer",
+              "value": "1"
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n34",
+            "kind": "pattern_literal",
+            "original_kind": "CaseClause.value",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41050,
+              "end": 41051
+            },
+            "children": [
+              "f65.n33"
+            ],
+            "type": "t10",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n35",
+            "kind": "identifier",
+            "original_kind": "SelectorExpr.qualified",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41062,
+              "end": 41072
+            },
+            "children": [],
+            "type": "t157",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n36",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41073,
+              "end": 41132
+            },
+            "children": [],
+            "type": "t1",
+            "literal": "\"%s; did you mean %q? (Names are not CLI keys; use the ID)\"",
+            "value": {
+              "kind": "string",
+              "value": "%s; did you mean %q? (Names are not CLI keys; use the ID)"
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n37",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41134,
+              "end": 41138
+            },
+            "children": [],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n38",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41140,
+              "end": 41145
+            },
+            "children": [],
+            "type": "t112",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n39",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41146,
+              "end": 41147
+            },
+            "children": [],
+            "type": "t10",
+            "literal": "0",
+            "value": {
+              "kind": "integer",
+              "value": "0"
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n40",
+            "kind": "index_access",
+            "original_kind": "IndexExpr",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41140,
+              "end": 41148
+            },
+            "children": [
+              "f65.n38",
+              "f65.n39"
+            ],
+            "type": "t113",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n41",
+            "kind": "field_access",
+            "original_kind": "SelectorExpr.field",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41140,
+              "end": 41151
+            },
+            "children": [
+              "f65.n40"
+            ],
+            "type": "t1",
+            "member": "id",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n42",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41062,
+              "end": 41152
+            },
+            "children": [
+              "f65.n35",
+              "f65.n36",
+              "f65.n37",
+              "f65.n41"
+            ],
+            "type": "t18",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n43",
+            "kind": "return",
+            "original_kind": "ReturnStmt",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41055,
+              "end": 41152
+            },
+            "children": [
+              "f65.n42"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n44",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41055,
+              "end": 41152
+            },
+            "children": [
+              "f65.n43"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n45",
+            "kind": "block",
+            "original_kind": "Clause.body",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41055,
+              "end": 41152
+            },
+            "children": [
+              "f65.n44"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n46",
+            "kind": "match_arm",
+            "original_kind": "CaseClause",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41045,
+              "end": 41152
+            },
+            "children": [
+              "f65.n34",
+              "f65.n45"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n47",
+            "kind": "pattern_wildcard",
+            "original_kind": "Clause.default",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41154,
+              "end": 41161
+            },
+            "children": [],
+            "type": "t119",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n48",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41174,
+              "end": 41178
+            },
+            "children": [],
+            "type": "t171",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n49",
+            "kind": "type_annotation",
+            "original_kind": "ArrayType.type",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41179,
+              "end": 41187
+            },
+            "children": [],
+            "type": "t17",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n50",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41189,
+              "end": 41192
+            },
+            "children": [],
+            "type": "t168",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n51",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41193,
+              "end": 41198
+            },
+            "children": [],
+            "type": "t112",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n52",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41189,
+              "end": 41199
+            },
+            "children": [
+              "f65.n50",
+              "f65.n51"
+            ],
+            "type": "t10",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n53",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41174,
+              "end": 41200
+            },
+            "children": [
+              "f65.n48",
+              "f65.n49",
+              "f65.n52"
+            ],
+            "type": "t17",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n54",
+            "kind": "pattern_binding",
+            "original_kind": "Ident.binding",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41165,
+              "end": 41170
+            },
+            "children": [],
+            "type": "t17",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n55",
+            "kind": "local_declaration",
+            "original_kind": "AssignStmt.define",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41165,
+              "end": 41200
+            },
+            "children": [
+              "f65.n54",
+              "f65.n53"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n56",
+            "kind": "pattern_binding",
+            "original_kind": "Ident.binding",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41207,
+              "end": 41208
+            },
+            "children": [],
+            "type": "t10",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n57",
+            "kind": "pattern_binding",
+            "original_kind": "Ident.binding",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41210,
+              "end": 41211
+            },
+            "children": [],
+            "type": "t113",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n58",
+            "kind": "pattern_tuple",
+            "original_kind": "RangeStmt.vars",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41207,
+              "end": 41211
+            },
+            "children": [
+              "f65.n56",
+              "f65.n57"
+            ],
+            "type": "t264",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n59",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41221,
+              "end": 41226
+            },
+            "children": [],
+            "type": "t112",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n60",
+            "kind": "identifier",
+            "original_kind": "SelectorExpr.qualified",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41243,
+              "end": 41254
+            },
+            "children": [],
+            "type": "t217",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n61",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41255,
+              "end": 41264
+            },
+            "children": [],
+            "type": "t1",
+            "literal": "\"%q (%s)\"",
+            "value": {
+              "kind": "string",
+              "value": "%q (%s)"
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n62",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41266,
+              "end": 41267
+            },
+            "children": [],
+            "type": "t113",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n63",
+            "kind": "field_access",
+            "original_kind": "SelectorExpr.field",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41266,
+              "end": 41270
+            },
+            "children": [
+              "f65.n62"
+            ],
+            "type": "t1",
+            "member": "id",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n64",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41272,
+              "end": 41273
+            },
+            "children": [],
+            "type": "t113",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n65",
+            "kind": "field_access",
+            "original_kind": "SelectorExpr.field",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41272,
+              "end": 41278
+            },
+            "children": [
+              "f65.n64"
+            ],
+            "type": "t1",
+            "member": "dock",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n66",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41243,
+              "end": 41279
+            },
+            "children": [
+              "f65.n60",
+              "f65.n61",
+              "f65.n63",
+              "f65.n65"
+            ],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n67",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41232,
+              "end": 41237
+            },
+            "children": [],
+            "type": "t17",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n68",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41238,
+              "end": 41239
+            },
+            "children": [],
+            "type": "t10",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n69",
+            "kind": "index_access",
+            "original_kind": "IndexExpr",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41232,
+              "end": 41240
+            },
+            "children": [
+              "f65.n67",
+              "f65.n68"
+            ],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n70",
+            "kind": "assignment",
+            "original_kind": "AssignStmt",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41232,
+              "end": 41279
+            },
+            "children": [
+              "f65.n69",
+              "f65.n66"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n71",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41232,
+              "end": 41279
+            },
+            "children": [
+              "f65.n70"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n72",
+            "kind": "block",
+            "original_kind": "BlockStmt",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41227,
+              "end": 41283
+            },
+            "children": [
+              "f65.n71"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n73",
+            "kind": "for",
+            "original_kind": "RangeStmt",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41203,
+              "end": 41283
+            },
+            "children": [
+              "f65.n58",
+              "f65.n59",
+              "f65.n72"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n74",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41203,
+              "end": 41283
+            },
+            "children": [
+              "f65.n73"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n75",
+            "kind": "identifier",
+            "original_kind": "SelectorExpr.qualified",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41293,
+              "end": 41303
+            },
+            "children": [],
+            "type": "t157",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n76",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41304,
+              "end": 41371
+            },
+            "children": [],
+            "type": "t1",
+            "literal": "\"%s; did you mean one of: %s? (Names are not CLI keys; use the ID)\"",
+            "value": {
+              "kind": "string",
+              "value": "%s; did you mean one of: %s? (Names are not CLI keys; use the ID)"
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n77",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41373,
+              "end": 41377
+            },
+            "children": [],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n78",
+            "kind": "identifier",
+            "original_kind": "SelectorExpr.qualified",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41379,
+              "end": 41391
+            },
+            "children": [],
+            "type": "t228",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n79",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41392,
+              "end": 41397
+            },
+            "children": [],
+            "type": "t17",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n80",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41399,
+              "end": 41403
+            },
+            "children": [],
+            "type": "t1",
+            "literal": "\", \"",
+            "value": {
+              "kind": "string",
+              "value": ", "
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n81",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41379,
+              "end": 41404
+            },
+            "children": [
+              "f65.n78",
+              "f65.n79",
+              "f65.n80"
+            ],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n82",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41293,
+              "end": 41405
+            },
+            "children": [
+              "f65.n75",
+              "f65.n76",
+              "f65.n77",
+              "f65.n81"
+            ],
+            "type": "t18",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n83",
+            "kind": "return",
+            "original_kind": "ReturnStmt",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41286,
+              "end": 41405
+            },
+            "children": [
+              "f65.n82"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n84",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41286,
+              "end": 41405
+            },
+            "children": [
+              "f65.n83"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n85",
+            "kind": "block",
+            "original_kind": "Clause.body",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41165,
+              "end": 41405
+            },
+            "children": [
+              "f65.n55",
+              "f65.n74",
+              "f65.n84"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n86",
+            "kind": "match_arm",
+            "original_kind": "CaseClause",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41154,
+              "end": 41405
+            },
+            "children": [
+              "f65.n47",
+              "f65.n85"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n87",
+            "kind": "match",
+            "original_kind": "SwitchStmt",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40983,
+              "end": 41408
+            },
+            "children": [
+              "f65.n22",
+              "f65.n32",
+              "f65.n46",
+              "f65.n86"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n88",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40983,
+              "end": 41408
+            },
+            "children": [
+              "f65.n87"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f65.n89",
+            "kind": "block",
+            "original_kind": "BlockStmt",
+            "span": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40839,
+              "end": 41410
+            },
+            "children": [
+              "f65.n5",
+              "f65.n19",
+              "f65.n88"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          }
+        ],
+        "cfg": {
+          "entry": "f65.entry",
+          "exits": [
+            {
+              "id": "f65.exit",
+              "kind": "normal"
+            }
+          ],
+          "edges": [
+            {
+              "id": "f65.e0",
+              "source": "f65.entry",
+              "target": "f65.n0",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e1",
+              "source": "f65.n0",
+              "target": "f65.n1",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e2",
+              "source": "f65.n1",
+              "target": "f65.n2",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e3",
+              "source": "f65.n2",
+              "target": "f65.n3",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e4",
+              "source": "f65.n3",
+              "target": "f65.n4",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e5",
+              "source": "f65.n4",
+              "target": "f65.n5",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e6",
+              "source": "f65.n5",
+              "target": "f65.n6",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e7",
+              "source": "f65.n6",
+              "target": "f65.n7",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e8",
+              "source": "f65.n7",
+              "target": "f65.n8",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e9",
+              "source": "f65.n8",
+              "target": "f65.n9",
+              "kind": "true"
+            },
+            {
+              "id": "f65.e10",
+              "source": "f65.n9",
+              "target": "f65.n10",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e11",
+              "source": "f65.n10",
+              "target": "f65.n11",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e12",
+              "source": "f65.n11",
+              "target": "f65.n12",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e13",
+              "source": "f65.n12",
+              "target": "f65.n13",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e14",
+              "source": "f65.n13",
+              "target": "f65.n14",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e15",
+              "source": "f65.n14",
+              "target": "f65.n15",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e16",
+              "source": "f65.n15",
+              "target": "f65.n16",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e17",
+              "source": "f65.n16",
+              "target": "f65.n17",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e18",
+              "source": "f65.n8",
+              "target": "f65.n18",
+              "kind": "false"
+            },
+            {
+              "id": "f65.e19",
+              "source": "f65.n17",
+              "target": "f65.n18",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e20",
+              "source": "f65.n18",
+              "target": "f65.n19",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e21",
+              "source": "f65.n19",
+              "target": "f65.n20",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e22",
+              "source": "f65.n20",
+              "target": "f65.n21",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e23",
+              "source": "f65.n21",
+              "target": "f65.n22",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e24",
+              "source": "f65.n22",
+              "target": "f65.n23",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e25",
+              "source": "f65.n23",
+              "target": "f65.n24",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e26",
+              "source": "f65.n24",
+              "target": "f65.n33",
+              "kind": "false"
+            },
+            {
+              "id": "f65.e27",
+              "source": "f65.n33",
+              "target": "f65.n34",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e28",
+              "source": "f65.n24",
+              "target": "f65.n25",
+              "kind": "case"
+            },
+            {
+              "id": "f65.e29",
+              "source": "f65.n25",
+              "target": "f65.n26",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e30",
+              "source": "f65.n26",
+              "target": "f65.n27",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e31",
+              "source": "f65.n27",
+              "target": "f65.n28",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e32",
+              "source": "f65.n28",
+              "target": "f65.n29",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e33",
+              "source": "f65.n29",
+              "target": "f65.exit",
+              "kind": "return"
+            },
+            {
+              "id": "f65.e34",
+              "source": "f65.n34",
+              "target": "f65.n35",
+              "kind": "case"
+            },
+            {
+              "id": "f65.e35",
+              "source": "f65.n35",
+              "target": "f65.n36",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e36",
+              "source": "f65.n36",
+              "target": "f65.n37",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e37",
+              "source": "f65.n37",
+              "target": "f65.n38",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e38",
+              "source": "f65.n38",
+              "target": "f65.n39",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e39",
+              "source": "f65.n39",
+              "target": "f65.n40",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e40",
+              "source": "f65.n40",
+              "target": "f65.n41",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e41",
+              "source": "f65.n41",
+              "target": "f65.n42",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e42",
+              "source": "f65.n42",
+              "target": "f65.n43",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e43",
+              "source": "f65.n43",
+              "target": "f65.exit",
+              "kind": "return"
+            },
+            {
+              "id": "f65.e44",
+              "source": "f65.n34",
+              "target": "f65.n47",
+              "kind": "default"
+            },
+            {
+              "id": "f65.e45",
+              "source": "f65.n47",
+              "target": "f65.n48",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e46",
+              "source": "f65.n48",
+              "target": "f65.n50",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e47",
+              "source": "f65.n50",
+              "target": "f65.n51",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e48",
+              "source": "f65.n51",
+              "target": "f65.n52",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e49",
+              "source": "f65.n52",
+              "target": "f65.n53",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e50",
+              "source": "f65.n53",
+              "target": "f65.n54",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e51",
+              "source": "f65.n54",
+              "target": "f65.n55",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e52",
+              "source": "f65.n55",
+              "target": "f65.n59",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e53",
+              "source": "f65.n59",
+              "target": "f65.n73",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e54",
+              "source": "f65.n73",
+              "target": "f65.n56",
+              "kind": "true"
+            },
+            {
+              "id": "f65.e55",
+              "source": "f65.n56",
+              "target": "f65.n57",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e56",
+              "source": "f65.n57",
+              "target": "f65.n58",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e57",
+              "source": "f65.n58",
+              "target": "f65.n67",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e58",
+              "source": "f65.n67",
+              "target": "f65.n68",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e59",
+              "source": "f65.n68",
+              "target": "f65.n60",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e60",
+              "source": "f65.n60",
+              "target": "f65.n61",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e61",
+              "source": "f65.n61",
+              "target": "f65.n62",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e62",
+              "source": "f65.n62",
+              "target": "f65.n63",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e63",
+              "source": "f65.n63",
+              "target": "f65.n64",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e64",
+              "source": "f65.n64",
+              "target": "f65.n65",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e65",
+              "source": "f65.n65",
+              "target": "f65.n66",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e66",
+              "source": "f65.n66",
+              "target": "f65.n69",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e67",
+              "source": "f65.n69",
+              "target": "f65.n70",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e68",
+              "source": "f65.n70",
+              "target": "f65.n71",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e69",
+              "source": "f65.n71",
+              "target": "f65.n72",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e70",
+              "source": "f65.n72",
+              "target": "f65.n73",
+              "kind": "normal",
+              "loop_role": "back_edge"
+            },
+            {
+              "id": "f65.e71",
+              "source": "f65.n73",
+              "target": "f65.n74",
+              "kind": "false",
+              "loop_role": "loop_exit"
+            },
+            {
+              "id": "f65.e72",
+              "source": "f65.n74",
+              "target": "f65.n75",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e73",
+              "source": "f65.n75",
+              "target": "f65.n76",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e74",
+              "source": "f65.n76",
+              "target": "f65.n77",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e75",
+              "source": "f65.n77",
+              "target": "f65.n78",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e76",
+              "source": "f65.n78",
+              "target": "f65.n79",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e77",
+              "source": "f65.n79",
+              "target": "f65.n80",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e78",
+              "source": "f65.n80",
+              "target": "f65.n81",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e79",
+              "source": "f65.n81",
+              "target": "f65.n82",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e80",
+              "source": "f65.n82",
+              "target": "f65.n83",
+              "kind": "normal"
+            },
+            {
+              "id": "f65.e81",
+              "source": "f65.n83",
+              "target": "f65.exit",
+              "kind": "return"
+            }
+          ]
+        },
+        "symbols": [
+          {
+            "id": "f65.s0",
+            "name": "query",
+            "kind": "parameter",
+            "scope": "f65",
+            "declared": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40791,
+              "end": 40796
+            },
+            "mutable": false,
+            "type": "t1"
+          },
+          {
+            "id": "f65.s1",
+            "name": "dockName",
+            "kind": "parameter",
+            "scope": "f65",
+            "declared": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40798,
+              "end": 40806
+            },
+            "mutable": false,
+            "type": "t1"
+          },
+          {
+            "id": "f65.s2",
+            "name": "hints",
+            "kind": "parameter",
+            "scope": "f65",
+            "declared": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40815,
+              "end": 40820
+            },
+            "mutable": false,
+            "type": "t112"
+          },
+          {
+            "id": "f65.s3",
+            "name": "base",
+            "kind": "local",
+            "scope": "f65",
+            "declared": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 40842,
+              "end": 40846
+            },
+            "node": "f65.n4",
+            "mutable": true,
+            "type": "t1"
+          },
+          {
+            "id": "f65.s4",
+            "name": "parts",
+            "kind": "local",
+            "scope": "f65",
+            "declared": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41165,
+              "end": 41170
+            },
+            "node": "f65.n54",
+            "mutable": false,
+            "type": "t17"
+          },
+          {
+            "id": "f65.s5",
+            "name": "i",
+            "kind": "local",
+            "scope": "f65",
+            "declared": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41207,
+              "end": 41208
+            },
+            "node": "f65.n56",
+            "mutable": false,
+            "type": "t10"
+          },
+          {
+            "id": "f65.s6",
+            "name": "h",
+            "kind": "local",
+            "scope": "f65",
+            "declared": {
+              "file": "file:internal/manifest/manifest.go",
+              "start": 41210,
+              "end": 41211
+            },
+            "node": "f65.n57",
+            "mutable": false,
+            "type": "t113"
+          }
+        ],
+        "accesses": [
+          {
+            "node": "f65.n2",
+            "symbol": "f65.s0",
+            "mode": "read"
+          },
+          {
+            "node": "f65.n4",
+            "symbol": "f65.s3",
+            "mode": "write"
+          },
+          {
+            "node": "f65.n6",
+            "symbol": "f65.s1",
+            "mode": "read"
+          },
+          {
+            "node": "f65.n11",
+            "symbol": "f65.s0",
+            "mode": "read"
+          },
+          {
+            "node": "f65.n12",
+            "symbol": "f65.s1",
+            "mode": "read"
+          },
+          {
+            "node": "f65.n14",
+            "symbol": "f65.s3",
+            "mode": "write"
+          },
+          {
+            "node": "f65.n21",
+            "symbol": "f65.s2",
+            "mode": "read"
+          },
+          {
+            "node": "f65.n27",
+            "symbol": "f65.s3",
+            "mode": "read"
+          },
+          {
+            "node": "f65.n37",
+            "symbol": "f65.s3",
+            "mode": "read"
+          },
+          {
+            "node": "f65.n38",
+            "symbol": "f65.s2",
+            "mode": "read"
+          },
+          {
+            "node": "f65.n51",
+            "symbol": "f65.s2",
+            "mode": "read"
+          },
+          {
+            "node": "f65.n54",
+            "symbol": "f65.s4",
+            "mode": "write"
+          },
+          {
+            "node": "f65.n56",
+            "symbol": "f65.s5",
+            "mode": "write"
+          },
+          {
+            "node": "f65.n57",
+            "symbol": "f65.s6",
+            "mode": "write"
+          },
+          {
+            "node": "f65.n59",
+            "symbol": "f65.s2",
+            "mode": "read"
+          },
+          {
+            "node": "f65.n62",
+            "symbol": "f65.s6",
+            "mode": "read"
+          },
+          {
+            "node": "f65.n64",
+            "symbol": "f65.s6",
+            "mode": "read"
+          },
+          {
+            "node": "f65.n67",
+            "symbol": "f65.s4",
+            "mode": "read_write"
+          },
+          {
+            "node": "f65.n68",
+            "symbol": "f65.s5",
+            "mode": "read"
+          },
+          {
+            "node": "f65.n77",
+            "symbol": "f65.s3",
+            "mode": "read"
+          },
+          {
+            "node": "f65.n79",
+            "symbol": "f65.s4",
+            "mode": "read"
+          }
+        ],
+        "refs": [
+          {
+            "node": "f65.n0",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::fmt.Sprintf"
+            }
+          },
+          {
+            "node": "f65.n2",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f65.s0"
+            }
+          },
+          {
+            "node": "f65.n3",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::fmt.Sprintf"
+            },
+            "dispatch": "static"
+          },
+          {
+            "node": "f65.n6",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f65.s1"
+            }
+          },
+          {
+            "node": "f65.n9",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::fmt.Sprintf"
+            }
+          },
+          {
+            "node": "f65.n11",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f65.s0"
+            }
+          },
+          {
+            "node": "f65.n12",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f65.s1"
+            }
+          },
+          {
+            "node": "f65.n13",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::fmt.Sprintf"
+            },
+            "dispatch": "static"
+          },
+          {
+            "node": "f65.n14",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f65.s3"
+            }
+          },
+          {
+            "node": "f65.n20",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::len"
+            }
+          },
+          {
+            "node": "f65.n21",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f65.s2"
+            }
+          },
+          {
+            "node": "f65.n22",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::len"
+            },
+            "dispatch": "builtin"
+          },
+          {
+            "node": "f65.n25",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::fmt.Errorf"
+            }
+          },
+          {
+            "node": "f65.n27",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f65.s3"
+            }
+          },
+          {
+            "node": "f65.n28",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::fmt.Errorf"
+            },
+            "dispatch": "static"
+          },
+          {
+            "node": "f65.n35",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::fmt.Errorf"
+            }
+          },
+          {
+            "node": "f65.n37",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f65.s3"
+            }
+          },
+          {
+            "node": "f65.n38",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f65.s2"
+            }
+          },
+          {
+            "node": "f65.n42",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::fmt.Errorf"
+            },
+            "dispatch": "static"
+          },
+          {
+            "node": "f65.n48",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::make"
+            }
+          },
+          {
+            "node": "f65.n50",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::len"
+            }
+          },
+          {
+            "node": "f65.n51",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f65.s2"
+            }
+          },
+          {
+            "node": "f65.n52",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::len"
+            },
+            "dispatch": "builtin"
+          },
+          {
+            "node": "f65.n53",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::make"
+            },
+            "dispatch": "builtin"
+          },
+          {
+            "node": "f65.n59",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f65.s2"
+            }
+          },
+          {
+            "node": "f65.n60",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::fmt.Sprintf"
+            }
+          },
+          {
+            "node": "f65.n62",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f65.s6"
+            }
+          },
+          {
+            "node": "f65.n64",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f65.s6"
+            }
+          },
+          {
+            "node": "f65.n66",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::fmt.Sprintf"
+            },
+            "dispatch": "static"
+          },
+          {
+            "node": "f65.n67",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f65.s4"
+            }
+          },
+          {
+            "node": "f65.n68",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f65.s5"
+            }
+          },
+          {
+            "node": "f65.n75",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::fmt.Errorf"
+            }
+          },
+          {
+            "node": "f65.n77",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f65.s3"
+            }
+          },
+          {
+            "node": "f65.n78",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::strings.Join"
+            }
+          },
+          {
+            "node": "f65.n79",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f65.s4"
+            }
+          },
+          {
+            "node": "f65.n81",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::strings.Join"
+            },
+            "dispatch": "static"
+          },
+          {
+            "node": "f65.n82",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::fmt.Errorf"
+            },
+            "dispatch": "static"
+          }
+        ],
+        "places": [
+          {
+            "id": "f65.p0",
+            "node": "f65.n14",
+            "root": {
+              "symbol": "f65.s3"
+            },
+            "path": [],
+            "access": "write",
+            "mode": "value",
+            "escapes": false
+          },
+          {
+            "id": "f65.p1",
+            "node": "f65.n67",
+            "root": {
+              "symbol": "f65.s4"
+            },
+            "path": [
+              {
+                "index": null
+              }
+            ],
+            "access": "write",
+            "mode": "value",
+            "escapes": false
+          }
+        ],
+        "values": []
+      }
+    ]
+  }
+}
