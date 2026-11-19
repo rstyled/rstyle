@@ -5,7 +5,8 @@
 //! only says when the node also runs an operation the document names no callee for, such as a
 //! Python format call reaching a type's `__format__`. That operation can run code the library or
 //! the workspace defines, so runtime bounds read it as an unresolved call at the node. A control
-//! role says instead how the node raises an exception or handles one.
+//! role says instead how the node runs its children: how it raises an exception or handles one,
+//! runs a call later, removes what it names, or chains comparisons.
 use serde::Deserialize;
 
 /// When an extension node runs an operation of its own after its children.
@@ -20,7 +21,7 @@ pub enum Implicit {
     WithoutMember,
 }
 
-/// How an extension node raises an exception or handles one.
+/// How an extension node runs its children, other than in order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 pub enum Control {
     /// Evaluates its children, and then control does not pass: it raises what they made.
@@ -37,6 +38,16 @@ pub enum Control {
     /// returns. Every way out of the body calls each context's exit method, innermost first, and
     /// an exit method may end an exception the body raised.
     With,
+    /// Evaluates its child, a call, where it's written, and runs the call later: when the function
+    /// exits, or on a thread of its own.
+    Deferred,
+    /// Removes each child in order: a name is unbound, and an item or an attribute is removed by a
+    /// method its container defines.
+    Delete,
+    /// Compares each child with the next, evaluating each once and the next only while every
+    /// comparison so far held. Comparing values of other than primitive types runs a method they
+    /// define.
+    Chain,
 }
 
 /// One extension's role.

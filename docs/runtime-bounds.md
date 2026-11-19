@@ -190,6 +190,13 @@ A path that raises partway and is handled is a prefix of one of those, so its lo
 counted. A `finally` block, or a `with`'s exit methods, runs once on every way out and then goes on to any
 of them, which only adds paths. An `else` block is read as a `finally` block for the same reason.
 
+**Calls run later, removals and chains.** A call Go defers, or starts on a goroutine, is evaluated where
+it's written and counts once each time its statement runs; one that holds a closure stays unsupported,
+since the closure reads values that can change first. Python's `del` writes a name and removes an item or
+an attribute by an unresolved call, and a chain of comparisons evaluates each next operand only while
+every comparison so far held, with an unresolved call for each comparison of values other than numbers,
+booleans and strings.
+
 What's raised outside every handled region leaves the function. In a document whose destructors are
 calls, as C++'s are, it goes on as if it weren't raised instead: the normal path runs every destructor
 that unwinding would, and more. A `with` that binds an attribute stays unsupported.
@@ -409,7 +416,8 @@ roles, so frontends carry no method tables:
   after its children: `Never`, `Always`, or `WithoutMember`, for a node that runs one only when it names
   no member, as a `**` keyword argument does. Its `lazy` names the modifier of a node that runs where
   it's consumed. Its `control` says instead how it raises (`Throw`,
-  `Assert`) or handles (`Try`, `With`), and a `Try`'s `handlers` name the extensions among its children
+  `Assert`), handles (`Try`, `With`), runs a call later (`Deferred`), removes (`Delete`) or compares in a
+  chain (`Chain`), and a `Try`'s `handlers` name the extensions among its children
   that are handlers, as a `match` among them is.
 - A `[[range]]` gives a call that makes a range of integers the argument that holds its `start`,
   `stop` and `step` at each `arity` it's called with. A `[[traversal]]` gives a call that yields at most

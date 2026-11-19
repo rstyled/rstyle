@@ -123,7 +123,7 @@ fn a_pattern_an_extension_holds_writes_its_places() {
 
 #[test]
 fn an_extension_without_a_role_is_unsupported() {
-    let program = program(with_extension("py:compare-chain", json!([]), Vec::new()));
+    let program = program(with_extension("py:assign-chain", json!([]), Vec::new()));
     assert!(program.contains("has unmodeled control"), "{program}");
 }
 

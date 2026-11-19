@@ -39,3 +39,8 @@ operations = ["sync.Once.Do"]
 basis = "Slicing reads and bounds-checks the operand's header and its bounds without calling anything"
 implicit = "Never"
 extensions = ["slice"]
+
+[[extension]]
+basis = "defer evaluates its call's function and arguments where it's written and runs the call when the function exits, and go runs it on a goroutine of its own"
+control = "Deferred"
+extensions = ["defer", "go"]

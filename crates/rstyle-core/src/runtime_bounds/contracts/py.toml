@@ -96,3 +96,13 @@ basis = "A comprehension runs the for loops it desugars to, then builds its list
 implicit = "Always"
 lazy = "lazy"
 extensions = ["comprehension"]
+
+[[extension]]
+basis = "del removes each target in order: a name is unbound, and an item or an attribute is removed by its container's __delitem__ or __delattr__"
+control = "Delete"
+extensions = ["del"]
+
+[[extension]]
+basis = "A chain of comparisons evaluates each operand once, and the next only while every comparison so far held; comparing values that aren't numbers, booleans or strings runs a method they define"
+control = "Chain"
+extensions = ["compare-chain"]

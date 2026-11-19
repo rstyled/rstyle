@@ -20,6 +20,7 @@ mod iteration;
 mod loops;
 mod primitive;
 pub mod report;
+mod roles;
 mod writes;
 
 use super::model::{Node, NodeKind};
