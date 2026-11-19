@@ -10,6 +10,7 @@ mod chains;
 mod control;
 mod deferred;
 mod dispatch;
+mod exceptions;
 mod extension;
 mod extent;
 pub mod facts;
@@ -48,6 +49,8 @@ pub(crate) struct Collector<'f, 'b, 'a> {
     extent_origins: BTreeMap<String, extent::Place<'a>>,
     closures: BTreeMap<&'a str, &'a Node>,
     returns: Vec<u32>,
+    /// Where something raised in each enclosing handled region goes, innermost last.
+    raises: Vec<u32>,
     formals: BTreeMap<&'a str, u32>,
     deferred: Option<deferred::Binding<'a>>,
 }
@@ -67,6 +70,7 @@ impl<'f, 'b, 'a> Collector<'f, 'b, 'a> {
             extent_origins: BTreeMap::new(),
             closures: BTreeMap::new(),
             returns: Vec::new(),
+            raises: Vec::new(),
             formals: BTreeMap::new(),
             deferred: None,
         }

@@ -15,7 +15,7 @@ pub use allocation::{Allocation, Storage};
 pub use invocation::{CallForm, CallbackFree, TypeGuard};
 pub use state::{StateArgument, StateCallbackFree};
 
-pub use extension::{Extension, Implicit};
+pub use extension::{Control, Extension, Implicit};
 pub use iteration::{
     ConsumerEffect, Dispatch, Dispatched, Extent, ExtentRole, Handed, ItemAgnostic, Iteration,
     Runs, StageEffect,
@@ -213,7 +213,7 @@ impl Contracts {
         let extensions = file
             .extension
             .iter()
-            .map(|entry| Ok((&entry.extensions[..], entry.extension())));
+            .map(|entry| Ok((&entry.extensions[..], entry.extension(namespace)?)));
         declare(&mut self.extensions, (namespace, "extension"), extensions)
     }
 
@@ -512,8 +512,9 @@ mod tests {
                 .basis
                 .contains("hashes")
         );
-        // Control of its own isn't a role, and roles are keyed by namespace.
-        assert_eq!(role("py:try"), None);
+        // A chain of comparisons has control of its own and no role, and roles are keyed by
+        // namespace.
+        assert_eq!(role("py:compare-chain"), None);
         assert_eq!(role("slice"), None);
         assert!(contracts.get("py:dict").is_none());
     }
@@ -528,6 +529,38 @@ mod tests {
         assert_eq!(twice, "Library operation t:e has two extension roles");
         let unknown = file(&extension.replace("Always", "Sometimes"));
         assert!(Contracts::parse_all(&[&unknown]).is_err());
+    }
+
+    #[test]
+    fn control_roles_say_how_an_extension_raises_or_handles() {
+        let contracts = Contracts::embedded();
+        let control = |extension: &str| contracts.extension(extension).and_then(|r| r.control);
+        assert_eq!(control("py:raise"), Some(Control::Throw));
+        assert_eq!(control("cxx:throw"), Some(Control::Throw));
+        assert_eq!(control("py:assert"), Some(Control::Assert));
+        assert_eq!(control("py:with"), Some(Control::With));
+        let tried = contracts.extension("py:try").unwrap();
+        assert_eq!(tried.control, Some(Control::Try));
+        assert_eq!(tried.handlers, ["py:except"]);
+        // A handler is an extension of its own, read as what it evaluates.
+        let except = contracts.extension("py:except").unwrap();
+        assert_eq!((except.control, except.implicit), (None, Implicit::Never));
+        assert!(contracts.extension("cxx:try").unwrap().handlers.is_empty());
+    }
+
+    #[test]
+    fn control_roles_are_validated() {
+        let tried = "[[extension]]\nbasis = \"b\"\ncontrol = \"Try\"\nhandlers = [\"h\"]\nextensions = [\"t\"]\n";
+        let one = Contracts::parse_all(&[&file(tried)]).unwrap();
+        assert_eq!(one.extension("t:t").unwrap().handlers, ["t:h"]);
+        // Only a try has handlers, and a control role runs no operation of its own.
+        let thrown = file(&tried.replace("Try", "Throw"));
+        assert_eq!(
+            Contracts::parse_all(&[&thrown]).unwrap_err(),
+            "Extension role Never with control Some(Throw) has handlers [\"h\"]"
+        );
+        let operating = file(&tried.replace("handlers", "implicit = \"Always\"\nhandlers"));
+        assert!(Contracts::parse_all(&[&operating]).is_err());
     }
 
     #[test]

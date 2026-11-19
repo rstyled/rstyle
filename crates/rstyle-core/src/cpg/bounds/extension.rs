@@ -10,6 +10,7 @@ use crate::runtime_bounds::{Action, Callee, Flow, Value};
 type Lowered = Result<u32, String>;
 
 impl<'a> Collector<'_, '_, 'a> {
+    // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
     /// The node's children once, in the order the profile writes them, with each pattern among
     /// them a binding it writes; then, when its role says so, the operation it runs with no callee
     /// the document names, as an unresolved call. `None` is an extension without a role.
@@ -21,6 +22,9 @@ impl<'a> Collector<'_, '_, 'a> {
         else {
             return Ok(None);
         };
+        if let Some(control) = role.control {
+            return self.control(node, (role, control), next);
+        }
         let operates = match role.implicit {
             Implicit::Never => false,
             Implicit::Always => true,
@@ -40,7 +44,7 @@ impl<'a> Collector<'_, '_, 'a> {
     }
 
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
-    fn implicit_call(&mut self, node: &'a Node, next: u32) -> u32 {
+    pub(super) fn implicit_call(&mut self, node: &'a Node, next: u32) -> u32 {
         let action = Action::Call {
             callee: node.extension.clone().unwrap_or_default(),
             target: Callee::Unresolved,
@@ -69,7 +73,7 @@ impl<'a> Collector<'_, '_, 'a> {
 
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
     /// A binding pattern's write of what it binds: an unknown value for a counter.
-    fn binding_write(&mut self, binding: &'a Node, next: u32) -> u32 {
+    pub(super) fn binding_write(&mut self, binding: &'a Node, next: u32) -> u32 {
         let Some(symbol) = self.bound_symbol(binding) else {
             return next;
         };
