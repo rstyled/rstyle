@@ -55,6 +55,12 @@ impl<'a> Collector<'_, '_, 'a> {
     fn argument_layout(&self, call: &'a Node) -> Option<(usize, usize)> {
         let callable = self.argument_callable(call)?;
         let reference = self.facts.reference(call)?;
+        // A call read in method form without a recorded dispatch holds its receiver first, where
+        // its written arguments leave it out; whether the frontend numbered them from the
+        // receiver isn't known, so none binds a formal.
+        if reference.dispatch.is_none() && reference.reason.is_some() {
+            return None;
+        }
         let method = matches!(
             reference.dispatch,
             Some(Dispatch::Method | Dispatch::Dynamic)
