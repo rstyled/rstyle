@@ -183,6 +183,21 @@ over both. The member adds no call of its own. Each language's contracts say whi
 **Closures called where they're written.** A closure that's called as it's written, as in Go's
 `func() { .. }()` and C++'s `[&] { .. }()`, runs there, so its body is lowered in place.
 
+**Ordinary calls without callbacks.** A conditional library contract can refine a coarse
+may-call flag after the core verifies the exact resolved standard operation, call form,
+arity and receiver type. Present named callback or driven-effect rosters prevent this
+refinement. Required discarded operands must have complete cleanup-free storage facts;
+references do not destroy their referents, while owned values with destructors or unknown
+storage fail the check. Cleanup checking is bounded by depth and total work, including
+sum variants, and budget exhaustion leaves the call unresolved.
+
+The initial contracts cover `bool::then_some` with cleanup-free payloads,
+`Option::copied`, whose inherent Copy operation invokes no user method, and
+`Result::ok` with a cleanup-free receiver. Receiver and argument evaluation still run:
+`false.then_some(compute())` still calls `compute`. The ordinary library call and its
+cost uncertainty remain. Callback freedom supplies context to existing effect classes;
+it does not declare purity or remove unknown effects.
+
 These stay unknown: unresolved or escaping callbacks, user iterators, mutable captures of a measured
 value, and chains that dispatch to workspace `Clone`, `Ord`, `Sum` or `FromIterator` impls. A closure
 handed to any other call leaves the whole function unknown. So does one that Go defers or starts with `go`,
@@ -277,6 +292,10 @@ roles, so frontends carry no method tables:
   argument position. Resolved builtin `len` reads native sequence lengths; maps and channels are
   excluded. These reads are optional extent sources, so an unrelated mutable length read does not
   reject otherwise known loop limits.
+- A `[[callback_free]]` gives a resolved operation's `Member` or `Function` form, its
+  post-receiver/callee arity, exact type-key guards and operands requiring cleanup-free
+  storage. Member operand 0 is the receiver; Function operand 0 is the first argument.
+  This role declares neither a cost, purity nor a callable invocation count.
 - `[[extent]]` marks members that read a stable length (`Length`) or traverse each entry once
   (`Traversal`).
 

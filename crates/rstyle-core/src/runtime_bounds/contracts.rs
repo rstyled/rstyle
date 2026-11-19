@@ -6,9 +6,11 @@
 //! The same files declare each operation's iteration and extent roles, so a frontend
 //! recognizes traversals by key instead of carrying its own method tables.
 mod allocation;
+mod invocation;
 mod iteration;
 
 pub use allocation::{Allocation, Storage};
+pub use invocation::{CallForm, CallbackFree, TypeGuard};
 
 pub use iteration::{
     ConsumerEffect, Dispatch, Dispatched, Extent, ExtentRole, Handed, ItemAgnostic, Iteration,
@@ -86,6 +88,8 @@ struct File {
     callable: Vec<iteration::CallableEntry>,
     #[serde(default)]
     allocation: Vec<allocation::Entry>,
+    #[serde(default)]
+    callback_free: Vec<invocation::Entry>,
 }
 
 #[derive(Deserialize)]
@@ -105,6 +109,7 @@ pub struct Contracts {
     extents: BTreeMap<String, Extent>,
     callables: BTreeMap<String, iteration::Callable>,
     allocations: BTreeMap<String, Allocation>,
+    callback_free: BTreeMap<String, CallbackFree>,
 }
 
 impl File {
@@ -166,7 +171,7 @@ impl Contracts {
         });
         declare(&mut self.operations, (namespace, "step"), steps)?;
         self.extend_storage(&file)?;
-        self.extend_iteration(&file)
+        self.extend_roles(&file)
     }
 
     fn extend_storage(&mut self, file: &File) -> Result<(), String> {
@@ -182,6 +187,23 @@ impl Contracts {
             &mut self.allocations,
             (namespace, "allocation"),
             allocations,
+        )
+    }
+
+    fn extend_roles(&mut self, file: &File) -> Result<(), String> {
+        self.extend_invocations(file)?;
+        self.extend_iteration(file)
+    }
+
+    fn extend_invocations(&mut self, file: &File) -> Result<(), String> {
+        let roles = file
+            .callback_free
+            .iter()
+            .map(|entry| Ok((&entry.operations[..], entry.callback_free()?)));
+        declare(
+            &mut self.callback_free,
+            (&file.namespace, "callback-free"),
+            roles,
         )
     }
 
@@ -238,6 +260,12 @@ impl Contracts {
     /// What native storage an operation returns; this declares neither callback nor step cost.
     pub fn allocation(&self, operation: &str) -> Option<&Allocation> {
         self.allocations.get(operation)
+    }
+
+    /// Conditions under which a call invokes no workspace code of its own.
+    /// This declares neither costs, purity, nor how a handed callable runs.
+    pub fn callback_free(&self, operation: &str) -> Option<&CallbackFree> {
+        self.callback_free.get(operation)
     }
 
     pub fn get(&self, operation: &str) -> Option<&Contract> {
