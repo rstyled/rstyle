@@ -23,6 +23,7 @@ impl Budget {
 pub(super) enum Write {
     Scalar(u32),
     Irrelevant,
+    NativeElement,
     Unmodeled,
 }
 
@@ -30,6 +31,9 @@ impl Collector<'_, '_, '_> {
     pub(super) fn written(&self, place: &Node) -> Write {
         if let Some(variable) = self.local_id(place) {
             return Write::Scalar(variable);
+        }
+        if self.native_element(place) {
+            return Write::NativeElement;
         }
         let Some(symbol) = self.facts.local(place) else {
             return Write::Unmodeled;
@@ -58,6 +62,10 @@ impl Collector<'_, '_, '_> {
             Write::Unmodeled
         }
     }
+}
+
+pub(super) fn value_only(facts: &Facts<'_, '_>, ty: &Type) -> bool {
+    Values(facts).stored(ty)
 }
 
 /// Certifies a closed value shape. Unknown members and exhausted work are failures,
