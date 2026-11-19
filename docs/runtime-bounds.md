@@ -24,6 +24,37 @@ Rows rank by polynomial degree, then logarithmic factors. That's a search heuris
 of runtimes across independent input sizes. `--top` selects rows independently of abstraction scores,
 and JSON keeps the full roster and the selected row indices.
 
+## Coverage in document reports
+
+`rstyle.cpg-runtime-bounds-report/1` rows include `identity`, `compilation`, `function`, `root`,
+`line`, `column` and `test`. Match across captures using compilation and stable identity; function and
+root IDs distinguish occurrences within a capture. Names and paths alone are not unique. Duplicate
+compilation/identity keys remain distinct rows and cannot supply an unambiguous composed summary.
+
+The additive `coverage` object always counts the full input before document-report `--top` selection.
+Its maps omit zero counts:
+
+- `roster` separates authored functions from non-function bodies, generated code and unavailable records.
+  Bounds rows and the other coverage maps cover authored functions only.
+- `capture`, `local` and `composed` keep unavailable capture and unknown, partial, budget-exceeded or
+  absent results separate from proven results.
+- `proven_local_loops` separates owners without modeled loops, constant loop work and input-dependent
+  loop work. `proven_composed_loops` separates zero, constant and input-dependent loop work through callees.
+  A zero composed bound does not say whether the owner contains a modeled loop.
+- `library_steps` counts complete versus opaque library bounds independently of the composed verdict.
+  A complete library bound can be zero when there are no library calls; it does not prove whole runtime.
+
+`input_complete` requires captured bounds for every authored function and no unavailable roster records,
+including those outside `--top`. It describes capture availability, not proof success: captured programs
+may still yield unknown or partial results. These counts add no proofs, do not count every latent blocker,
+and describe only the supplied input roster, not functions absent from the capture.
+
+The compiler report (`rstyle.compiler-runtime-bounds-report/2`) includes the same stable context and
+coverage maps. Its `coverage_scope` explicitly limits the denominator to `assessed_functions_in_unit`
+and the requested `authored` or `captured` source population. Owners absent from that handoff are not
+counted. The compiler keeps every scoped row and uses `selected` indices for `--top`; selection does not
+change coverage. Generated empty functions can add zero-loop proofs, without adding a scan proof.
+
 ## In the check run
 
 When bounds run alongside `check`, each function with a proven bound of degree two or more is a
@@ -71,6 +102,12 @@ as a closure's does.
 **`for` patterns.** A pattern may declare any new bindings, since they can't change how often the loop
 runs. A pattern holding anything else is unsupported, as is a declaration that writes what a loop's
 length is measured from.
+
+**Refutable declarations.** A declaration with a failure branch, such as Rust's `let-else`, evaluates
+its initializer once, then chooses between binding the pattern and running the failure branch.
+Both paths remain possible: `continue`, `return`, counter writes and calls keep their control and
+cost effects. A failure path that can bypass a counter increment does not establish loop progress.
+Pattern guards, writable reference patterns and hidden cleanup keep their existing restrictions.
 
 **Arguments.** A call evaluates its receiver or callee, then what each argument passes. An argument that
 holds its value under a name, as Python's `print(total, end="")` does, passes that value. One that unpacks
