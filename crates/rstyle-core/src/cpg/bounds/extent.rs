@@ -32,9 +32,28 @@ impl<'a> Collector<'_, '_, 'a> {
         let Some(receiver) = extent_receiver(self.facts, expression)? else {
             return Ok(None);
         };
+        self.sequence_extent(receiver)
+    }
+
+    /// A compiler-known fixed length, or the length of a selected stable place. Requiring
+    /// a place also keeps length reads from hiding evaluation of a computed receiver.
+    pub(super) fn sequence_extent(&self, receiver: &'a Node) -> Result<Option<Value>, String> {
+        let Some(place) = self.place(receiver)? else {
+            return Ok(None);
+        };
+        if let Some(length) = self
+            .facts
+            .ty(receiver)
+            .and_then(|ty| fixed_length(self.facts, ty))
+        {
+            let representable =
+                self.facts.pointer_bits == 64 || length < (1u64 << self.facts.pointer_bits);
+            return Ok(representable.then_some(Value::Const(length)));
+        }
+
         Ok(self
-            .place(receiver)?
-            .and_then(|place| self.extents.get(&place.key()))
+            .extents
+            .get(&place.key())
             .map(|label| Value::Input(label.clone())))
     }
 
@@ -200,7 +219,8 @@ fn compact(snippet: &str) -> String {
 }
 
 /// Adjustments that keep a place shared: built-in dereferences of shared references,
-/// `Vec`'s shared dereference to its slice, and shared borrows.
+/// `Vec`'s shared dereference to its slice, shared borrows, and a shared array-to-slice
+/// coercion that preserves the element type.
 pub(super) fn standard_adjustments(facts: &Facts<'_, '_>, expression: &Node) -> bool {
     let Some(adjustments) = &expression.adjustments else {
         return true;
@@ -219,6 +239,7 @@ pub(super) fn standard_adjustments(facts: &Facts<'_, '_>, expression: &Node) -> 
                         .is_some_and(|ty| ty.kind == TypeKind::Sequence && ty.fixed != Some(true))
             }
             ("auto_ref", Some("shared")) => true,
+            ("unsize", _) => shared_array_to_slice(facts, current, target),
             _ => false,
         };
         if !allowed {
@@ -227,6 +248,32 @@ pub(super) fn standard_adjustments(facts: &Facts<'_, '_>, expression: &Node) -> 
         current = target;
     }
     true
+}
+
+fn shared_array_to_slice(facts: &Facts<'_, '_>, from: Option<&Type>, to: Option<&Type>) -> bool {
+    let (Some(from), Some(to)) = (from, to) else {
+        return false;
+    };
+    if !is_shared_reference(Some(from)) || !is_shared_reference(Some(to)) {
+        return false;
+    }
+    let (Some(from), Some(to)) = (shared_target(facts, from), shared_target(facts, to)) else {
+        return false;
+    };
+
+    from.kind == TypeKind::Sequence
+        && from.fixed == Some(true)
+        && to.kind == TypeKind::Sequence
+        && to.fixed != Some(true)
+        && from.element.is_some()
+        && from.element == to.element
+}
+
+fn fixed_length(facts: &Facts<'_, '_>, ty: &Type) -> Option<u64> {
+    let ty = shared_target(facts, ty)?;
+    (ty.kind == TypeKind::Sequence && ty.fixed == Some(true))
+        .then_some(ty.length)
+        .flatten()
 }
 
 pub(super) fn iteration_receiver<'a>(
@@ -247,5 +294,5 @@ pub(super) fn iteration_receiver<'a>(
 pub(super) fn extent_type(facts: &Facts<'_, '_>, ty: &Type) -> bool {
     shared_target(facts, ty).is_some_and(|ty| {
         (ty.kind == TypeKind::Sequence && ty.fixed != Some(true)) || is_vec(facts, ty)
-    })
+    }) || (is_shared_reference(Some(ty)) && fixed_length(facts, ty).is_some())
 }

@@ -119,6 +119,12 @@ retain conservative handling. A Boolean assignment does not prove progress of a 
 holds its value under a name, as Python's `print(total, end="")` does, passes that value. One that unpacks
 a sequence or a mapping, as `*items` and `**options` do, is unsupported.
 
+**Fixed shared sequences.** A shared sequence with compiler-proven fixed length uses that constant for
+its scans, resolved standard traversal chains and length queries. A shared array-to-slice coercion is
+accepted only when its type facts preserve the element type. Callback loops still contribute their work.
+Owned or writable arrays, unknown constant-generic lengths, custom iteration, computed receivers and
+lengths outside the target pointer width retain conservative handling.
+
 **Collections.** Resolved collection length queries and traversal adapters are abstracted and excluded
 from call counts. Ordinary body calls can have unknown cost while preserving a bound on a private scalar
 counter.
