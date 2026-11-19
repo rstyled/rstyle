@@ -158,3 +158,18 @@ extensions = ["throw"]
 basis = "try runs its body and, when the body throws, the match of its handlers on what was thrown, whose implicit arm stands for a throw no handler catches"
 control = "Try"
 extensions = ["try"]
+
+# Loop forms: a loop node whose original kind is listed runs its guard where the form says. A do
+# statement's block holds its body, then its test.
+
+[[loop]]
+basis = "A do statement runs its body, then its test, and runs again while the test holds; continue goes to the test"
+guard = "Last"
+kinds = ["DoStmt"]
+
+# Operator roles: what a language's own operator computes, for core to evaluate a guard.
+
+[[operator]]
+basis = "The comma operator evaluates its left operand, then its right, and has the right's value"
+role = "Sequence"
+operators = ["comma"]

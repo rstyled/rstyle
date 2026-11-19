@@ -9,6 +9,7 @@ mod allocation;
 mod extension;
 mod invocation;
 mod iteration;
+mod loops;
 mod state;
 
 pub use allocation::{Allocation, Storage};
@@ -20,6 +21,7 @@ pub use iteration::{
     ConsumerEffect, Dispatch, Dispatched, Extent, ExtentRole, Handed, ItemAgnostic, Iteration,
     Runs, StageEffect,
 };
+pub use loops::{Guard, LoopForm, OperatorRole};
 
 use super::Bound;
 use serde::{Deserialize, Serialize};
@@ -99,6 +101,10 @@ struct File {
     state_callback_free: Vec<state::Entry>,
     #[serde(default)]
     extension: Vec<extension::ExtensionEntry>,
+    #[serde(default, rename = "loop")]
+    loops: Vec<loops::LoopEntry>,
+    #[serde(default)]
+    operator: Vec<loops::OperatorEntry>,
 }
 
 #[derive(Deserialize)]
@@ -121,6 +127,8 @@ pub struct Contracts {
     callback_free: BTreeMap<String, CallbackFree>,
     state_callback_free: BTreeMap<String, Vec<StateCallbackFree>>,
     extensions: BTreeMap<String, Extension>,
+    loops: BTreeMap<String, LoopForm>,
+    operators: BTreeMap<String, OperatorRole>,
 }
 
 impl File {
@@ -207,14 +215,16 @@ impl Contracts {
         self.extend_iteration(file)
     }
 
-    /// The roles a file gives the language's own extension nodes.
+    /// The roles a file gives the language's own extension nodes, then the forms it gives its
+    /// loops and operators.
     fn extend_language(&mut self, file: &File) -> Result<(), String> {
         let namespace = file.namespace.as_str();
         let extensions = file
             .extension
             .iter()
             .map(|entry| Ok((&entry.extensions[..], entry.extension(namespace)?)));
-        declare(&mut self.extensions, (namespace, "extension"), extensions)
+        declare(&mut self.extensions, (namespace, "extension"), extensions)?;
+        self.extend_forms(file)
     }
 
     fn extend_invocations(&mut self, file: &File) -> Result<(), String> {
@@ -229,6 +239,22 @@ impl Contracts {
             namespace,
             &file.state_callback_free,
         )
+    }
+
+    /// The forms a file gives the language's loops whose guard is in their body, and the roles
+    /// it gives the language's own operators.
+    fn extend_forms(&mut self, file: &File) -> Result<(), String> {
+        let namespace = file.namespace.as_str();
+        let loops = file
+            .loops
+            .iter()
+            .map(|entry| Ok((&entry.kinds[..], entry.form())));
+        declare(&mut self.loops, (namespace, "loop"), loops)?;
+        let operators = file
+            .operator
+            .iter()
+            .map(|entry| Ok((&entry.operators[..], entry.role)));
+        declare(&mut self.operators, (namespace, "operator"), operators)
     }
 
     fn extend_iteration(&mut self, file: &File) -> Result<(), String> {
@@ -298,6 +324,17 @@ impl Contracts {
         self.state_callback_free
             .get(operation)
             .map_or(&[], Vec::as_slice)
+    }
+
+    /// The form of a loop by the frontend's original kind of it, such as `cxx:DoStmt`.
+    pub fn loop_form(&self, kind: &str) -> Option<&LoopForm> {
+        self.loops.get(kind)
+    }
+
+    /// Whether a language's own operator, such as `cxx:comma`, evaluates its operands in order
+    /// and has the value of the last.
+    pub fn sequence(&self, operator: &str) -> bool {
+        matches!(self.operators.get(operator), Some(OperatorRole::Sequence))
     }
 
     /// How runtime bounds lower a node of a registered extension, such as `py:dict`.
@@ -561,6 +598,28 @@ mod tests {
         );
         let operating = file(&tried.replace("handlers", "implicit = \"Always\"\nhandlers"));
         assert!(Contracts::parse_all(&[&operating]).is_err());
+    }
+
+    #[test]
+    fn loop_forms_and_operator_roles_are_keyed_by_namespace() {
+        let contracts = Contracts::embedded();
+        let form = contracts
+            .loop_form("cxx:DoStmt")
+            .expect("do statement form");
+        assert_eq!(form.guard, Guard::Last);
+        assert!(form.basis.contains("continue goes to the test"));
+        assert!(contracts.sequence("cxx:comma"));
+        assert!(contracts.loop_form("DoStmt").is_none());
+        assert!(!contracts.sequence("comma"));
+
+        let forms = "[[loop]]\nbasis = \"b\"\nguard = \"Last\"\nkinds = [\"D\"]\n[[operator]]\nbasis = \"b\"\nrole = \"Sequence\"\noperators = [\"c\"]\n";
+        let one = Contracts::parse_all(&[&file(forms)]).unwrap();
+        assert_eq!(one.loop_form("t:D").unwrap().guard, Guard::Last);
+        assert!(one.sequence("t:c"));
+        let twice = Contracts::parse_all(&[&file(forms), &file(forms)]).unwrap_err();
+        assert_eq!(twice, "Library operation t:D has two loop roles");
+        let guard = file(&forms.replace("Last", "First"));
+        assert!(Contracts::parse_all(&[&guard]).is_err());
     }
 
     #[test]

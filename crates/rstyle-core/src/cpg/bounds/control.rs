@@ -19,6 +19,7 @@ impl<'a> Collector<'_, '_, 'a> {
             NodeKind::Block if self.plain_block(expression) => self.block(expression, next),
             NodeKind::If => self.conditional(expression, next),
             NodeKind::While if expression.label.is_none() => self.while_loop(expression, next),
+            NodeKind::Loop if expression.label.is_none() => self.unguarded(expression, next),
             NodeKind::For => self.for_loop(expression, next),
             NodeKind::Break if expression.children.is_empty() => self.jump(expression, next),
             NodeKind::Continue => self.jump(expression, next),

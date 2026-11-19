@@ -133,3 +133,30 @@ fn an_empty_try_is_unsupported() {
     let program = program(with_extension("py:try", json!([]), Vec::new()));
     assert!(program.contains("has unmodeled control"), "{program}");
 }
+
+/// A C++ do statement whose block holds no statement to test leaves its function unknown.
+#[test]
+fn a_do_statement_without_a_test_is_unsupported() {
+    let mut document: Value = serde_json::from_str(EXAMPLE).unwrap();
+    document["unit"]["language"]["name"] = json!("cxx");
+    let function = count_function(&mut document);
+    let mut looped = part(function, "count.do", "loop", json!(["count.parts"]));
+    looped["original_kind"] = json!("DoStmt");
+    let parts = part(function, "count.parts", "block", json!([]));
+    let statement = part(
+        function,
+        "count.do_stmt",
+        "expression_statement",
+        json!(["count.do"]),
+    );
+    let nodes = function["nodes"].as_array_mut().unwrap();
+    nodes.extend([looped, parts, statement]);
+    let block = nodes.iter_mut().find(|node| node["id"] == "count.block");
+    let statements = block.unwrap()["children"].as_array_mut().unwrap();
+    statements.insert(1, json!("count.do_stmt"));
+    let program = program(document);
+    assert!(
+        program.contains("Loop guard is not the last statement of its block"),
+        "{program}"
+    );
+}

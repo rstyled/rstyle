@@ -52,3 +52,13 @@ fns = [
   "cargo_rstyle::compiler::advisory::patterns::Report::repository_visible",
   "cargo_rstyle::compiler::advisory::patterns::Report::visible",
 ]
+
+[ignore.f16d6cc66ebb]
+kind = "trait_method"
+reason = "each hands two contract sections to the shared declare; the entry types share only a key list, so an interface would wrap one map call per section"
+fns = [
+  "rstyle_core::runtime_bounds::contracts::Contracts::extend_forms",
+  "rstyle_core::runtime_bounds::contracts::Contracts::extend_storage",
+  "rstyle_core::runtime_bounds::contracts::iteration::ExtentEntry::extent",
+  "rstyle_core::runtime_bounds::contracts::loops::LoopEntry::form",
+]

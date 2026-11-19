@@ -168,9 +168,10 @@ fn an_ordinary_source_call_does_not_inherit_its_last_arguments_extent() {
 #[test]
 fn a_source_calls_nonterminating_argument_cannot_disappear() {
     let document = with_spinning_argument();
+    // A loop with no guard of its own is opaque, so the spinning function has no bound.
     assert!(matches!(
         outcome(document.clone(), "::spin"),
-        Outcome::Unknown { .. }
+        Outcome::Partial(assessment) if assessment.loops.iter().all(|bound| bound.opaque.is_some())
     ));
     unknown(document);
 }

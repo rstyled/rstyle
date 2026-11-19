@@ -322,9 +322,10 @@ fn a_computed_receiver_cannot_erase_its_nonterminating_evaluation() {
     let mut document = traversal("chars");
     add_diverging_string_function(&mut document);
     call_diverging_receiver(&mut document);
+    // A loop with no guard of its own is opaque, so the spinning function has no bound.
     assert!(matches!(
         runtime_bounds::analyze(&program(document.clone(), "spin_text")),
-        Outcome::Unknown { .. }
+        Outcome::Partial(assessment) if assessment.loops.iter().all(|bound| bound.opaque.is_some())
     ));
     unknown(document);
 }
