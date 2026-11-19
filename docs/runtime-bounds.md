@@ -87,6 +87,9 @@ To silence one function, put an `rstyle-allow` above it. Its bound stays in the 
 - a range a library call makes, by a contract's `[[range]]` role, as Python's `range(n)` counts from
   zero up to `n`, and a call that traverses one of its arguments, by a `[[traversal]]` role, as
   `enumerate(xs)` counts what `xs` counts
+- a set, and a dict's items, keys or values by a `[[extent]]` traversal role whose `receiver` is a `map`,
+  each counted by its entries; a frontend gives a container those types only where nothing from the
+  function's start through the loop can change it, as rstyle-py does
 - a tuple, a sequence whose type has one fixed length, and an integer, which a `for` counts from zero up
   to, as Go's `for i := range n` does
 
@@ -418,7 +421,8 @@ roles, so frontends carry no method tables:
   the selected parameterless implementation and actual exclusive receiver before refining
   a coarse may-call fact. This role declares no traversal extent, purity or cost.
 - `[[extent]]` marks members that read a stable length (`Length`) or traverse each entry once
-  (`Traversal`).
+  (`Traversal`). Its `receiver` names the type kinds the receiver must have for the role to hold, as
+  Python's `dict.items` needs a `map`.
 - An `[[extension]]` gives a registered extension, named without its namespace, the operation it runs
   after its children: `Never`, `Always`, or `WithoutMember`, for a node that runs one only when it names
   no member, as a `**` keyword argument does. Its `lazy` names the modifier of a node that runs where

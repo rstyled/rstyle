@@ -712,6 +712,28 @@ mod tests {
     }
 
     #[test]
+    fn an_extent_role_can_name_the_receiver_kinds_it_holds_for() {
+        let contracts = Contracts::embedded();
+        let items = contracts
+            .extent("py:dict.items")
+            .expect("dict items traversal");
+        assert_eq!(
+            (items.role, items.receiver.as_slice()),
+            (ExtentRole::Traversal, &["map".to_string()][..])
+        );
+        assert!(
+            contracts
+                .extent("rust:slice.iter")
+                .unwrap()
+                .receiver
+                .is_empty()
+        );
+        let extent = "[[extent]]\nbasis = \"b\"\nrole = \"Length\"\nreceiver = [\"set\"]\noperations = [\"S.len\"]\n";
+        let one = Contracts::parse_all(&[&file(extent)]).unwrap();
+        assert_eq!(one.extent("t:S.len").unwrap().receiver, ["set"]);
+    }
+
+    #[test]
     fn steps_instantiate_with_argument_sizes() {
         let steps = Steps::Add(vec![
             Steps::Mul(vec![Steps::Size(1), Steps::Log(Box::new(Steps::Size(0)))]),

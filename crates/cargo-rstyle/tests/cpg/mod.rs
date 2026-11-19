@@ -474,6 +474,7 @@ mod build_outputs;
 mod callables;
 mod capture;
 mod comprehensions;
+mod containers;
 mod deferred;
 #[cfg(unix)]
 mod descriptor;
