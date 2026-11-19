@@ -2,6 +2,7 @@
 //! Runtime bounds). The lowering is backward: each construct is lowered so that it
 //! continues at `next`, and returns its entry node.
 
+mod allocation;
 mod arguments;
 mod calls;
 mod canonical;
@@ -15,6 +16,7 @@ mod guards;
 mod iteration;
 mod primitive;
 pub mod report;
+mod writes;
 
 use super::model::{Node, NodeKind};
 use crate::advisory::runtime_bounds::{Input, MAX_NODES, MAX_VARIABLES};

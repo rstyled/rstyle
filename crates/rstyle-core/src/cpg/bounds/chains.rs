@@ -1,14 +1,15 @@
 //! Resolved standard iterator chains lower to synthetic scans with inlined callbacks.
 //!
-//! A chain is modeled only when its source is a stable slice or `Vec` traversal or a
-//! primitive `Range`, and every stage is a resolved member of the standard iteration
-//! interface with a stage or consumer role in the library contracts. Each callback
+//! A chain is modeled only when its source is a shared sequence or `Vec` traversal with
+//! a known extent or a primitive `Range`, and every stage is a resolved member of the standard
+//! iteration interface with a stage or consumer role in the library contracts. Each callback
 //! runs at most once per pulled source item; filters, skips and short-circuiting
 //! consumers become nondeterministic exits.
 
-use super::super::model::{DefinitionKind, Node, NodeKind, TargetKind, Type, TypeKind};
+use super::super::model::{DefinitionKind, Node, NodeKind, RefStatus, TargetKind, Type, TypeKind};
 use super::Collector;
 use super::extent::{has_role, is_method};
+use super::iteration::Parts;
 use crate::runtime_bounds::contracts::{
     ConsumerEffect, Contracts, ExtentRole, Iteration, StageEffect,
 };
@@ -39,6 +40,7 @@ enum Consumer<'a> {
     Drain,
     Each(Callback<'a>),
     Search(Callback<'a>),
+    Body(&'a Node),
 }
 
 struct Chain<'a> {
@@ -128,6 +130,144 @@ impl<'a> Collector<'_, '_, 'a> {
         let scan = self.scan_chain(&chain, &[], tail)?;
 
         Ok(Some(self.chain_inputs(&chain, scan)?))
+    }
+
+    /// A `for` drives the same bounded adapter pipeline as a terminal library consumer.
+    /// Flattened callback returns need a separate scope model; yielded values must have
+    /// cleanup the lowering can account for without evaluating their binding pattern.
+    pub(super) fn for_iterator_chain(
+        &mut self,
+        expression: &'a Node,
+        parts: &Parts<'a>,
+        next: u32,
+    ) -> Result<Option<u32>, String> {
+        let Some(chain) = self.chain(parts.head)? else {
+            return Ok(None);
+        };
+        if chain.stages.is_empty()
+            || chain
+                .stages
+                .iter()
+                .any(|stage| matches!(stage, Stage::FlatMap(_)))
+        {
+            return Ok(None);
+        }
+        let reason = if !chain.standard {
+            Some(self.facts.tables.wording().text(Message::ChainDispatch))
+        } else if !self.written_places(parts.pattern)?.is_empty() {
+            Some(self.facts.tables.wording().text(Message::LoopTarget))
+        } else if !self.for_chain_cleanup(&chain, parts)? {
+            Some("For-loop adapter or item cleanup is not modeled")
+        } else {
+            None
+        };
+        if let Some(reason) = reason {
+            return Ok(Some(self.unsupported(expression, next, reason)));
+        }
+        let tail = Tail {
+            consumer: Consumer::Body(parts.body),
+            targets: Targets {
+                skip: next,
+                stop: next,
+            },
+            at: expression,
+        };
+        let scan = self.scan_chain(&chain, &[], tail)?;
+
+        Ok(Some(self.chain_inputs(&chain, scan)?))
+    }
+
+    /// Discarded intermediate items and callback environments also belong to the iterator.
+    /// Their cleanup must be safe before this route can erase the adapter constructors.
+    fn for_chain_cleanup(&self, chain: &Chain<'a>, parts: &Parts<'a>) -> Result<bool, String> {
+        let mut work = 256;
+        let borrowed_binding = parts
+            .pattern
+            .binding_mode
+            .as_deref()
+            .is_some_and(|mode| mode != "value");
+        if borrowed_binding || !self.for_item_type(self.facts.ty(parts.pattern), 64, &mut work) {
+            return Ok(false);
+        }
+        let mut adapter = parts.head;
+        for _ in &chain.stages {
+            let item = self
+                .facts
+                .reference(adapter)
+                .filter(|reference| reference.status == RefStatus::Resolved)
+                .and_then(|reference| reference.item.as_deref())
+                .and_then(|id| self.facts.type_of(id));
+            if !self.for_item_type(item, 64, &mut work) {
+                return Ok(false);
+            }
+            adapter = self.facts.body.child(adapter, 0)?;
+        }
+
+        Ok(chain.stages.iter().all(|stage| match stage {
+            Stage::Map(callback) | Stage::Filter(callback) | Stage::TakeWhile(callback) => {
+                self.for_callback_cleanup(*callback, &mut work)
+            }
+            _ => true,
+        }))
+    }
+
+    fn for_callback_cleanup(&self, callback: Callback<'a>, work: &mut usize) -> bool {
+        let Callback::Closure(closure) = callback else {
+            return true;
+        };
+        let Some(captures) = &closure.captures else {
+            return false;
+        };
+        captures.iter().all(|capture| {
+            let Some(remaining) = work.checked_sub(1) else {
+                return false;
+            };
+            *work = remaining;
+            match capture.mode.as_str() {
+                "shared" | "exclusive" | "unique" => true,
+                "value" => self.for_item_type(self.facts.type_of(&capture.ty), 64, work),
+                _ => false,
+            }
+        })
+    }
+
+    // A map callback can return an owned value even when the source yields references.
+    // This path does not lower pattern cleanup, so owning and incomplete types stay unknown.
+    fn for_item_type(&self, ty: Option<&Type>, depth: usize, work: &mut usize) -> bool {
+        let (Some(ty), Some(depth), Some(remaining)) =
+            (ty, depth.checked_sub(1), work.checked_sub(1))
+        else {
+            return false;
+        };
+        *work = remaining;
+        if ty.kind == TypeKind::Reference {
+            return true;
+        }
+        if ty.definition.is_some()
+            || ty
+                .arguments
+                .as_ref()
+                .is_some_and(|arguments| !arguments.is_empty())
+        {
+            return false;
+        }
+
+        let mut part = |id: &str| self.for_item_type(self.facts.type_of(id), depth, work);
+        match ty.kind {
+            TypeKind::Bool
+            | TypeKind::Char
+            | TypeKind::Integer
+            | TypeKind::Float
+            | TypeKind::String
+            | TypeKind::Unit
+            | TypeKind::Bottom => true,
+            TypeKind::Tuple => ty
+                .items
+                .as_ref()
+                .is_some_and(|items| items.iter().all(|id| part(id))),
+            TypeKind::Sequence if ty.fixed == Some(true) => ty.element.as_deref().is_some_and(part),
+            _ => false,
+        }
     }
 
     // Source places and stage arguments are evaluated once, before the first pull.
@@ -262,7 +402,7 @@ impl<'a> Collector<'_, '_, 'a> {
         Some((stage, contract))
     }
 
-    // Slice and `Vec` traversals yield at most their stable length.
+    // Sequence and `Vec` traversals yield at most their known or stable length.
     fn source(&self, root: &'a Node) -> Result<Option<(Value, u8)>, String> {
         if root.kind == NodeKind::RecordConstruction {
             return self.range_source(root);
@@ -273,14 +413,9 @@ impl<'a> Collector<'_, '_, 'a> {
         if !has_role(self.facts, root, ExtentRole::Traversal) {
             return Ok(None);
         }
-        let Some(place) = self.place(self.facts.body.child(root, 0)?)? else {
-            return Ok(None);
-        };
-
         Ok(self
-            .extents
-            .get(&place.key())
-            .map(|label| (Value::Input(label.clone()), self.facts.pointer_bits)))
+            .sequence_extent(self.facts.body.child(root, 0)?)?
+            .map(|limit| (limit, self.facts.pointer_bits)))
     }
 
     // A primitive `start..end` yields at most `end` items, whatever its start.
@@ -386,13 +521,33 @@ impl<'a> Collector<'_, '_, 'a> {
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
     fn pipeline(&mut self, stages: &[Stage<'a>], tail: Tail<'a>) -> Lowered {
         let Some((stage, rest)) = stages.split_first() else {
-            return self.step(consumer_step(tail), tail.at, tail.targets.skip);
+            return self.consume(tail);
         };
         if let Stage::FlatMap(closure) = stage {
             return self.flat_map(closure, rest, tail);
         }
         let next = self.pipeline(rest, tail)?;
         self.step(stage_step(*stage, tail.targets), tail.at, next)
+    }
+
+    // Consumers run after the last stage; the item then advances or the consumer stops.
+    fn consume(&mut self, tail: Tail<'a>) -> Lowered {
+        let (callback, alternative) = match tail.consumer {
+            Consumer::Body(body) => {
+                return self.loop_body(tail.at, body, (tail.targets.stop, tail.targets.skip));
+            }
+            Consumer::Drain => (None, None),
+            Consumer::Each(callback) => (Some(callback), None),
+            Consumer::Search(callback) => (Some(callback), Some(tail.targets.stop)),
+        };
+        self.step(
+            Step {
+                callback,
+                alternative,
+            },
+            tail.at,
+            tail.targets.skip,
+        )
     }
 
     fn step(&mut self, step: Step<'a>, at: &'a Node, next: u32) -> Lowered {
@@ -533,19 +688,6 @@ fn stage_step(stage: Stage<'_>, targets: Targets) -> Step<'_> {
         Stage::Take => (None, Some(targets.stop)),
         Stage::TakeWhile(callback) => (Some(callback), Some(targets.stop)),
         Stage::FlatMap(_) => (None, None),
-    };
-    Step {
-        callback,
-        alternative,
-    }
-}
-
-// Consumers run after the last stage; the item then advances or a search stops.
-fn consumer_step(tail: Tail<'_>) -> Step<'_> {
-    let (callback, alternative) = match tail.consumer {
-        Consumer::Drain => (None, None),
-        Consumer::Each(callback) => (Some(callback), None),
-        Consumer::Search(callback) => (Some(callback), Some(tail.targets.stop)),
     };
     Step {
         callback,

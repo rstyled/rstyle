@@ -5,7 +5,10 @@
 //! up and instantiates the contract's step expression with the call's argument sizes.
 //! The same files declare each operation's iteration and extent roles, so a frontend
 //! recognizes traversals by key instead of carrying its own method tables.
+mod allocation;
 mod iteration;
+
+pub use allocation::{Allocation, Storage};
 
 pub use iteration::{
     ConsumerEffect, Dispatch, Dispatched, Extent, ExtentRole, Handed, ItemAgnostic, Iteration,
@@ -81,6 +84,8 @@ struct File {
     extent: Vec<iteration::ExtentEntry>,
     #[serde(default)]
     callable: Vec<iteration::CallableEntry>,
+    #[serde(default)]
+    allocation: Vec<allocation::Entry>,
 }
 
 #[derive(Deserialize)]
@@ -99,6 +104,7 @@ pub struct Contracts {
     consumers: BTreeMap<String, Iteration<ConsumerEffect>>,
     extents: BTreeMap<String, Extent>,
     callables: BTreeMap<String, iteration::Callable>,
+    allocations: BTreeMap<String, Allocation>,
 }
 
 impl File {
@@ -159,13 +165,24 @@ impl Contracts {
             Ok((&entry.operations[..], contract))
         });
         declare(&mut self.operations, (namespace, "step"), steps)?;
+        self.extend_storage(&file)?;
+        self.extend_iteration(&file)
+    }
+
+    fn extend_storage(&mut self, file: &File) -> Result<(), String> {
+        let namespace = file.namespace.as_str();
         let extents = file
             .extent
             .iter()
             .map(|entry| Ok((&entry.operations[..], entry.extent())));
         declare(&mut self.extents, (namespace, "extent"), extents)?;
-
-        self.extend_iteration(&file)
+        let allocations = file.allocation.iter();
+        let allocations = allocations.map(|entry| Ok((&entry.operations[..], entry.allocation()?)));
+        declare(
+            &mut self.allocations,
+            (namespace, "allocation"),
+            allocations,
+        )
     }
 
     fn extend_iteration(&mut self, file: &File) -> Result<(), String> {
@@ -216,6 +233,11 @@ impl Contracts {
     /// What an operation measures about its receiver's extent.
     pub fn extent(&self, operation: &str) -> Option<&Extent> {
         self.extents.get(operation)
+    }
+
+    /// What native storage an operation returns; this declares neither callback nor step cost.
+    pub fn allocation(&self, operation: &str) -> Option<&Allocation> {
+        self.allocations.get(operation)
     }
 
     pub fn get(&self, operation: &str) -> Option<&Contract> {

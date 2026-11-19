@@ -49,6 +49,12 @@ including those outside `--top`. It describes capture availability, not proof su
 may still yield unknown or partial results. These counts add no proofs, do not count every latent blocker,
 and describe only the supplied input roster, not functions absent from the capture.
 
+The compiler report (`rstyle.compiler-runtime-bounds-report/2`) includes the same stable context and
+coverage maps. Its `coverage_scope` explicitly limits the denominator to `assessed_functions_in_unit`
+and the requested `authored` or `captured` source population. Owners absent from that handoff are not
+counted. The compiler keeps every scoped row and uses `selected` indices for `--top`; selection does not
+change coverage. Generated empty functions can add zero-loop proofs, without adding a scan proof.
+
 ## In the check run
 
 When bounds run alongside `check`, each function with a proven bound of degree two or more is a
@@ -108,9 +114,29 @@ Both paths remain possible: `continue`, `return`, counter writes and calls keep 
 cost effects. A failure path that can bypass a counter increment does not establish loop progress.
 Pattern guards, writable reference patterns and hidden cleanup keep their existing restrictions.
 
+**Primitive scratch writes.** A direct write to a local or by-value parameter of primitive Boolean,
+character, floating-point or unit type can preserve bounds when the store affects no modeled scalar
+or selected extent. The right-hand side still runs, including its calls, counter writes and cleanup.
+Fields, indexes, references, aggregates, adjusted places, unknown types and overloaded assignments
+retain conservative handling. A Boolean assignment does not prove progress of a Boolean-controlled loop.
+
+**Fresh output storage.** A resolved builtin allocation with an explicit storage contract can certify
+a fresh native sequence with builtin element writes. An ordinary indexed assignment can then preserve
+a scan bound when the sequence is held in an immutable local, its value shape is complete, and its
+base and index are effect-free. The allocation and right-hand side still run. Unknown setters,
+overloaded assignments, indirect bases, effectful indexes and possible cleanup retain conservative
+handling. This certifies unrelated storage; it does not infer the output collection's length from
+the allocator's arguments or prove library operation costs.
+
 **Arguments.** A call evaluates its receiver or callee, then what each argument passes. An argument that
 holds its value under a name, as Python's `print(total, end="")` does, passes that value. One that unpacks
 a sequence or a mapping, as `*items` and `**options` do, is unsupported.
+
+**Fixed shared sequences.** A shared sequence with compiler-proven fixed length uses that constant for
+its scans, resolved standard traversal chains and length queries. A shared array-to-slice coercion is
+accepted only when its type facts preserve the element type. Callback loops still contribute their work.
+Owned or writable arrays, unknown constant-generic lengths, custom iteration, computed receivers and
+lengths outside the target pointer width retain conservative handling.
 
 **Collections.** Resolved collection length queries and traversal adapters are abstracted and excluded
 from call counts. Ordinary body calls can have unknown cost while preserving a bound on a private scalar
@@ -226,6 +252,9 @@ roles, so frontends carry no method tables:
 - A `[[callable]]` names functions and members that run a callable for the call itself, the arguments
   that are callables, counted after the receiver or the callee, and how often it runs one. One that runs
   one at most once lowers to a branch around each.
+- `[[allocation]]` certifies the storage created by a builtin allocator, independently of its cost.
+  `FreshNativeSequence` promises native element writes without user setters; a declared static type
+  operand is skipped only after matching a childless type annotation at the certified position.
 - `[[extent]]` marks members that read a stable length (`Length`) or traverse each entry once
   (`Traversal`).
 
