@@ -188,6 +188,13 @@ its count times the callee's bound, with callee inputs replaced by per-invocatio
 caller's arguments. Lengths follow shared places and field paths, so passing `&g.edges` into a slice scan
 contributes `len(g.edges)`.
 
+Call arguments run in written evaluation order, while their summary inputs follow the formal positions
+recorded by the frontend. Thus `scan(unused=0, limit=n)` passes `n` to the formal `limit` even when it
+is written last. Missing arguments retain unknown sizes; the analysis does not guess their defaults.
+Summary inputs require a known, fixed callable interface. Unresolved positions, duplicate bindings,
+spreads, variadic interfaces and mismatched receiver layouts leave argument sizes opaque, while the
+call and its argument evaluation remain counted. Argument rosters are bounded before allocation.
+
 An immutable local alias initialized once outside loops can retain the formal input's length
 provenance when its initializer is a fully typed shared place rooted in an immutable shared formal.
 Field paths must have complete structural type facts. Both the local alias and its original formal

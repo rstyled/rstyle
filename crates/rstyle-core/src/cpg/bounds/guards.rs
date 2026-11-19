@@ -2,7 +2,7 @@
 
 use super::super::model::{Node, NodeKind};
 use super::Collector;
-use super::extent::standard_adjustments;
+use super::extent::{extent_receiver, standard_adjustments};
 use crate::runtime_bounds::{Condition, Value};
 
 const MAX_GUARD_PARTS: usize = 64;
@@ -124,8 +124,12 @@ impl<'a> Collector<'_, '_, 'a> {
         if scalar {
             return Ok(true);
         }
-        Ok(self.extent_value(expression)?.is_some()
-            && self.pure_extent_place(self.facts.body.child(expression, 0)?)?)
+        Ok(match extent_receiver(self.facts, expression)? {
+            Some(receiver) => {
+                self.extent_value(expression)?.is_some() && self.pure_extent_place(receiver)?
+            }
+            None => false,
+        })
     }
 
     fn pure_extent_place(&self, mut expression: &'a Node) -> Result<bool, String> {
@@ -161,10 +165,14 @@ mod tests {
     use crate::cpg::tree::{Body, Tables};
     use crate::runtime_bounds::{Action, Arithmetic, Flow};
 
-    fn guarded_unit() -> Unit {
+    fn example_unit() -> Unit {
         let document: Document =
             serde_json::from_str(include_str!("../testdata/example.cpg.json")).unwrap();
-        let mut unit = document.unit.unwrap();
+        document.unit.unwrap()
+    }
+
+    fn guarded_unit() -> Unit {
+        let mut unit = example_unit();
         let function = unit
             .functions
             .as_mut()
@@ -182,9 +190,7 @@ mod tests {
         unit
     }
 
-    #[test]
-    fn exhaustion_during_guard_setup_cannot_deliver_a_partial_program() {
-        let unit = guarded_unit();
+    fn with_facts(unit: &Unit, check: impl FnOnce(&Facts<'_, '_>)) {
         let function = unit
             .functions
             .as_ref()
@@ -193,8 +199,8 @@ mod tests {
             .find(|function| function.name == "count")
             .unwrap();
         let body = Body::new(function).unwrap();
-        let tables = Tables::new(&unit).unwrap();
-        let sources = Sources::new(&unit).unwrap();
+        let tables = Tables::new(unit).unwrap();
+        let sources = Sources::new(unit).unwrap();
         let facts = Facts {
             body: &body,
             tables: &tables,
@@ -202,19 +208,36 @@ mod tests {
             pointer_bits: 64,
             destructors_are_calls: true,
         };
-        let mut collector = Collector::new(&facts, Arithmetic::Checked);
-        let (statements, _) = collector.statements(body.root().unwrap()).unwrap();
-        collector.register_locals(&statements).unwrap();
-        let owner = body.node("count.if").unwrap();
-        let next = collector.node(Action::Nop, Flow::Return, owner);
-        collector.work = MAX_NODES * 4;
+        check(&facts);
+    }
 
-        assert_eq!(collector.conjunctive_loop(owner, next).unwrap(), Some(next));
-        assert!(collector.exhausted);
-        assert!(collector.program.loop_headers.is_empty());
-        assert!(matches!(
-            collector.collect().unwrap(),
-            Input::BudgetExhausted { .. }
-        ));
+    #[test]
+    fn a_boolean_operand_without_extent_evidence_cannot_supply_a_numeric_bound() {
+        with_facts(&example_unit(), |facts| {
+            let collector = Collector::new(facts, Arithmetic::Checked);
+            let operand = facts.body.node("count.cond").unwrap();
+            assert!(facts.integer(facts.ty(operand)).is_none());
+            assert!(!collector.pure_guard_value(operand).unwrap());
+        });
+    }
+
+    #[test]
+    fn exhaustion_during_guard_setup_cannot_deliver_a_partial_program() {
+        with_facts(&guarded_unit(), |facts| {
+            let mut collector = Collector::new(facts, Arithmetic::Checked);
+            let (statements, _) = collector.statements(facts.body.root().unwrap()).unwrap();
+            collector.register_locals(&statements).unwrap();
+            let owner = facts.body.node("count.if").unwrap();
+            let next = collector.node(Action::Nop, Flow::Return, owner);
+            collector.work = MAX_NODES * 4;
+
+            assert_eq!(collector.conjunctive_loop(owner, next).unwrap(), Some(next));
+            assert!(collector.exhausted);
+            assert!(collector.program.loop_headers.is_empty());
+            assert!(matches!(
+                collector.collect().unwrap(),
+                Input::BudgetExhausted { .. }
+            ));
+        });
     }
 }
