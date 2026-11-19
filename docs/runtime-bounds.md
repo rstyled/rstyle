@@ -171,8 +171,28 @@ composed result carries an opaque factor for the call. An extension without a ro
 
 | Language | Evaluates only its children | Then runs an unresolved call |
 | --- | --- | --- |
-| Python | `py:fstring`, `py:slice`, a keyword argument with a name | `py:format`, `py:dict`, `py:star`, `py:await`, `py:import`, a `**` keyword argument |
+| Python | `py:fstring`, `py:slice`, a keyword argument with a name | `py:format`, `py:dict`, `py:star`, `py:await`, `py:import`, `py:comprehension`, a `**` keyword argument |
 | Go | `go:slice` | |
+
+A comprehension runs the `for` loops it desugars to where it's written, so they're bounded as any `for` is,
+and then builds its result. A node whose role names a `lazy` modifier, as a generator expression has
+`py:lazy`, runs where what it makes is consumed. It's lowered in place only as an argument of the call
+that consumes it, directly or through a keyword or a starred argument, and one kept for later stays
+unsupported, since it could run against values that changed.
+
+**Exceptions.** A role can also say how a node raises an exception or handles one. Python's `raise` and
+`assert` and C++'s `throw` raise. Python's `try` and C++'s `try` handle what their body raises, and so does
+Python's `with`, whose context's `__enter__` and `__exit__` are unresolved calls at the node.
+
+Anything in a handled region can raise, not only a node that says so. A region's handlers can therefore
+start where its body ends and before every jump out of it, with every counter the region names unknown.
+A path that raises partway and is handled is a prefix of one of those, so its loops and calls are
+counted. A `finally` block, or a `with`'s exit methods, runs once on every way out and then goes on to any
+of them, which only adds paths. An `else` block is read as a `finally` block for the same reason.
+
+What's raised outside every handled region leaves the function. In a document whose destructors are
+calls, as C++'s are, it goes on as if it weren't raised instead: the normal path runs every destructor
+that unwinding would, and more. A `with` that binds an attribute stays unsupported.
 
 **Fixed shared sequences.** A shared sequence with compiler-proven fixed length uses that constant for
 its scans, resolved standard traversal chains and length queries. A shared array-to-slice coercion is
@@ -190,19 +210,6 @@ provenance. Adapter callbacks, their invocation counts, and owning yielded-value
 still pass through the existing chain checks. Generic pattern sources such as `split`,
 custom methods, computed receivers and owned `String` dereference are not covered by
 these four contracts.
-**Exceptions.** A role can also say how a node raises an exception or handles one. Python's `raise` and
-`assert` and C++'s `throw` raise. Python's `try` and C++'s `try` handle what their body raises, and so does
-Python's `with`, whose context's `__enter__` and `__exit__` are unresolved calls at the node.
-
-Anything in a handled region can raise, not only a node that says so. A region's handlers can therefore
-start where its body ends and before every jump out of it, with every counter the region names unknown.
-A path that raises partway and is handled is a prefix of one of those, so its loops and calls are
-counted. A `finally` block, or a `with`'s exit methods, runs once on every way out and then goes on to any
-of them, which only adds paths. An `else` block is read as a `finally` block for the same reason.
-
-What's raised outside every handled region leaves the function. In a document whose destructors are
-calls, as C++'s are, it goes on as if it weren't raised instead: the normal path runs every destructor
-that unwinding would, and more. A `with` that binds an attribute stays unsupported.
 
 **Collections.** Resolved collection length queries and traversal adapters are abstracted and excluded
 from call counts. Ordinary body calls can have unknown cost while preserving a bound on a private scalar
@@ -400,7 +407,8 @@ roles, so frontends carry no method tables:
   (`Traversal`).
 - An `[[extension]]` gives a registered extension, named without its namespace, the operation it runs
   after its children: `Never`, `Always`, or `WithoutMember`, for a node that runs one only when it names
-  no member, as a `**` keyword argument does. Its `control` says instead how it raises (`Throw`,
+  no member, as a `**` keyword argument does. Its `lazy` names the modifier of a node that runs where
+  it's consumed. Its `control` says instead how it raises (`Throw`,
   `Assert`) or handles (`Try`, `With`), and a `Try`'s `handlers` name the extensions among its children
   that are handlers, as a `match` among them is.
 - A `[[range]]` gives a call that makes a range of integers the argument that holds its `start`,

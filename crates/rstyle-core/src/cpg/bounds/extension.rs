@@ -25,6 +25,15 @@ impl<'a> Collector<'_, '_, 'a> {
         if let Some(control) = role.control {
             return self.control(node, (role, control), next);
         }
+        if role
+            .lazy
+            .as_ref()
+            .is_some_and(|lazy| node.modifiers.contains(lazy))
+            && !self.consumed_where_made(node)?
+        {
+            let reason = "A lazy value not consumed by the call it's an argument of is unmodeled";
+            return Ok(Some(self.unsupported(node, next, reason)));
+        }
         let operates = match role.implicit {
             Implicit::Never => false,
             Implicit::Always => true,
@@ -41,6 +50,25 @@ impl<'a> Collector<'_, '_, 'a> {
             };
         }
         Ok(Some(entry))
+    }
+
+    /// Whether a lazy node is an argument of a call, directly or through an extension that only
+    /// passes it, such as a keyword or a starred argument: the call consumes it, if anything does,
+    /// before anything after the call runs, so it runs no later than it would where it's written.
+    fn consumed_where_made(&self, node: &'a Node) -> Result<bool, String> {
+        let parent = |child: &Node| {
+            let nodes = &self.facts.body.function.nodes;
+            nodes
+                .iter()
+                .find(|candidate| candidate.children.contains(&child.id))
+        };
+        Ok(match parent(node) {
+            Some(call) if call.kind == NodeKind::Call => true,
+            Some(wrapper) if wrapper.kind == NodeKind::Extension => {
+                parent(wrapper).is_some_and(|call| call.kind == NodeKind::Call)
+            }
+            _ => false,
+        })
     }
 
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
