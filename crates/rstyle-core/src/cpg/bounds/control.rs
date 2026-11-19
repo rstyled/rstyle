@@ -373,6 +373,9 @@ impl<'a> Collector<'_, '_, 'a> {
     fn while_loop(&mut self, expression: &'a Node, next: u32) -> Lowered {
         let condition = self.facts.body.child(expression, 0)?;
         let body = self.facts.body.child(expression, 1)?;
+        if let Some(entry) = self.conjunctive_loop(expression, next)? {
+            return Ok(entry);
+        }
         let header = self.loop_header(expression, next);
         let condition_entry = self.expr(condition, header)?;
         let then_node = self.loop_body(expression, body, (next, condition_entry))?;
