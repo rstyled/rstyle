@@ -8,6 +8,7 @@ mod calls;
 mod canonical;
 mod chains;
 mod control;
+mod deferred;
 mod dispatch;
 mod extent;
 pub mod facts;
@@ -47,6 +48,7 @@ pub(crate) struct Collector<'f, 'b, 'a> {
     closures: BTreeMap<&'a str, &'a Node>,
     returns: Vec<u32>,
     formals: BTreeMap<&'a str, u32>,
+    deferred: Option<deferred::Binding<'a>>,
 }
 
 impl<'f, 'b, 'a> Collector<'f, 'b, 'a> {
@@ -65,6 +67,7 @@ impl<'f, 'b, 'a> Collector<'f, 'b, 'a> {
             closures: BTreeMap::new(),
             returns: Vec::new(),
             formals: BTreeMap::new(),
+            deferred: None,
         }
     }
 }
@@ -99,7 +102,10 @@ impl<'a> Collector<'_, '_, 'a> {
         let root = self.facts.body.root()?;
         match frame.reason {
             Some(reason) => self.reject_body(root, &reason),
-            None => self.capture_body(root)?,
+            None => {
+                self.prepare_deferred(root)?;
+                self.capture_body(root)?;
+            }
         }
         if self.exhausted {
             return Ok(Input::BudgetExhausted {
@@ -341,6 +347,9 @@ impl<'a> Collector<'_, '_, 'a> {
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
     fn local(&mut self, local: &'a Node, next: u32) -> Result<u32, String> {
         let parts = self.local_parts(local)?;
+        if let Some(entry) = self.initialize_deferred(&parts, next)? {
+            return Ok(entry);
+        }
         // Immutable local closures run only where they are directly invoked.
         if let Some(symbol) = self.binding_symbol(parts.pattern)
             && self.closures.contains_key(symbol)

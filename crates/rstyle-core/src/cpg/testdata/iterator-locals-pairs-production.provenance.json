@@ -1,0 +1,41 @@
+{
+  "corpus": "rstyle-main frozen production replay",
+  "manifest_file": "documents.manifest.json",
+  "manifest_checksum": "sha256:2fb0b26c09a559ab4421fccaf68217717d92fd96cd2008d67c6e24426c11f9b9",
+  "documents": [
+    {
+      "file": "document-000008.cpg.json.zst",
+      "checksum": "sha256:eaba66c932900d300d8b1ee185fad2467bf6a9ba03d860aa2011820b22075f10",
+      "bytes": 196318,
+      "encoding": "zstd",
+      "decoded_bytes": 2178799,
+      "decoded_checksum": "sha256:e4bac24e103d160a618fafd3bd6c22c16b8927ffc2d856617ac8b65f04c1e065"
+    }
+  ],
+  "owner": "rstyle_core::align::{impl#5}::pairs",
+  "owner_checksum": "sha256:26da1e7ce3f3ab874fdff2b1e934745bdef47c7e55770959892bdf8ec5666648",
+  "owner_checksum_encoding": "UTF-8 JSON with lexicographically sorted object keys, no insignificant whitespace",
+  "retained_functions": [
+    {
+      "owner": "rstyle_core::align::{impl#5}::pairs",
+      "definition": "def:rstyle_core::align::{impl#5}::pairs",
+      "function": "fn:rstyle_core::align::{impl#5}::pairs",
+      "document": "document-000008.cpg.json.zst",
+      "checksum": "sha256:26da1e7ce3f3ab874fdff2b1e934745bdef47c7e55770959892bdf8ec5666648"
+    }
+  ],
+  "fixture_checksum": "sha256:3ea4d72e863a23413f3f1a82745f68121ee4d4cf8414f23e10882bd4b91ba30a",
+  "reduction": "The original primary function and selected workspace callees needed for its composed outcome are retained unchanged. Definitions, types, files, values and instances are their transitive ID dependency closure. Function facts, referenced source bytes, compilation semantics and implicit-call capability remain unchanged. Unrelated functions and session extensions are omitted. The classes fixture retains the original shape::normalize body to expose its actual unmodeled-semantics blocker; its downstream callees are not expanded because that body is already Unknown locally.",
+  "source_files": [
+    {
+      "id": "file:crates/rstyle-core/src/align.rs",
+      "digest": "sha256:ce33a2d3c9250893e3ff157e4b22d049e6445b4840c1f5c5b0f64d2e958305c5",
+      "content_checksum": "sha256:ce33a2d3c9250893e3ff157e4b22d049e6445b4840c1f5c5b0f64d2e958305c5"
+    },
+    {
+      "id": "file:crates/rstyle-core/src/lib.rs",
+      "digest": "sha256:eee14f7d38c14823aafbc8844a0841f3da605c61d683e11fecf143431acc585b",
+      "content_checksum": "sha256:eee14f7d38c14823aafbc8844a0841f3da605c61d683e11fecf143431acc585b"
+    }
+  ]
+}
