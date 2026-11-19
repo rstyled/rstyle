@@ -214,17 +214,18 @@ fn memory_writes(
     rules: &[MemoryRule],
     key: impl Fn(&str) -> String,
 ) -> BTreeMap<String, MemoryWrite> {
-    let mut writes = BTreeMap::new();
-    for rule in rules {
-        for operation in &rule.operations {
-            let write = MemoryWrite {
-                argument: rule.argument,
-                types: rule.types.clone(),
-            };
-            writes.insert(key(operation), write);
-        }
-    }
-    writes
+    rules
+        .iter()
+        .flat_map(|rule| {
+            rule.operations.iter().map(|operation| {
+                let write = MemoryWrite {
+                    argument: rule.argument,
+                    types: rule.types.clone(),
+                };
+                (key(operation), write)
+            })
+        })
+        .collect()
 }
 
 #[cfg(test)]

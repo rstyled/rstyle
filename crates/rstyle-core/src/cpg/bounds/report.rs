@@ -14,7 +14,7 @@ mod coverage;
 #[cfg(test)]
 mod coverage_tests;
 
-use coverage::Coverage;
+pub use coverage::Coverage;
 use serde::Serialize;
 use std::collections::{BTreeSet, HashMap};
 
@@ -51,7 +51,7 @@ struct DocumentRow {
     name: String,
     path: String,
     #[serde(flatten)]
-    context: Context,
+    context: FunctionContext,
     #[serde(flatten)]
     evidence: Evidence,
     /// An `rstyle-allow` above the function names `RULE`. Its bound stays in this report.
@@ -60,8 +60,9 @@ struct DocumentRow {
 }
 
 /// The identity and source context retained even when review-only fields are dropped.
+/// Line and column are zero when no measured source location is available.
 #[derive(Default, Serialize)]
-struct Context {
+pub struct FunctionContext {
     identity: String,
     compilation: String,
     function: String,
@@ -71,15 +72,20 @@ struct Context {
     test: bool,
 }
 
-impl Context {
-    fn new(record: &Record, facts: &crate::facts::FnFacts) -> Self {
+impl From<&Record> for FunctionContext {
+    fn from(record: &Record) -> Self {
+        let (line, column) = match &record.measured {
+            Measured::Known(facts) | Measured::Body(facts) => (facts.line, facts.column),
+            Measured::Generated(observation) => (observation.line, observation.column),
+            Measured::Unavailable(_) => (0, 0),
+        };
         Self {
             identity: record.identity.clone(),
             compilation: record.compilation.clone(),
             function: record.function.clone(),
             root: record.root.clone(),
-            line: facts.line,
-            column: facts.column,
+            line,
+            column,
             test: record.test,
         }
     }
@@ -116,13 +122,13 @@ pub fn from_records(records: &[Record], top: Option<usize>) -> DocumentReport {
             Some(DocumentRow {
                 name: record.name.clone(),
                 path: facts.path.clone(),
-                context: Context::new(record, facts),
+                context: FunctionContext::from(record),
                 evidence: record_evidence(record, &mut composer),
                 allowed: suppress::allows(&facts.preceding_line, RULE),
             })
         })
         .collect();
-    let coverage = Coverage::new(records, &rows);
+    let coverage = Coverage::new(records.iter(), rows.iter().map(|row| &row.evidence));
     let input_complete = coverage.input_complete();
     rows.sort_by_key(|row| std::cmp::Reverse(degree(&row.evidence)));
     rows.truncate(top.unwrap_or(usize::MAX));
@@ -412,7 +418,7 @@ mod tests {
         DocumentRow {
             name: "dedupe".into(),
             path: "src/lib.rs".into(),
-            context: Context::default(),
+            context: FunctionContext::default(),
             evidence: Evidence {
                 capture_status: "captured",
                 inputs: None,
@@ -451,7 +457,7 @@ mod tests {
     fn report(rows: Vec<DocumentRow>) -> DocumentReport {
         DocumentReport {
             schema: "test",
-            coverage: Coverage::new(&[], &rows),
+            coverage: Coverage::new(std::iter::empty(), rows.iter().map(|row| &row.evidence)),
             input_complete: true,
             limitations: LIMITATIONS,
             rows,

@@ -1,0 +1,30 @@
+{
+  "corpus": "rstyle-main smoke frozen production replay",
+  "manifest_file": "documents.manifest.json",
+  "manifest_checksum": "sha256:2fb0b26c09a559ab4421fccaf68217717d92fd96cd2008d67c6e24426c11f9b9",
+  "document": {
+    "file": "document-000075.cpg.json.zst",
+    "checksum": "sha256:6c99011b1435c019b9112734f90a207e80b3111c3439903837a669e2210b0a11",
+    "bytes": 181475,
+    "encoding": "zstd",
+    "decoded_bytes": 2111177,
+    "decoded_checksum": "sha256:e110bcb4be46cafe4c1f0a24683f66f117530202c3727109fbd65c027661a78a"
+  },
+  "owner": "rstyle_core::merge_risk::markdown::escape",
+  "owner_checksum": "sha256:ed3dc4d109a0fb8861839ada20e629ecfa5dbef11e2b273f41786607ffbc3818",
+  "owner_checksum_encoding": "UTF-8 JSON with lexicographically sorted object keys, no insignificant whitespace",
+  "fixture_checksum": "sha256:2b9c5fed111466dcad900decd2fe88a3e4b1530dbfbf49ef82c6cac32340ac80",
+  "reduction": "Only escape is retained in functions. Definitions and types are the transitive ID dependency closure of its unchanged facts. Original referenced source files and compilation semantics are retained. Unrelated values and session extensions are omitted.",
+  "source_files": [
+    {
+      "id": "file:crates/rstyle-core/src/lib.rs",
+      "digest": "sha256:eee14f7d38c14823aafbc8844a0841f3da605c61d683e11fecf143431acc585b",
+      "content_checksum": "sha256:eee14f7d38c14823aafbc8844a0841f3da605c61d683e11fecf143431acc585b"
+    },
+    {
+      "id": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+      "digest": "sha256:6523686c57f6ea88a189ce7f5f52623811904f7ff7455f4394f5f35abae2555c",
+      "content_checksum": "sha256:6523686c57f6ea88a189ce7f5f52623811904f7ff7455f4394f5f35abae2555c"
+    }
+  ]
+}

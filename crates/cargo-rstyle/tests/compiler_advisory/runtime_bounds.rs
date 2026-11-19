@@ -1,5 +1,6 @@
 use super::*;
 
+mod coverage;
 mod declarations;
 
 pub(crate) const SOURCE: &str = r#"

@@ -49,6 +49,12 @@ including those outside `--top`. It describes capture availability, not proof su
 may still yield unknown or partial results. These counts add no proofs, do not count every latent blocker,
 and describe only the supplied input roster, not functions absent from the capture.
 
+The compiler report (`rstyle.compiler-runtime-bounds-report/2`) includes the same stable context and
+coverage maps. Its `coverage_scope` explicitly limits the denominator to `assessed_functions_in_unit`
+and the requested `authored` or `captured` source population. Owners absent from that handoff are not
+counted. The compiler keeps every scoped row and uses `selected` indices for `--top`; selection does not
+change coverage. Generated empty functions can add zero-loop proofs, without adding a scan proof.
+
 ## In the check run
 
 When bounds run alongside `check`, each function with a proven bound of degree two or more is a
@@ -83,6 +89,11 @@ To silence one function, put an `rstyle-allow` above it. Its bound stays in the 
 least zero, and any other start makes that loop opaque. A signed input counts as its positive part, so
 `while i < n` over an `i64` gives `max(n, 0)`, and that floor survives composition with a caller's
 argument. A conversion between signed and unsigned stays unknown.
+
+**Short-circuit guards.** A pure leading numeric guard in `while i < limit && predicate` can bound
+the later predicate and body. The predicate retains its calls and short-circuit evaluation, including
+a final false result. Counter progress, invariant limits and no-overflow checks still apply. Arbitrary
+Boolean guards and loops whose branches advance different counters remain conservative.
 
 **Unbounded integers.** A language whose integers have no width, as Python's don't, says so with
 `integer_overflow: unbounded` and leaves `bits` out of its integer types. They count as signed values, read
@@ -128,6 +139,22 @@ and right-hand-side evaluation remain in the captured program.
 **Arguments.** A call evaluates its receiver or callee, then what each argument passes. An argument that
 holds its value under a name, as Python's `print(total, end="")` does, passes that value. One that unpacks
 a sequence or a mapping, as `*items` and `**options` do, is unsupported.
+
+**Fixed shared sequences.** A shared sequence with compiler-proven fixed length uses that constant for
+its scans, resolved standard traversal chains and length queries. A shared array-to-slice coercion is
+accepted only when its type facts preserve the element type. Callback loops still contribute their work.
+Owned or writable arrays, unknown constant-generic lengths, custom iteration, computed receivers and
+lengths outside the target pointer width retain conservative handling.
+
+Resolved inherent standard `str.chars`, `str.bytes`, `str.char_indices` and `str.lines`
+sources use the same shared traversal model. Their receiver must be a stable shared
+string place; its extent is UTF-8 byte length. `bytes` yields exactly that many items,
+while Unicode scalar and line iteration yield at most that many, including zero for an
+empty string. The resulting loop bound retains the receiver's actual formal or local
+provenance. Adapter callbacks, their invocation counts, and owning yielded-value cleanup
+still pass through the existing chain checks. Generic pattern sources such as `split`,
+custom methods, computed receivers and owned `String` dereference are not covered by
+these four contracts.
 
 **Collections.** Resolved collection length queries and traversal adapters are abstracted and excluded
 from call counts. Ordinary body calls can have unknown cost while preserving a bound on a private scalar
@@ -178,6 +205,19 @@ Each row also has a `composed` result that adds resolved workspace callee summar
 its count times the callee's bound, with callee inputs replaced by per-invocation upper bounds of the
 caller's arguments. Lengths follow shared places and field paths, so passing `&g.edges` into a slice scan
 contributes `len(g.edges)`.
+
+Call arguments run in written evaluation order, while their summary inputs follow the formal positions
+recorded by the frontend. Thus `scan(unused=0, limit=n)` passes `n` to the formal `limit` even when it
+is written last. Missing arguments retain unknown sizes; the analysis does not guess their defaults.
+Summary inputs require a known, fixed callable interface. Unresolved positions, duplicate bindings,
+spreads, variadic interfaces and mismatched receiver layouts leave argument sizes opaque, while the
+call and its argument evaluation remain counted. Argument rosters are bounded before allocation.
+
+An immutable local alias initialized once outside loops can retain the formal input's length
+provenance when its initializer is a fully typed shared place rooted in an immutable shared formal.
+Field paths must have complete structural type facts. Both the local alias and its original formal
+place are checked for writes, borrows and captures. Unknown projections, computed initializers,
+destructuring and aliases of other locals retain local or unresolved size information.
 
 A call of a type, such as Python's `Made(xs, ys)`, runs the function its own reference names when the
 frontend resolves that statically, here `Made.__init__`. The value the call makes is that function's
