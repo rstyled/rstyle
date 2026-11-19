@@ -4,6 +4,10 @@ use crate::cpg::{records::Demand, run_records};
 use runtime_bounds::{Bound, OpaqueKind, compose::Composition};
 use serde_json::{Value, json};
 
+fn coverage(rows: &[DocumentRow]) -> Coverage {
+    Coverage::new(std::iter::empty(), rows.iter().map(|row| &row.evidence))
+}
+
 fn records() -> Vec<Record> {
     let document =
         serde_json::from_str(include_str!("../../testdata/type-call-py.cpg.json")).unwrap();
@@ -49,10 +53,10 @@ fn coverage_separates_proofs_from_opaque_or_absent_answers() {
             reason: "missing".into(),
         }),
     ];
-    assert!(Coverage::new(&[], &rows).input_complete());
+    assert!(coverage(&rows).input_complete());
     rows[6].evidence = evidence(Err("missing".into()));
-    assert!(!Coverage::new(&[], &rows).input_complete());
-    let coverage = serde_json::to_value(Coverage::new(&[], &rows)).unwrap();
+    assert!(!coverage(&rows).input_complete());
+    let coverage = serde_json::to_value(coverage(&rows)).unwrap();
 
     assert_eq!(
         coverage["local"],
@@ -92,7 +96,7 @@ fn opaque_library_work_does_not_turn_a_composed_proof_into_complete_runtime() {
             item
         })
         .collect();
-    let coverage = serde_json::to_value(Coverage::new(&[], &rows)).unwrap();
+    let coverage = serde_json::to_value(coverage(&rows)).unwrap();
 
     assert_eq!(
         coverage["composed"],
@@ -171,6 +175,33 @@ fn identities_survive_review_field_removal_and_disambiguate_duplicate_names() {
     }
     assert_eq!(rows[1]["test"], true);
     assert!(rows[0]["line"].as_u64().unwrap() > 0);
+}
+
+#[test]
+fn shared_context_preserves_coordinates_where_measured_and_marks_absent_ones() {
+    let mut records = records();
+    let mut record = records.remove(0);
+    let expected = serde_json::to_value(FunctionContext::from(&record)).unwrap();
+    let Measured::Known(facts) = record.measured.clone() else {
+        panic!()
+    };
+    record.measured = Measured::Body(facts);
+    assert_eq!(
+        serde_json::to_value(FunctionContext::from(&record)).unwrap(),
+        expected
+    );
+    record.measured = Measured::Generated(Box::new(record.measured.observation().unwrap()));
+    assert_eq!(
+        serde_json::to_value(FunctionContext::from(&record)).unwrap(),
+        expected
+    );
+    record.measured = Measured::Unavailable("no source coordinates".into());
+    let context = serde_json::to_value(FunctionContext::from(&record)).unwrap();
+    assert_eq!(context["line"], 0);
+    assert_eq!(context["column"], 0);
+    for key in ["identity", "compilation", "function", "root", "test"] {
+        assert_eq!(context[key], expected[key], "{key}");
+    }
 }
 
 #[test]

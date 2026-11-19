@@ -1,0 +1,3549 @@
+{
+  "schema_version": "0.1.0",
+  "profile": {
+    "id": "compat.cpg",
+    "version": "0.1.0"
+  },
+  "layout": "bundled",
+  "document": "unit",
+  "producer": {
+    "name": "rstyle-go",
+    "version": "0.2.0",
+    "namespace": "go"
+  },
+  "coverage": {
+    "capabilities": {
+      "aliasing": {
+        "status": "approximated",
+        "description": "places record the writes the effect analysis observes, with its escape decision, and each address taken as a raw place; reads and arguments have no places, and a slice, map or pointer that two bindings share isn't tracked"
+      },
+      "constant-values": {
+        "status": "approximated",
+        "description": "literal values only; constant expressions and iota are not evaluated"
+      },
+      "dispatch": {
+        "status": "approximated",
+        "description": "interface method calls stay dynamic; implementations are not selected"
+      },
+      "evaluation-order": {
+        "status": "approximated",
+        "description": "the CFG follows Go's specified order, except that a select's channels and values are evaluated in the arm that runs them rather than on entry"
+      },
+      "exceptional-flow": {
+        "status": "approximated",
+        "description": "panic and calls known never to return have edges; a panic from a callee or the runtime, recover, and the deferred calls that run on the way out do not"
+      },
+      "generic-instances": {
+        "status": "unsupported",
+        "description": "instances are not recorded; a call through a type parameter is a dependent reference"
+      },
+      "implicit-calls": {
+        "status": "not_applicable",
+        "description": "Go has no destructors, implicit conversions that run code, or overloaded dereferences"
+      },
+      "integer-semantics": {
+        "status": "supported",
+        "description": "widths and signedness come from go/types; signed and unsigned overflow wrap"
+      },
+      "lifetimes": {
+        "status": "not_applicable",
+        "description": "Go is garbage collected"
+      },
+      "macro-provenance": {
+        "status": "not_applicable",
+        "description": "Go has no macros; header statements and implicit switch alternatives carry desugaring provenance"
+      },
+      "mutability": {
+        "status": "approximated",
+        "description": "a binding is immutable when nothing replaces it, takes its address or writes part of its own value; named results stay mutable, since a return writes them; package variables are definitions of kind other, because core reads a static as a constant and each use of a mutable static as a global effect"
+      },
+      "resolution": {
+        "status": "supported",
+        "description": "go/types resolves references; a function outside the typed build overrides this as unknown"
+      },
+      "types": {
+        "status": "approximated",
+        "description": "every typed node refers to a structured type; named types omit their members, and channels and complex numbers are opaque"
+      }
+    },
+    "layers": {
+      "ast": {
+        "status": "supported",
+        "description": "every statement and expression; constructs without a neutral kind are registered go: extensions"
+      },
+      "cfg": {
+        "status": "approximated",
+        "description": "edges between the nodes of a function's own body; a closure's body has none, since it runs when called, and a deferred call stays at its defer statement"
+      },
+      "evidence": {
+        "status": "supported",
+        "description": "coverage per document, with an override per function"
+      },
+      "extension": {
+        "status": "supported",
+        "description": "registered go: extensions"
+      },
+      "method": {
+        "status": "supported",
+        "description": "identity, spans, parameters, receiver, results and generics"
+      },
+      "place": {
+        "status": "approximated",
+        "description": "writes from the effect analysis, with their field, index and dereference steps; which element an index writes isn't tracked"
+      },
+      "ref": {
+        "status": "supported",
+        "description": "identifiers and calls; a call through a function value that is not a local name is unresolved"
+      },
+      "symbol": {
+        "status": "supported",
+        "description": "locals, parameters, receivers and named results, with an access per reference"
+      },
+      "type": {
+        "status": "approximated",
+        "description": "structured types from go/types; named types omit their members"
+      },
+      "unit": {
+        "status": "supported",
+        "description": "packages, files with content, imports and referenced definitions"
+      },
+      "value": {
+        "status": "approximated",
+        "description": "literal values only"
+      }
+    }
+  },
+  "unit": {
+    "id": "unit:github.com/commonfabric/bay/internal/cli",
+    "language": {
+      "name": "go",
+      "version": "go1.27.2"
+    },
+    "toolchain": {
+      "name": "go",
+      "version": "go1.27.2"
+    },
+    "target": {
+      "triple": "linux-arm64",
+      "pointer_width": 64
+    },
+    "configuration": [],
+    "semantics": {
+      "integer_overflow": "wrapping",
+      "exceptions": "unwind"
+    },
+    "files": [
+      {
+        "id": "file:internal/cli/palette_commands.go",
+        "path": "internal/cli/palette_commands.go",
+        "digest": "sha256:9e63aa7d7811f0c6b2d6885803a7a5384a3c4b6f21312e62e1c81b4f70cfebdd",
+        "origin": "source",
+        "content": "package cli\n\nimport (\n\t\"fmt\"\n\t\"os\"\n\t\"sort\"\n\t\"strings\"\n\n\t\"github.com/commonfabric/bay/internal/config\"\n\t\"github.com/commonfabric/bay/internal/engine\"\n\t\"github.com/commonfabric/bay/internal/manifest\"\n\t\"github.com/commonfabric/bay/internal/palette\"\n\t\"github.com/commonfabric/bay/internal/picker\"\n)\n\n// paletteEnv collects the long-lived state the palette commands all\n// need. buildPaletteEntries threads it through every Action closure.\ntype paletteEnv struct {\n\tEngine  *engine.Engine\n\tScope   palette.Scope\n\tCtx     *engine.Context\n\tRecents *palette.Recents\n\tHotkeys *palette.Hotkeys\n\tIn      *os.File\n\tOut     *os.File\n}\n\n// modeSplit converts a palette Mode to the split-direction string used by\n// engine.SurfaceAddOptions (and the surface creator runners).\nfunc modeSplit(m palette.Mode) string {\n\tif m == palette.ModePane {\n\t\treturn \"v\"\n\t}\n\treturn \"\"\n}\n\n// modeHotkey looks up the hotkey for a mode-sensitive signature.\nfunc modeHotkey(h *palette.Hotkeys, window, pane string, m palette.Mode) string {\n\tif m == palette.ModePane {\n\t\treturn h.Lookup(pane)\n\t}\n\treturn h.Lookup(window)\n}\n\n// buildPaletteEntries returns all palette entries with Actions bound to\n// the current env and mode. Called at startup and again on every Tab press.\nfunc buildPaletteEntries(env *paletteEnv, mode palette.Mode) []palette.Entry {\n\th := env.Hotkeys\n\tsplit := modeSplit(mode)\n\tagentParamValid := func(agent string) bool {\n\t\treturn agentAvailable(env.Engine.Config, agent)\n\t}\n\n\treturn []palette.Entry{\n\t\t// === Navigation ===\n\t\t{\n\t\t\tID:      \"go-surface\",\n\t\t\tTitle:   \"Go to surface...\",\n\t\t\tSection: palette.SectionNavigation,\n\t\t\tNeeds:   palette.ScopeInBay,\n\t\t\tHotkey:  h.Lookup(\"bay surface go --pick\"),\n\t\t\tAction: func() (string, error) {\n\t\t\t\treturn \"\", surfaceGo(env.Engine, nil, false)\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"go-bay\",\n\t\t\tTitle:   \"Go to bay...\",\n\t\t\tSection: palette.SectionNavigation,\n\t\t\tNeeds:   palette.ScopeInDock,\n\t\t\tHotkey:  h.Lookup(\"bay go --pick\"),\n\t\t\tAction: func() (string, error) {\n\t\t\t\treturn \"\", bayGo(env.Engine, nil, false, false)\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"go-home\",\n\t\t\tTitle:   \"Go to home\",\n\t\t\tSection: palette.SectionNavigation,\n\t\t\tNeeds:   palette.ScopeInDock,\n\t\t\tHotkey:  h.Lookup(\"bay home\"),\n\t\t\tAction: func() (string, error) {\n\t\t\t\treturn \"\", env.Engine.Home(env.Ctx.Dock)\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"show-context\",\n\t\t\tTitle:   \"Show current context\",\n\t\t\tSection: palette.SectionNavigation,\n\t\t\tNeeds:   palette.ScopeAnywhere,\n\t\t\tAction: func() (string, error) {\n\t\t\t\tctx, err := env.Engine.CurrentContext()\n\t\t\t\tif err != nil {\n\t\t\t\t\treturn \"\", err\n\t\t\t\t}\n\t\t\t\tpalette.Notice(env.In, env.Out, formatPWD(ctx))\n\t\t\t\treturn \"\", nil\n\t\t\t},\n\t\t},\n\n\t\t// === Create \u2014 surface ===\n\t\t{\n\t\t\tID:      \"new-shell\",\n\t\t\tTitle:   \"New shell\",\n\t\t\tSection: palette.SectionCreateSurface,\n\t\t\tNeeds:   palette.ScopeInBay,\n\t\t\tHotkey:  modeHotkey(h, \"bay shell --window\", \"bay shell --pane\", mode),\n\t\t\tAction: func() (string, error) {\n\t\t\t\tdock, bay, err := env.Engine.ResolveSelf()\n\t\t\t\tif err != nil {\n\t\t\t\t\treturn \"\", err\n\t\t\t\t}\n\t\t\t\treturn \"\", env.Engine.SurfaceAdd(engine.SurfaceAddOptions{\n\t\t\t\t\tDockName: dock,\n\t\t\t\t\tBayName:  bay,\n\t\t\t\t\tType:     manifest.SurfaceTypeShell,\n\t\t\t\t\tName:     \"shell\",\n\t\t\t\t\tSplitDir: split,\n\t\t\t\t})\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"new-agent\",\n\t\t\tTitle:   \"New agent\",\n\t\t\tSection: palette.SectionCreateSurface,\n\t\t\tNeeds:   palette.ScopeInBay,\n\t\t\tHotkey:  modeHotkey(h, \"bay agent --window\", \"bay agent --pane\", mode),\n\t\t\tAction: func() (string, error) {\n\t\t\t\tdock, bay, err := env.Engine.ResolveSelf()\n\t\t\t\tif err != nil {\n\t\t\t\t\treturn \"\", err\n\t\t\t\t}\n\t\t\t\treturn \"\", runSurfaceNew(env.Engine, dock, bay, surfaceNewOpts{\n\t\t\t\t\tType:     manifest.SurfaceTypeAgent,\n\t\t\t\t\tSplitDir: split,\n\t\t\t\t})\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:         \"new-agent-pick\",\n\t\t\tTitle:      \"New agent...\",\n\t\t\tSection:    palette.SectionCreateSurface,\n\t\t\tNeeds:      palette.ScopeInBay,\n\t\t\tParamValid: agentParamValid,\n\t\t\tTitleWithParam: func(p string) string {\n\t\t\t\treturn fmt.Sprintf(\"New agent (%s)\", p)\n\t\t\t},\n\t\t\tAction: func() (string, error) {\n\t\t\t\tagent, ok := paletteAgentPick(env)\n\t\t\t\tif !ok {\n\t\t\t\t\treturn \"\", nil\n\t\t\t\t}\n\t\t\t\treturn runPaletteNewAgent(env, split, agent)\n\t\t\t},\n\t\t\tActionWithParam: func(agent string) (string, error) {\n\t\t\t\treturn runPaletteNewAgent(env, split, agent)\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"new-cmd\",\n\t\t\tTitle:   \"New cmd...\",\n\t\t\tSection: palette.SectionCreateSurface,\n\t\t\tNeeds:   palette.ScopeInBay,\n\t\t\tAction: func() (string, error) {\n\t\t\t\tcmdLine, ok, err := picker.Prompt(\"new cmd: \", \"\", env.In, env.Out)\n\t\t\t\tif err != nil || !ok || strings.TrimSpace(cmdLine) == \"\" {\n\t\t\t\t\treturn \"\", err\n\t\t\t\t}\n\t\t\t\tdock, bay, err := env.Engine.ResolveSelf()\n\t\t\t\tif err != nil {\n\t\t\t\t\treturn \"\", err\n\t\t\t\t}\n\t\t\t\treturn \"\", runSurfaceNew(env.Engine, dock, bay, surfaceNewOpts{\n\t\t\t\t\tType:     manifest.SurfaceTypeCmd,\n\t\t\t\t\tCommand:  cmdLine,\n\t\t\t\t\tSplitDir: split,\n\t\t\t\t})\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"edit-bay\",\n\t\t\tTitle:   \"Open editor (bay)\",\n\t\t\tSection: palette.SectionCreateSurface,\n\t\t\tNeeds:   palette.ScopeInBay,\n\t\t\tHotkey:  h.Lookup(\"bay edit\"),\n\t\t\tAction: func() (string, error) {\n\t\t\t\treturn \"\", runEditCreate(env.Engine, \"self\", \"\", split)\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"edit-dock\",\n\t\t\tTitle:   \"Open editor (dock)\",\n\t\t\tSection: palette.SectionCreateSurface,\n\t\t\tNeeds:   palette.ScopeInDock,\n\t\t\tHotkey:  h.Lookup(\"bay edit --dock\"),\n\t\t\tAction: func() (string, error) {\n\t\t\t\treturn \"\", runEditDock(env.Engine, \"\", \"\")\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"home-shell\",\n\t\t\tTitle:   \"Home shell\",\n\t\t\tSection: palette.SectionCreateSurface,\n\t\t\tNeeds:   palette.ScopeInDock,\n\t\t\tHotkey:  h.Lookup(\"bay shell --bay home\"),\n\t\t\tAction: func() (string, error) {\n\t\t\t\treturn \"\", env.Engine.SurfaceAdd(engine.SurfaceAddOptions{\n\t\t\t\t\tDockName: env.Ctx.Dock,\n\t\t\t\t\tBayName:  manifest.HomeBayID,\n\t\t\t\t\tType:     manifest.SurfaceTypeShell,\n\t\t\t\t\tName:     \"shell\",\n\t\t\t\t\tSplitDir: split,\n\t\t\t\t})\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"home-editor\",\n\t\t\tTitle:   \"Home editor\",\n\t\t\tSection: palette.SectionCreateSurface,\n\t\t\tNeeds:   palette.ScopeInDock,\n\t\t\tHotkey:  h.Lookup(\"bay edit --bay home\"),\n\t\t\tAction: func() (string, error) {\n\t\t\t\treturn \"\", runEditCreateAt(env.Engine, env.Ctx.Dock, manifest.HomeBayID, \"\", split)\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"home-agent\",\n\t\t\tTitle:   \"Home agent\",\n\t\t\tSection: palette.SectionCreateSurface,\n\t\t\tNeeds:   palette.ScopeInDock,\n\t\t\tHotkey:  h.Lookup(\"bay agent --bay home\"),\n\t\t\tAction: func() (string, error) {\n\t\t\t\treturn \"\", runSurfaceNew(env.Engine, env.Ctx.Dock, manifest.HomeBayID, surfaceNewOpts{\n\t\t\t\t\tType:     manifest.SurfaceTypeAgent,\n\t\t\t\t\tSplitDir: split,\n\t\t\t\t})\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:         \"home-agent-pick\",\n\t\t\tTitle:      \"Home agent...\",\n\t\t\tSection:    palette.SectionCreateSurface,\n\t\t\tNeeds:      palette.ScopeInDock,\n\t\t\tParamValid: agentParamValid,\n\t\t\tTitleWithParam: func(p string) string {\n\t\t\t\treturn fmt.Sprintf(\"Home agent (%s)\", p)\n\t\t\t},\n\t\t\tAction: func() (string, error) {\n\t\t\t\tagent, ok := paletteAgentPick(env)\n\t\t\t\tif !ok {\n\t\t\t\t\treturn \"\", nil\n\t\t\t\t}\n\t\t\t\treturn runPaletteHomeAgent(env, split, agent)\n\t\t\t},\n\t\t\tActionWithParam: func(agent string) (string, error) {\n\t\t\t\treturn runPaletteHomeAgent(env, split, agent)\n\t\t\t},\n\t\t},\n\n\t\t// === Create \u2014 bay ===\n\t\t{\n\t\t\tID:      \"new-bay\",\n\t\t\tTitle:   \"New bay\",\n\t\t\tSection: palette.SectionCreateBay,\n\t\t\tNeeds:   palette.ScopeInDock,\n\t\t\tHotkey:  h.Lookup(\"bay new -q\"),\n\t\t\tAction: func() (string, error) {\n\t\t\t\t_, err := env.Engine.BayNew(engine.BayNewOptions{\n\t\t\t\t\tDock:  env.Ctx.Dock,\n\t\t\t\t\tShell: true,\n\t\t\t\t})\n\t\t\t\treturn \"\", err\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"new-bay-agent\",\n\t\t\tTitle:   \"New bay with default agent\",\n\t\t\tSection: palette.SectionCreateBay,\n\t\t\tNeeds:   palette.ScopeInDock,\n\t\t\tHotkey:  h.Lookup(\"bay new -q --agent\"),\n\t\t\tAction: func() (string, error) {\n\t\t\t\t_, err := env.Engine.BayNew(engine.BayNewOptions{\n\t\t\t\t\tDock:         env.Ctx.Dock,\n\t\t\t\t\tRequireAgent: true,\n\t\t\t\t})\n\t\t\t\treturn \"\", err\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:         \"new-bay-agent-pick\",\n\t\t\tTitle:      \"New bay with agent...\",\n\t\t\tSection:    palette.SectionCreateBay,\n\t\t\tNeeds:      palette.ScopeInDock,\n\t\t\tParamValid: agentParamValid,\n\t\t\tTitleWithParam: func(p string) string {\n\t\t\t\treturn fmt.Sprintf(\"New bay with agent (%s)\", p)\n\t\t\t},\n\t\t\tAction: func() (string, error) {\n\t\t\t\tagent, ok := paletteAgentPick(env)\n\t\t\t\tif !ok {\n\t\t\t\t\treturn \"\", nil\n\t\t\t\t}\n\t\t\t\treturn runPaletteNewBayAgent(env, agent)\n\t\t\t},\n\t\t\tActionWithParam: func(agent string) (string, error) {\n\t\t\t\treturn runPaletteNewBayAgent(env, agent)\n\t\t\t},\n\t\t},\n\n\t\t// === Current bay ===\n\t\t{\n\t\t\tID:      \"rename-bay\",\n\t\t\tTitle:   \"Rename bay...\",\n\t\t\tSection: palette.SectionCurrentBay,\n\t\t\tNeeds:   palette.ScopeInBay,\n\t\t\tAction: func() (string, error) {\n\t\t\t\tcurrentID := env.Ctx.BayID\n\t\t\t\tcurrent := env.Ctx.Bay\n\t\t\t\tname, ok, err := picker.Prompt(\"rename bay: \", current, env.In, env.Out)\n\t\t\t\tif err != nil || !ok || name == \"\" || name == current {\n\t\t\t\t\treturn \"\", err\n\t\t\t\t}\n\t\t\t\treturn \"\", env.Engine.BayRename(env.Ctx.Dock, currentID, name)\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"describe-bay\",\n\t\t\tTitle:   \"Describe bay...\",\n\t\t\tSection: palette.SectionCurrentBay,\n\t\t\tNeeds:   palette.ScopeInBay,\n\t\t\tAction: func() (string, error) {\n\t\t\t\tprefill := \"\"\n\t\t\t\tif info, err := env.Engine.BayInfoByName(env.Ctx.Dock, env.Ctx.BayID); err == nil {\n\t\t\t\t\tprefill = info.Description\n\t\t\t\t}\n\t\t\t\tdesc, ok, err := picker.Prompt(\"describe: \", prefill, env.In, env.Out)\n\t\t\t\tif err != nil || !ok {\n\t\t\t\t\treturn \"\", err\n\t\t\t\t}\n\t\t\t\treturn \"\", env.Engine.BayDescribe(env.Ctx.Dock, env.Ctx.BayID, desc)\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"clear-bay-description\",\n\t\t\tTitle:   \"Clear bay description\",\n\t\t\tSection: palette.SectionCurrentBay,\n\t\t\tNeeds:   palette.ScopeInBay,\n\t\t\tAction: func() (string, error) {\n\t\t\t\treturn \"\", env.Engine.BayDescribe(env.Ctx.Dock, env.Ctx.BayID, \"\")\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"show-bay\",\n\t\t\tTitle:   \"Show bay details\",\n\t\t\tSection: palette.SectionCurrentBay,\n\t\t\tNeeds:   palette.ScopeInBay,\n\t\t\tAction: func() (string, error) {\n\t\t\t\tenv.Engine.SyncAll()\n\t\t\t\tinfo, err := env.Engine.BayInfoByName(env.Ctx.Dock, env.Ctx.BayID)\n\t\t\t\tif err != nil {\n\t\t\t\t\treturn \"\", err\n\t\t\t\t}\n\t\t\t\ttext := FormatBayShow(env.Ctx.Dock, info, false)\n\t\t\t\tpalette.Notice(env.In, env.Out, text)\n\t\t\t\treturn \"\", nil\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"tidy-bay\",\n\t\t\tTitle:   \"Tidy bay (detach + drop merged branch)\",\n\t\t\tSection: palette.SectionCurrentBay,\n\t\t\tNeeds:   palette.ScopeInBay,\n\t\t\tAction: func() (string, error) {\n\t\t\t\tres, err := env.Engine.BayTidy(env.Ctx.Dock, env.Ctx.BayID)\n\t\t\t\tif err != nil {\n\t\t\t\t\treturn \"\", err\n\t\t\t\t}\n\t\t\t\tmsg := fmt.Sprintf(\"Detached at origin/%s\", res.DefaultBranch)\n\t\t\t\tif res.AlreadyDetached {\n\t\t\t\t\tmsg = fmt.Sprintf(\"Already detached at origin/%s\", res.DefaultBranch)\n\t\t\t\t} else if res.DeletedBranch != \"\" {\n\t\t\t\t\tmsg += fmt.Sprintf(\", deleted branch %s\", res.DeletedBranch)\n\t\t\t\t}\n\t\t\t\tpalette.Notice(env.In, env.Out, msg)\n\t\t\t\treturn \"\", nil\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"close-bay\",\n\t\t\tTitle:   \"Close bay\",\n\t\t\tSection: palette.SectionCurrentBay,\n\t\t\tNeeds:   palette.ScopeInBay,\n\t\t\tAction: func() (string, error) {\n\t\t\t\treturn \"\", runBayClose(env.Engine, env.Ctx.Dock, env.Ctx.BayID, false, false)\n\t\t\t},\n\t\t},\n\n\t\t// === Current surface ===\n\t\t{\n\t\t\tID:      \"rename-surface\",\n\t\t\tTitle:   \"Rename surface...\",\n\t\t\tSection: palette.SectionCurrentSurface,\n\t\t\tNeeds:   palette.ScopeInBay,\n\t\t\tAction: func() (string, error) {\n\t\t\t\tcurrent := env.Ctx.Surface\n\t\t\t\tif current == \"\" {\n\t\t\t\t\treturn \"\", fmt.Errorf(\"no current surface\")\n\t\t\t\t}\n\t\t\t\tname, ok, err := picker.Prompt(\"rename surface: \", current, env.In, env.Out)\n\t\t\t\tif err != nil || !ok || name == \"\" || name == current {\n\t\t\t\t\treturn \"\", err\n\t\t\t\t}\n\t\t\t\treturn \"\", env.Engine.SurfaceRename(env.Ctx.Dock, env.Ctx.BayID, current, name)\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"close-surface\",\n\t\t\tTitle:   \"Close surface\",\n\t\t\tSection: palette.SectionCurrentSurface,\n\t\t\tNeeds:   palette.ScopeInBay,\n\t\t\tHotkey:  h.Lookup(\"bay sf close self\"),\n\t\t\tAction: func() (string, error) {\n\t\t\t\tif env.Ctx.Surface == \"\" {\n\t\t\t\t\treturn \"\", fmt.Errorf(\"no current surface\")\n\t\t\t\t}\n\t\t\t\tforce := false\n\t\t\t\tif dismisses, err := env.Engine.SurfaceCloseWouldDismissDock(env.Ctx.Dock, env.Ctx.BayID, env.Ctx.Surface); err != nil {\n\t\t\t\t\treturn \"\", err\n\t\t\t\t} else if dismisses {\n\t\t\t\t\tif !confirmLastHomeClose(homeCloseFlash(env.Engine), env.Ctx.Dock) {\n\t\t\t\t\t\treturn \"\", nil\n\t\t\t\t\t}\n\t\t\t\t\tforce = true\n\t\t\t\t}\n\t\t\t\treturn \"\", env.Engine.SurfaceClose(env.Ctx.Dock, env.Ctx.BayID, env.Ctx.Surface, force)\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"show-surface\",\n\t\t\tTitle:   \"Show surface details\",\n\t\t\tSection: palette.SectionCurrentSurface,\n\t\t\tNeeds:   palette.ScopeInBay,\n\t\t\tAction: func() (string, error) {\n\t\t\t\tif env.Ctx.Surface == \"\" {\n\t\t\t\t\treturn \"\", fmt.Errorf(\"no current surface\")\n\t\t\t\t}\n\t\t\t\tenv.Engine.SyncAll()\n\t\t\t\tbay, err := env.Engine.BayShow(env.Ctx.Dock, env.Ctx.BayID)\n\t\t\t\tif err != nil {\n\t\t\t\t\treturn \"\", err\n\t\t\t\t}\n\t\t\t\ts := bay.FindSurface(env.Ctx.Surface)\n\t\t\t\tif s == nil {\n\t\t\t\t\treturn \"\", fmt.Errorf(\"surface %q not found\", env.Ctx.Surface)\n\t\t\t\t}\n\t\t\t\tpalette.Notice(env.In, env.Out, formatSurfaceShow(s))\n\t\t\t\treturn \"\", nil\n\t\t\t},\n\t\t},\n\n\t\t// === Admin ===\n\t\t{\n\t\t\tID:      \"edit-config\",\n\t\t\tTitle:   \"Edit config\",\n\t\t\tSection: palette.SectionAdmin,\n\t\t\tNeeds:   palette.ScopeAnywhere,\n\t\t\tAction: func() (string, error) {\n\t\t\t\treturn \"\", runConfigEdit(env.Engine)\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"show-config\",\n\t\t\tTitle:   \"Show config\",\n\t\t\tSection: palette.SectionAdmin,\n\t\t\tNeeds:   palette.ScopeAnywhere,\n\t\t\tAction: func() (string, error) {\n\t\t\t\ttext, err := configShowString(env.Engine.Config)\n\t\t\t\tif err != nil {\n\t\t\t\t\treturn \"\", err\n\t\t\t\t}\n\t\t\t\tpalette.Notice(env.In, env.Out, text)\n\t\t\t\treturn \"\", nil\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"run-doctor\",\n\t\t\tTitle:   \"Run doctor\",\n\t\t\tSection: palette.SectionAdmin,\n\t\t\tNeeds:   palette.ScopeAnywhere,\n\t\t\tAction: func() (string, error) {\n\t\t\t\tvar sb strings.Builder\n\t\t\t\trunDoctor(env.Engine, &sb)\n\t\t\t\tpalette.Notice(env.In, env.Out, sb.String())\n\t\t\t\treturn \"\", nil\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tID:      \"monitor-status\",\n\t\t\tTitle:   \"Monitor status\",\n\t\t\tSection: palette.SectionAdmin,\n\t\t\tNeeds:   palette.ScopeAnywhere,\n\t\t\tAction: func() (string, error) {\n\t\t\t\tpalette.Notice(env.In, env.Out, monitorStatusString())\n\t\t\t\treturn \"\", nil\n\t\t\t},\n\t\t},\n\t}\n}\n\nfunc runPaletteNewAgent(env *paletteEnv, split, agent string) (string, error) {\n\tdock, bay, err := env.Engine.ResolveSelf()\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn runPaletteNewAgentIn(env, dock, bay, split, agent)\n}\n\nfunc runPaletteNewBayAgent(env *paletteEnv, agent string) (string, error) {\n\tif !agentAvailable(env.Engine.Config, agent) {\n\t\treturn \"\", fmt.Errorf(\"unknown agent %q\", agent)\n\t}\n\tif _, err := env.Engine.BayNew(engine.BayNewOptions{\n\t\tDock:         env.Ctx.Dock,\n\t\tAgent:        agent,\n\t\tRequireAgent: true,\n\t}); err != nil {\n\t\treturn \"\", err\n\t}\n\trecordPaletteAgentType(env, agent)\n\treturn agent, nil\n}\n\nfunc runPaletteHomeAgent(env *paletteEnv, split, agent string) (string, error) {\n\treturn runPaletteNewAgentIn(env, env.Ctx.Dock, manifest.HomeBayID, split, agent)\n}\n\nfunc runPaletteNewAgentIn(env *paletteEnv, dock, bayID, split, agent string) (string, error) {\n\tif !agentAvailable(env.Engine.Config, agent) {\n\t\treturn \"\", fmt.Errorf(\"unknown agent %q\", agent)\n\t}\n\tif err := runSurfaceNew(env.Engine, dock, bayID, surfaceNewOpts{\n\t\tType:     manifest.SurfaceTypeAgent,\n\t\tAgent:    agent,\n\t\tSplitDir: split,\n\t}); err != nil {\n\t\treturn \"\", err\n\t}\n\trecordPaletteAgentType(env, agent)\n\treturn agent, nil\n}\n\nfunc recordPaletteAgentType(env *paletteEnv, agent string) {\n\tif env.Recents == nil {\n\t\treturn\n\t}\n\tenv.Recents.RecordAgentType(agent)\n\t_ = env.Recents.Save()\n}\n\n// paletteAgentPick shows a sub-picker over the available agent types,\n// anchored by the recents MRU. Returns the chosen value, or (\"\", false)\n// on cancel.\nfunc paletteAgentPick(env *paletteEnv) (string, bool) {\n\tavailable := availableAgents(env.Engine.Config)\n\tavailSet := make(map[string]bool, len(available))\n\tfor _, name := range available {\n\t\tavailSet[name] = true\n\t}\n\tmru := env.Recents.TopAgentTypes(availSet)\n\n\titems, values := buildAgentPickerItems(mru, available, func(name string) string {\n\t\treturn agentDisplayName(env.Engine.Config, name)\n\t})\n\n\tsel, err := (&picker.Builtin{}).Pick(items, picker.Options{Prompt: \"agent type> \"})\n\tif err != nil || sel < 0 {\n\t\treturn \"\", false\n\t}\n\tif sel >= len(values) || values[sel] == \"\" {\n\t\treturn \"\", false\n\t}\n\treturn values[sel], true\n}\n\n// agentDisplayName decorates a profile with its base client \u2014 \"fable\n// (claude)\" \u2014 so profiles don't read as peers of the clients they wrap.\n// Plain agents display as their name.\nfunc agentDisplayName(cfg *config.Config, name string) string {\n\tif cfg == nil {\n\t\treturn name\n\t}\n\tif base := cfg.ProfileBase(name); base != \"\" {\n\t\treturn fmt.Sprintf(\"%s (%s)\", name, base)\n\t}\n\treturn name\n}\n\n// buildAgentPickerItems builds the sub-picker's item list. MRU entries\n// go first, followed by a separator and the full alphabetical list. The\n// full list always contains every available agent \u2014 including those\n// also in MRU \u2014 so \"pick an agent\" feels like a stable directory and\n// the MRU is strictly a shortcut.\n//\n// display maps an agent name to its picker label (e.g. decorating\n// profiles with their base). Returns items paired with a parallel\n// values slice keyed by Item.Value holding the raw agent names \u2014 the\n// separator's value is \"\" \u2014 so callers resolve the chosen name\n// independent of how it was displayed.\nfunc buildAgentPickerItems(mru, available []string, display func(string) string) ([]picker.Item, []string) {\n\tvar items []picker.Item\n\tvar values []string\n\tadd := func(name string) {\n\t\titems = append(items, picker.Item{Display: display(name), Value: len(items)})\n\t\tvalues = append(values, name)\n\t}\n\tfor _, name := range mru {\n\t\tadd(name)\n\t}\n\tif len(items) > 0 {\n\t\titems = append(items, picker.Item{Display: strings.Repeat(\"\u2500\", 6), Value: -1})\n\t\tvalues = append(values, \"\")\n\t}\n\tsortedAll := make([]string, len(available))\n\tcopy(sortedAll, available)\n\tsort.Strings(sortedAll)\n\tfor _, name := range sortedAll {\n\t\tadd(name)\n\t}\n\treturn items, values\n}\n\nfunc agentAvailable(cfg *config.Config, agent string) bool {\n\tif agent == \"\" {\n\t\treturn false\n\t}\n\tif cfg == nil {\n\t\tif _, ok := config.BuiltinProfiles[agent]; ok {\n\t\t\treturn true\n\t\t}\n\t\t_, ok := config.KnownAgents[config.CanonicalAgentName(agent)]\n\t\treturn ok\n\t}\n\t_, ok := cfg.ResolveAgent(agent)\n\treturn ok\n}\n\n// availableAgents returns the sorted list of known, built-in-profile,\n// and configured agent names that resolve (disabled entries drop out).\nfunc availableAgents(cfg *config.Config) []string {\n\tseen := map[string]bool{}\n\tfor name := range config.KnownAgents {\n\t\tseen[name] = true\n\t}\n\tfor name := range config.BuiltinProfiles {\n\t\tseen[name] = true\n\t}\n\tif cfg != nil {\n\t\tfor name := range cfg.Agents {\n\t\t\tseen[name] = true\n\t\t}\n\t}\n\tout := make([]string, 0, len(seen))\n\tfor name := range seen {\n\t\tif cfg != nil {\n\t\t\tif _, ok := cfg.ResolveAgent(name); !ok {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t}\n\t\tout = append(out, name)\n\t}\n\tsort.Strings(out)\n\treturn out\n}\n\n// formatSurfaceShow produces a multi-line human-readable summary of s,\n// matching the fields that `bay surface show` prints. Mirrors the\n// label/value layout in runSurfaceShow by reusing writeAlignedRows.\nfunc formatSurfaceShow(s *manifest.Surface) string {\n\trows := []showRow{\n\t\t{\"surface\", s.Name},\n\t\t{\"type\", string(s.Type)},\n\t}\n\tif s.Tmux != nil {\n\t\tif s.Tmux.WindowID != \"\" {\n\t\t\trows = append(rows, showRow{\"window\", s.Tmux.WindowID})\n\t\t}\n\t\tif s.Tmux.PaneID != \"\" {\n\t\t\trows = append(rows, showRow{\"pane\", s.Tmux.PaneID})\n\t\t}\n\t}\n\tif s.Agent != nil && *s.Agent != \"\" {\n\t\trows = append(rows, showRow{\"agent\", *s.Agent})\n\t}\n\tif s.Command != nil && *s.Command != \"\" {\n\t\trows = append(rows, showRow{\"command\", *s.Command})\n\t}\n\tvar b strings.Builder\n\twriteAlignedRows(&b, rows, 0)\n\treturn b.String()\n}\n"
+      }
+    ],
+    "namespaces": [],
+    "imports": [],
+    "definitions": [
+      {
+        "id": "def:go::github.com/commonfabric/bay/internal/picker.Item",
+        "kind": "type",
+        "name": "github.com/commonfabric/bay/internal/picker.Item",
+        "stable_identity": "go::github.com/commonfabric/bay/internal/picker.Item",
+        "scope": "workspace"
+      },
+      {
+        "id": "def:go::github.com/commonfabric/bay/internal/cli.buildAgentPickerItems",
+        "kind": "function",
+        "name": "buildAgentPickerItems",
+        "stable_identity": "go::github.com/commonfabric/bay/internal/cli.buildAgentPickerItems",
+        "scope": "unit",
+        "span": {
+          "file": "file:internal/cli/palette_commands.go",
+          "start": 17310,
+          "end": 17958
+        },
+        "callable": {
+          "parameters": [
+            "t62",
+            "t62",
+            "t283"
+          ],
+          "result": "t282",
+          "generics": 0,
+          "modifiers": []
+        },
+        "compilation": "github.com/commonfabric/bay/internal/cli"
+      },
+      {
+        "id": "def:go::append",
+        "kind": "function",
+        "name": "append",
+        "stable_identity": "go::append",
+        "scope": "library",
+        "standard": true,
+        "operation": "go:append"
+      },
+      {
+        "id": "def:go::len",
+        "kind": "function",
+        "name": "len",
+        "stable_identity": "go::len",
+        "scope": "library",
+        "standard": true,
+        "operation": "go:len"
+      },
+      {
+        "id": "def:go::make",
+        "kind": "function",
+        "name": "make",
+        "stable_identity": "go::make",
+        "scope": "library",
+        "standard": true,
+        "operation": "go:make"
+      },
+      {
+        "id": "def:go::sort.Strings",
+        "kind": "function",
+        "name": "sort.Strings",
+        "stable_identity": "go::sort.Strings",
+        "scope": "library",
+        "callable": {
+          "parameters": [
+            "t62"
+          ],
+          "result": "t0",
+          "generics": 0,
+          "modifiers": []
+        },
+        "compilation": "sort",
+        "standard": true,
+        "operation": "go:sort.Strings"
+      },
+      {
+        "id": "def:go::strings.Repeat",
+        "kind": "function",
+        "name": "strings.Repeat",
+        "stable_identity": "go::strings.Repeat",
+        "scope": "library",
+        "callable": {
+          "parameters": [
+            "t23",
+            "t30"
+          ],
+          "result": "t23",
+          "generics": 0,
+          "modifiers": []
+        },
+        "compilation": "strings",
+        "standard": true,
+        "operation": "go:strings.Repeat"
+      },
+      {
+        "id": "def:go::copy",
+        "kind": "function",
+        "name": "copy",
+        "stable_identity": "go::copy",
+        "scope": "library",
+        "standard": true,
+        "operation": "go:copy"
+      }
+    ],
+    "types": [
+      {
+        "id": "t0",
+        "kind": "unit",
+        "spelling": "()"
+      },
+      {
+        "id": "t18",
+        "kind": "bool",
+        "spelling": "bool"
+      },
+      {
+        "id": "t23",
+        "kind": "string",
+        "spelling": "string"
+      },
+      {
+        "id": "t30",
+        "kind": "integer",
+        "spelling": "int",
+        "bits": 64,
+        "signed": true,
+        "pointer_sized": true
+      },
+      {
+        "id": "t62",
+        "kind": "sequence",
+        "spelling": "[]string",
+        "element": "t23",
+        "fixed": false
+      },
+      {
+        "id": "t157",
+        "kind": "record",
+        "spelling": "github.com/commonfabric/bay/internal/picker.Item",
+        "definition": "def:go::github.com/commonfabric/bay/internal/picker.Item",
+        "fields": [
+          {
+            "name": "Display",
+            "type": "t23"
+          },
+          {
+            "name": "Value",
+            "type": "t30"
+          }
+        ]
+      },
+      {
+        "id": "t156",
+        "kind": "sequence",
+        "spelling": "[]github.com/commonfabric/bay/internal/picker.Item",
+        "element": "t157",
+        "fixed": false
+      },
+      {
+        "id": "t282",
+        "kind": "tuple",
+        "spelling": "([]github.com/commonfabric/bay/internal/picker.Item, []string)",
+        "items": [
+          "t156",
+          "t62"
+        ]
+      },
+      {
+        "id": "t283",
+        "kind": "function",
+        "spelling": "func(string) string",
+        "parameters": [
+          "t23"
+        ],
+        "result": "t23"
+      },
+      {
+        "id": "t324",
+        "kind": "function",
+        "spelling": "def:go::append",
+        "definition": "def:go::append",
+        "parameters": [],
+        "result": "t0"
+      },
+      {
+        "id": "t325",
+        "kind": "opaque",
+        "spelling": "unknown",
+        "bounds": []
+      },
+      {
+        "id": "t327",
+        "kind": "tuple",
+        "spelling": "(unknown, string)",
+        "items": [
+          "t325",
+          "t23"
+        ]
+      },
+      {
+        "id": "t339",
+        "kind": "function",
+        "spelling": "def:go::len",
+        "definition": "def:go::len",
+        "parameters": [],
+        "result": "t0"
+      },
+      {
+        "id": "t511",
+        "kind": "function",
+        "spelling": "def:go::make",
+        "definition": "def:go::make",
+        "parameters": [],
+        "result": "t0"
+      },
+      {
+        "id": "t757",
+        "kind": "function",
+        "spelling": "def:go::sort.Strings",
+        "definition": "def:go::sort.Strings",
+        "parameters": [
+          "t62"
+        ],
+        "result": "t0"
+      },
+      {
+        "id": "t765",
+        "kind": "function",
+        "spelling": "def:go::strings.Repeat",
+        "definition": "def:go::strings.Repeat",
+        "parameters": [
+          "t23",
+          "t30"
+        ],
+        "result": "t23"
+      },
+      {
+        "id": "t907",
+        "kind": "tuple",
+        "spelling": "([]github.com/commonfabric/bay/internal/picker.Item, []string)",
+        "items": [
+          "t156",
+          "t62"
+        ]
+      },
+      {
+        "id": "t910",
+        "kind": "function",
+        "spelling": "func(name string)",
+        "parameters": [
+          "t23"
+        ],
+        "result": "t0"
+      },
+      {
+        "id": "t911",
+        "kind": "function",
+        "spelling": "def:go::copy",
+        "definition": "def:go::copy",
+        "parameters": [],
+        "result": "t0"
+      }
+    ],
+    "values": [],
+    "instances": [],
+    "functions": [
+      {
+        "id": "f313",
+        "definition": "def:go::github.com/commonfabric/bay/internal/cli.buildAgentPickerItems",
+        "name": "buildAgentPickerItems",
+        "span": {
+          "file": "file:internal/cli/palette_commands.go",
+          "start": 17310,
+          "end": 17958
+        },
+        "signature": {
+          "span": {
+            "file": "file:internal/cli/palette_commands.go",
+            "start": 17310,
+            "end": 17416
+          },
+          "parameters": [
+            {
+              "position": 0,
+              "symbol": "f313.s0",
+              "type": "t62",
+              "span": {
+                "file": "file:internal/cli/palette_commands.go",
+                "start": 17337,
+                "end": 17340
+              },
+              "annotation": {
+                "file": "file:internal/cli/palette_commands.go",
+                "start": 17352,
+                "end": 17360
+              }
+            },
+            {
+              "position": 1,
+              "symbol": "f313.s1",
+              "type": "t62",
+              "span": {
+                "file": "file:internal/cli/palette_commands.go",
+                "start": 17342,
+                "end": 17351
+              },
+              "annotation": {
+                "file": "file:internal/cli/palette_commands.go",
+                "start": 17352,
+                "end": 17360
+              }
+            },
+            {
+              "position": 2,
+              "symbol": "f313.s2",
+              "type": "t283",
+              "span": {
+                "file": "file:internal/cli/palette_commands.go",
+                "start": 17362,
+                "end": 17369
+              },
+              "annotation": {
+                "file": "file:internal/cli/palette_commands.go",
+                "start": 17370,
+                "end": 17389
+              }
+            }
+          ],
+          "result": "t907",
+          "generics": [],
+          "lifetimes": [],
+          "outlives": [],
+          "modifiers": []
+        },
+        "root": "f313.n103",
+        "nodes": [
+          {
+            "id": "f313.n0",
+            "kind": "pattern_binding",
+            "original_kind": "Ident.binding",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17424,
+              "end": 17429
+            },
+            "children": [],
+            "type": "t156",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n1",
+            "kind": "type_annotation",
+            "original_kind": "ArrayType.type",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17430,
+              "end": 17443
+            },
+            "children": [],
+            "type": "t156",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n2",
+            "kind": "local_declaration",
+            "original_kind": "ValueSpec",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17424,
+              "end": 17443
+            },
+            "children": [
+              "f313.n0",
+              "f313.n1"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n3",
+            "kind": "pattern_binding",
+            "original_kind": "Ident.binding",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17449,
+              "end": 17455
+            },
+            "children": [],
+            "type": "t62",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n4",
+            "kind": "type_annotation",
+            "original_kind": "ArrayType.type",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17456,
+              "end": 17464
+            },
+            "children": [],
+            "type": "t62",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n5",
+            "kind": "local_declaration",
+            "original_kind": "ValueSpec",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17449,
+              "end": 17464
+            },
+            "children": [
+              "f313.n3",
+              "f313.n4"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n6",
+            "kind": "pattern_binding",
+            "original_kind": "Ident.binding",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17478,
+              "end": 17482
+            },
+            "children": [],
+            "type": "t23",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n7",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17503,
+              "end": 17509
+            },
+            "children": [],
+            "type": "t324",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n8",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17510,
+              "end": 17515
+            },
+            "children": [],
+            "type": "t156",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n9",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17538,
+              "end": 17545
+            },
+            "children": [],
+            "type": "t283",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n10",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17546,
+              "end": 17550
+            },
+            "children": [],
+            "type": "t23",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n11",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17538,
+              "end": 17551
+            },
+            "children": [
+              "f313.n9",
+              "f313.n10"
+            ],
+            "type": "t23",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n12",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17560,
+              "end": 17563
+            },
+            "children": [],
+            "type": "t339",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n13",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17564,
+              "end": 17569
+            },
+            "children": [],
+            "type": "t156",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n14",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17560,
+              "end": 17570
+            },
+            "children": [
+              "f313.n12",
+              "f313.n13"
+            ],
+            "type": "t30",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n15",
+            "kind": "record_construction",
+            "original_kind": "CompositeLit.fields",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17517,
+              "end": 17571
+            },
+            "children": [
+              "f313.n11",
+              "f313.n14"
+            ],
+            "type": "t157",
+            "members": [
+              "Display",
+              "Value"
+            ],
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n16",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17503,
+              "end": 17572
+            },
+            "children": [
+              "f313.n7",
+              "f313.n8",
+              "f313.n15"
+            ],
+            "type": "t156",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n17",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17495,
+              "end": 17500
+            },
+            "children": [],
+            "type": "t156",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n18",
+            "kind": "assignment",
+            "original_kind": "AssignStmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17495,
+              "end": 17572
+            },
+            "children": [
+              "f313.n17",
+              "f313.n16"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n19",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17495,
+              "end": 17572
+            },
+            "children": [
+              "f313.n18"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n20",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17584,
+              "end": 17590
+            },
+            "children": [],
+            "type": "t324",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n21",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17591,
+              "end": 17597
+            },
+            "children": [],
+            "type": "t62",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n22",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17599,
+              "end": 17603
+            },
+            "children": [],
+            "type": "t23",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n23",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17584,
+              "end": 17604
+            },
+            "children": [
+              "f313.n20",
+              "f313.n21",
+              "f313.n22"
+            ],
+            "type": "t62",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n24",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17575,
+              "end": 17581
+            },
+            "children": [],
+            "type": "t62",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n25",
+            "kind": "assignment",
+            "original_kind": "AssignStmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17575,
+              "end": 17604
+            },
+            "children": [
+              "f313.n24",
+              "f313.n23"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n26",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17575,
+              "end": 17604
+            },
+            "children": [
+              "f313.n25"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n27",
+            "kind": "block",
+            "original_kind": "BlockStmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17491,
+              "end": 17607
+            },
+            "children": [
+              "f313.n19",
+              "f313.n26"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n28",
+            "kind": "closure",
+            "original_kind": "FuncLit",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17473,
+              "end": 17607
+            },
+            "children": [
+              "f313.n6",
+              "f313.n27"
+            ],
+            "type": "t910",
+            "provenance": {
+              "origin": "source"
+            },
+            "captures": [
+              {
+                "symbol": "f313.s3",
+                "mode": "exclusive",
+                "type": "t156"
+              },
+              {
+                "symbol": "f313.s2",
+                "mode": "shared",
+                "type": "t283"
+              },
+              {
+                "symbol": "f313.s4",
+                "mode": "exclusive",
+                "type": "t62"
+              }
+            ]
+          },
+          {
+            "id": "f313.n29",
+            "kind": "pattern_binding",
+            "original_kind": "Ident.binding",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17466,
+              "end": 17469
+            },
+            "children": [],
+            "type": "t910",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n30",
+            "kind": "local_declaration",
+            "original_kind": "AssignStmt.define",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17466,
+              "end": 17607
+            },
+            "children": [
+              "f313.n29",
+              "f313.n28"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n31",
+            "kind": "pattern_wildcard",
+            "original_kind": "Ident.blank",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17613,
+              "end": 17614
+            },
+            "children": [],
+            "type": "t325",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n32",
+            "kind": "pattern_binding",
+            "original_kind": "Ident.binding",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17616,
+              "end": 17620
+            },
+            "children": [],
+            "type": "t23",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n33",
+            "kind": "pattern_tuple",
+            "original_kind": "RangeStmt.vars",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17613,
+              "end": 17620
+            },
+            "children": [
+              "f313.n31",
+              "f313.n32"
+            ],
+            "type": "t327",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n34",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17630,
+              "end": 17633
+            },
+            "children": [],
+            "type": "t62",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n35",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17638,
+              "end": 17641
+            },
+            "children": [],
+            "type": "t910",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n36",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17642,
+              "end": 17646
+            },
+            "children": [],
+            "type": "t23",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n37",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17638,
+              "end": 17647
+            },
+            "children": [
+              "f313.n35",
+              "f313.n36"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n38",
+            "kind": "expression_statement",
+            "original_kind": "ExprStmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17638,
+              "end": 17647
+            },
+            "children": [
+              "f313.n37"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n39",
+            "kind": "block",
+            "original_kind": "BlockStmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17634,
+              "end": 17650
+            },
+            "children": [
+              "f313.n38"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n40",
+            "kind": "for",
+            "original_kind": "RangeStmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17609,
+              "end": 17650
+            },
+            "children": [
+              "f313.n33",
+              "f313.n34",
+              "f313.n39"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n41",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17609,
+              "end": 17650
+            },
+            "children": [
+              "f313.n40"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n42",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17655,
+              "end": 17658
+            },
+            "children": [],
+            "type": "t339",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n43",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17659,
+              "end": 17664
+            },
+            "children": [],
+            "type": "t156",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n44",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17655,
+              "end": 17665
+            },
+            "children": [
+              "f313.n42",
+              "f313.n43"
+            ],
+            "type": "t30",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n45",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17668,
+              "end": 17669
+            },
+            "children": [],
+            "type": "t30",
+            "literal": "0",
+            "value": {
+              "kind": "integer",
+              "value": "0"
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n46",
+            "kind": "operator",
+            "original_kind": "BinaryExpr",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17655,
+              "end": 17669
+            },
+            "children": [
+              "f313.n44",
+              "f313.n45"
+            ],
+            "type": "t18",
+            "operator": "gt",
+            "token": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17666,
+              "end": 17667
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n47",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17682,
+              "end": 17688
+            },
+            "children": [],
+            "type": "t324",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n48",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17689,
+              "end": 17694
+            },
+            "children": [],
+            "type": "t156",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n49",
+            "kind": "identifier",
+            "original_kind": "SelectorExpr.qualified",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17717,
+              "end": 17731
+            },
+            "children": [],
+            "type": "t765",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n50",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17732,
+              "end": 17737
+            },
+            "children": [],
+            "type": "t23",
+            "literal": "\"\u2500\"",
+            "value": {
+              "kind": "string",
+              "value": "\u2500"
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n51",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17739,
+              "end": 17740
+            },
+            "children": [],
+            "type": "t30",
+            "literal": "6",
+            "value": {
+              "kind": "integer",
+              "value": "6"
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n52",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17717,
+              "end": 17741
+            },
+            "children": [
+              "f313.n49",
+              "f313.n50",
+              "f313.n51"
+            ],
+            "type": "t23",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n53",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17751,
+              "end": 17752
+            },
+            "children": [],
+            "type": "t30",
+            "literal": "1",
+            "value": {
+              "kind": "integer",
+              "value": "1"
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n54",
+            "kind": "operator",
+            "original_kind": "UnaryExpr",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17750,
+              "end": 17752
+            },
+            "children": [
+              "f313.n53"
+            ],
+            "type": "t30",
+            "operator": "neg",
+            "token": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17750,
+              "end": 17751
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n55",
+            "kind": "record_construction",
+            "original_kind": "CompositeLit.fields",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17696,
+              "end": 17753
+            },
+            "children": [
+              "f313.n52",
+              "f313.n54"
+            ],
+            "type": "t157",
+            "members": [
+              "Display",
+              "Value"
+            ],
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n56",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17682,
+              "end": 17754
+            },
+            "children": [
+              "f313.n47",
+              "f313.n48",
+              "f313.n55"
+            ],
+            "type": "t156",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n57",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17674,
+              "end": 17679
+            },
+            "children": [],
+            "type": "t156",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n58",
+            "kind": "assignment",
+            "original_kind": "AssignStmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17674,
+              "end": 17754
+            },
+            "children": [
+              "f313.n57",
+              "f313.n56"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n59",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17674,
+              "end": 17754
+            },
+            "children": [
+              "f313.n58"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n60",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17766,
+              "end": 17772
+            },
+            "children": [],
+            "type": "t324",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n61",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17773,
+              "end": 17779
+            },
+            "children": [],
+            "type": "t62",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n62",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17781,
+              "end": 17783
+            },
+            "children": [],
+            "type": "t23",
+            "literal": "\"\"",
+            "value": {
+              "kind": "string",
+              "value": ""
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n63",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17766,
+              "end": 17784
+            },
+            "children": [
+              "f313.n60",
+              "f313.n61",
+              "f313.n62"
+            ],
+            "type": "t62",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n64",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17757,
+              "end": 17763
+            },
+            "children": [],
+            "type": "t62",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n65",
+            "kind": "assignment",
+            "original_kind": "AssignStmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17757,
+              "end": 17784
+            },
+            "children": [
+              "f313.n64",
+              "f313.n63"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n66",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17757,
+              "end": 17784
+            },
+            "children": [
+              "f313.n65"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n67",
+            "kind": "block",
+            "original_kind": "BlockStmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17670,
+              "end": 17787
+            },
+            "children": [
+              "f313.n59",
+              "f313.n66"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n68",
+            "kind": "if",
+            "original_kind": "IfStmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17652,
+              "end": 17787
+            },
+            "children": [
+              "f313.n46",
+              "f313.n67"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n69",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17652,
+              "end": 17787
+            },
+            "children": [
+              "f313.n68"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n70",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17802,
+              "end": 17806
+            },
+            "children": [],
+            "type": "t511",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n71",
+            "kind": "type_annotation",
+            "original_kind": "ArrayType.type",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17807,
+              "end": 17815
+            },
+            "children": [],
+            "type": "t62",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n72",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17817,
+              "end": 17820
+            },
+            "children": [],
+            "type": "t339",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n73",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17821,
+              "end": 17830
+            },
+            "children": [],
+            "type": "t62",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n74",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17817,
+              "end": 17831
+            },
+            "children": [
+              "f313.n72",
+              "f313.n73"
+            ],
+            "type": "t30",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n75",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17802,
+              "end": 17832
+            },
+            "children": [
+              "f313.n70",
+              "f313.n71",
+              "f313.n74"
+            ],
+            "type": "t62",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n76",
+            "kind": "pattern_binding",
+            "original_kind": "Ident.binding",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17789,
+              "end": 17798
+            },
+            "children": [],
+            "type": "t62",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n77",
+            "kind": "local_declaration",
+            "original_kind": "AssignStmt.define",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17789,
+              "end": 17832
+            },
+            "children": [
+              "f313.n76",
+              "f313.n75"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n78",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17834,
+              "end": 17838
+            },
+            "children": [],
+            "type": "t911",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n79",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17839,
+              "end": 17848
+            },
+            "children": [],
+            "type": "t62",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n80",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17850,
+              "end": 17859
+            },
+            "children": [],
+            "type": "t62",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n81",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17834,
+              "end": 17860
+            },
+            "children": [
+              "f313.n78",
+              "f313.n79",
+              "f313.n80"
+            ],
+            "type": "t30",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n82",
+            "kind": "expression_statement",
+            "original_kind": "ExprStmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17834,
+              "end": 17860
+            },
+            "children": [
+              "f313.n81"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n83",
+            "kind": "identifier",
+            "original_kind": "SelectorExpr.qualified",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17862,
+              "end": 17874
+            },
+            "children": [],
+            "type": "t757",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n84",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17875,
+              "end": 17884
+            },
+            "children": [],
+            "type": "t62",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n85",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17862,
+              "end": 17885
+            },
+            "children": [
+              "f313.n83",
+              "f313.n84"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n86",
+            "kind": "expression_statement",
+            "original_kind": "ExprStmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17862,
+              "end": 17885
+            },
+            "children": [
+              "f313.n85"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n87",
+            "kind": "pattern_wildcard",
+            "original_kind": "Ident.blank",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17891,
+              "end": 17892
+            },
+            "children": [],
+            "type": "t325",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n88",
+            "kind": "pattern_binding",
+            "original_kind": "Ident.binding",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17894,
+              "end": 17898
+            },
+            "children": [],
+            "type": "t23",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n89",
+            "kind": "pattern_tuple",
+            "original_kind": "RangeStmt.vars",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17891,
+              "end": 17898
+            },
+            "children": [
+              "f313.n87",
+              "f313.n88"
+            ],
+            "type": "t327",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n90",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17908,
+              "end": 17917
+            },
+            "children": [],
+            "type": "t62",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n91",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17922,
+              "end": 17925
+            },
+            "children": [],
+            "type": "t910",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n92",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17926,
+              "end": 17930
+            },
+            "children": [],
+            "type": "t23",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n93",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17922,
+              "end": 17931
+            },
+            "children": [
+              "f313.n91",
+              "f313.n92"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n94",
+            "kind": "expression_statement",
+            "original_kind": "ExprStmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17922,
+              "end": 17931
+            },
+            "children": [
+              "f313.n93"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n95",
+            "kind": "block",
+            "original_kind": "BlockStmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17918,
+              "end": 17934
+            },
+            "children": [
+              "f313.n94"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n96",
+            "kind": "for",
+            "original_kind": "RangeStmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17887,
+              "end": 17934
+            },
+            "children": [
+              "f313.n89",
+              "f313.n90",
+              "f313.n95"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n97",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17887,
+              "end": 17934
+            },
+            "children": [
+              "f313.n96"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n98",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17943,
+              "end": 17948
+            },
+            "children": [],
+            "type": "t156",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n99",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17950,
+              "end": 17956
+            },
+            "children": [],
+            "type": "t62",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n100",
+            "kind": "tuple",
+            "original_kind": "ExprList",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17943,
+              "end": 17956
+            },
+            "children": [
+              "f313.n98",
+              "f313.n99"
+            ],
+            "type": "t907",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n101",
+            "kind": "return",
+            "original_kind": "ReturnStmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17936,
+              "end": 17956
+            },
+            "children": [
+              "f313.n100"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n102",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17936,
+              "end": 17956
+            },
+            "children": [
+              "f313.n101"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f313.n103",
+            "kind": "block",
+            "original_kind": "BlockStmt",
+            "span": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17417,
+              "end": 17958
+            },
+            "children": [
+              "f313.n2",
+              "f313.n5",
+              "f313.n30",
+              "f313.n41",
+              "f313.n69",
+              "f313.n77",
+              "f313.n82",
+              "f313.n86",
+              "f313.n97",
+              "f313.n102"
+            ],
+            "type": "t0",
+            "provenance": {
+              "origin": "source"
+            }
+          }
+        ],
+        "cfg": {
+          "entry": "f313.entry",
+          "exits": [
+            {
+              "id": "f313.exit",
+              "kind": "normal"
+            }
+          ],
+          "edges": [
+            {
+              "id": "f313.e0",
+              "source": "f313.entry",
+              "target": "f313.n0",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e1",
+              "source": "f313.n0",
+              "target": "f313.n2",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e2",
+              "source": "f313.n2",
+              "target": "f313.n3",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e3",
+              "source": "f313.n3",
+              "target": "f313.n5",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e4",
+              "source": "f313.n5",
+              "target": "f313.n28",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e5",
+              "source": "f313.n28",
+              "target": "f313.n29",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e6",
+              "source": "f313.n29",
+              "target": "f313.n30",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e7",
+              "source": "f313.n30",
+              "target": "f313.n34",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e8",
+              "source": "f313.n34",
+              "target": "f313.n40",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e9",
+              "source": "f313.n40",
+              "target": "f313.n31",
+              "kind": "true"
+            },
+            {
+              "id": "f313.e10",
+              "source": "f313.n31",
+              "target": "f313.n32",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e11",
+              "source": "f313.n32",
+              "target": "f313.n33",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e12",
+              "source": "f313.n33",
+              "target": "f313.n35",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e13",
+              "source": "f313.n35",
+              "target": "f313.n36",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e14",
+              "source": "f313.n36",
+              "target": "f313.n37",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e15",
+              "source": "f313.n37",
+              "target": "f313.n38",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e16",
+              "source": "f313.n38",
+              "target": "f313.n39",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e17",
+              "source": "f313.n39",
+              "target": "f313.n40",
+              "kind": "normal",
+              "loop_role": "back_edge"
+            },
+            {
+              "id": "f313.e18",
+              "source": "f313.n40",
+              "target": "f313.n41",
+              "kind": "false",
+              "loop_role": "loop_exit"
+            },
+            {
+              "id": "f313.e19",
+              "source": "f313.n41",
+              "target": "f313.n42",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e20",
+              "source": "f313.n42",
+              "target": "f313.n43",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e21",
+              "source": "f313.n43",
+              "target": "f313.n44",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e22",
+              "source": "f313.n44",
+              "target": "f313.n45",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e23",
+              "source": "f313.n45",
+              "target": "f313.n46",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e24",
+              "source": "f313.n46",
+              "target": "f313.n47",
+              "kind": "true"
+            },
+            {
+              "id": "f313.e25",
+              "source": "f313.n47",
+              "target": "f313.n48",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e26",
+              "source": "f313.n48",
+              "target": "f313.n49",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e27",
+              "source": "f313.n49",
+              "target": "f313.n50",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e28",
+              "source": "f313.n50",
+              "target": "f313.n51",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e29",
+              "source": "f313.n51",
+              "target": "f313.n52",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e30",
+              "source": "f313.n52",
+              "target": "f313.n53",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e31",
+              "source": "f313.n53",
+              "target": "f313.n54",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e32",
+              "source": "f313.n54",
+              "target": "f313.n55",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e33",
+              "source": "f313.n55",
+              "target": "f313.n56",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e34",
+              "source": "f313.n56",
+              "target": "f313.n57",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e35",
+              "source": "f313.n57",
+              "target": "f313.n58",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e36",
+              "source": "f313.n58",
+              "target": "f313.n59",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e37",
+              "source": "f313.n59",
+              "target": "f313.n60",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e38",
+              "source": "f313.n60",
+              "target": "f313.n61",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e39",
+              "source": "f313.n61",
+              "target": "f313.n62",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e40",
+              "source": "f313.n62",
+              "target": "f313.n63",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e41",
+              "source": "f313.n63",
+              "target": "f313.n64",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e42",
+              "source": "f313.n64",
+              "target": "f313.n65",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e43",
+              "source": "f313.n65",
+              "target": "f313.n66",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e44",
+              "source": "f313.n66",
+              "target": "f313.n67",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e45",
+              "source": "f313.n46",
+              "target": "f313.n68",
+              "kind": "false"
+            },
+            {
+              "id": "f313.e46",
+              "source": "f313.n67",
+              "target": "f313.n68",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e47",
+              "source": "f313.n68",
+              "target": "f313.n69",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e48",
+              "source": "f313.n69",
+              "target": "f313.n70",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e49",
+              "source": "f313.n70",
+              "target": "f313.n72",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e50",
+              "source": "f313.n72",
+              "target": "f313.n73",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e51",
+              "source": "f313.n73",
+              "target": "f313.n74",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e52",
+              "source": "f313.n74",
+              "target": "f313.n75",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e53",
+              "source": "f313.n75",
+              "target": "f313.n76",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e54",
+              "source": "f313.n76",
+              "target": "f313.n77",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e55",
+              "source": "f313.n77",
+              "target": "f313.n78",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e56",
+              "source": "f313.n78",
+              "target": "f313.n79",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e57",
+              "source": "f313.n79",
+              "target": "f313.n80",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e58",
+              "source": "f313.n80",
+              "target": "f313.n81",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e59",
+              "source": "f313.n81",
+              "target": "f313.n82",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e60",
+              "source": "f313.n82",
+              "target": "f313.n83",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e61",
+              "source": "f313.n83",
+              "target": "f313.n84",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e62",
+              "source": "f313.n84",
+              "target": "f313.n85",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e63",
+              "source": "f313.n85",
+              "target": "f313.n86",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e64",
+              "source": "f313.n86",
+              "target": "f313.n90",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e65",
+              "source": "f313.n90",
+              "target": "f313.n96",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e66",
+              "source": "f313.n96",
+              "target": "f313.n87",
+              "kind": "true"
+            },
+            {
+              "id": "f313.e67",
+              "source": "f313.n87",
+              "target": "f313.n88",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e68",
+              "source": "f313.n88",
+              "target": "f313.n89",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e69",
+              "source": "f313.n89",
+              "target": "f313.n91",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e70",
+              "source": "f313.n91",
+              "target": "f313.n92",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e71",
+              "source": "f313.n92",
+              "target": "f313.n93",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e72",
+              "source": "f313.n93",
+              "target": "f313.n94",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e73",
+              "source": "f313.n94",
+              "target": "f313.n95",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e74",
+              "source": "f313.n95",
+              "target": "f313.n96",
+              "kind": "normal",
+              "loop_role": "back_edge"
+            },
+            {
+              "id": "f313.e75",
+              "source": "f313.n96",
+              "target": "f313.n97",
+              "kind": "false",
+              "loop_role": "loop_exit"
+            },
+            {
+              "id": "f313.e76",
+              "source": "f313.n97",
+              "target": "f313.n98",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e77",
+              "source": "f313.n98",
+              "target": "f313.n99",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e78",
+              "source": "f313.n99",
+              "target": "f313.n100",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e79",
+              "source": "f313.n100",
+              "target": "f313.n101",
+              "kind": "normal"
+            },
+            {
+              "id": "f313.e80",
+              "source": "f313.n101",
+              "target": "f313.exit",
+              "kind": "return"
+            }
+          ]
+        },
+        "symbols": [
+          {
+            "id": "f313.s0",
+            "name": "mru",
+            "kind": "parameter",
+            "scope": "f313",
+            "declared": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17337,
+              "end": 17340
+            },
+            "mutable": false,
+            "type": "t62"
+          },
+          {
+            "id": "f313.s1",
+            "name": "available",
+            "kind": "parameter",
+            "scope": "f313",
+            "declared": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17342,
+              "end": 17351
+            },
+            "mutable": false,
+            "type": "t62"
+          },
+          {
+            "id": "f313.s2",
+            "name": "display",
+            "kind": "parameter",
+            "scope": "f313",
+            "declared": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17362,
+              "end": 17369
+            },
+            "mutable": false,
+            "type": "t283"
+          },
+          {
+            "id": "f313.s3",
+            "name": "items",
+            "kind": "local",
+            "scope": "f313",
+            "declared": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17424,
+              "end": 17429
+            },
+            "node": "f313.n0",
+            "mutable": true,
+            "type": "t156"
+          },
+          {
+            "id": "f313.s4",
+            "name": "values",
+            "kind": "local",
+            "scope": "f313",
+            "declared": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17449,
+              "end": 17455
+            },
+            "node": "f313.n3",
+            "mutable": true,
+            "type": "t62"
+          },
+          {
+            "id": "f313.s5",
+            "name": "name",
+            "kind": "local",
+            "scope": "f313",
+            "declared": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17478,
+              "end": 17482
+            },
+            "node": "f313.n6",
+            "mutable": false,
+            "type": "t23"
+          },
+          {
+            "id": "f313.s6",
+            "name": "add",
+            "kind": "local",
+            "scope": "f313",
+            "declared": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17466,
+              "end": 17469
+            },
+            "node": "f313.n29",
+            "mutable": false,
+            "type": "t910"
+          },
+          {
+            "id": "f313.s7",
+            "name": "name",
+            "kind": "local",
+            "scope": "f313",
+            "declared": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17616,
+              "end": 17620
+            },
+            "node": "f313.n32",
+            "mutable": false,
+            "type": "t23"
+          },
+          {
+            "id": "f313.s8",
+            "name": "sortedAll",
+            "kind": "local",
+            "scope": "f313",
+            "declared": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17789,
+              "end": 17798
+            },
+            "node": "f313.n76",
+            "mutable": false,
+            "type": "t62"
+          },
+          {
+            "id": "f313.s9",
+            "name": "name",
+            "kind": "local",
+            "scope": "f313",
+            "declared": {
+              "file": "file:internal/cli/palette_commands.go",
+              "start": 17894,
+              "end": 17898
+            },
+            "node": "f313.n88",
+            "mutable": false,
+            "type": "t23"
+          }
+        ],
+        "accesses": [
+          {
+            "node": "f313.n0",
+            "symbol": "f313.s3",
+            "mode": "write"
+          },
+          {
+            "node": "f313.n3",
+            "symbol": "f313.s4",
+            "mode": "write"
+          },
+          {
+            "node": "f313.n6",
+            "symbol": "f313.s5",
+            "mode": "write"
+          },
+          {
+            "node": "f313.n8",
+            "symbol": "f313.s3",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n9",
+            "symbol": "f313.s2",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n10",
+            "symbol": "f313.s5",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n13",
+            "symbol": "f313.s3",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n17",
+            "symbol": "f313.s3",
+            "mode": "write"
+          },
+          {
+            "node": "f313.n21",
+            "symbol": "f313.s4",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n22",
+            "symbol": "f313.s5",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n24",
+            "symbol": "f313.s4",
+            "mode": "write"
+          },
+          {
+            "node": "f313.n29",
+            "symbol": "f313.s6",
+            "mode": "write"
+          },
+          {
+            "node": "f313.n32",
+            "symbol": "f313.s7",
+            "mode": "write"
+          },
+          {
+            "node": "f313.n34",
+            "symbol": "f313.s0",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n35",
+            "symbol": "f313.s6",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n36",
+            "symbol": "f313.s7",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n43",
+            "symbol": "f313.s3",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n48",
+            "symbol": "f313.s3",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n57",
+            "symbol": "f313.s3",
+            "mode": "write"
+          },
+          {
+            "node": "f313.n61",
+            "symbol": "f313.s4",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n64",
+            "symbol": "f313.s4",
+            "mode": "write"
+          },
+          {
+            "node": "f313.n73",
+            "symbol": "f313.s1",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n76",
+            "symbol": "f313.s8",
+            "mode": "write"
+          },
+          {
+            "node": "f313.n79",
+            "symbol": "f313.s8",
+            "mode": "read_write"
+          },
+          {
+            "node": "f313.n80",
+            "symbol": "f313.s1",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n84",
+            "symbol": "f313.s8",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n88",
+            "symbol": "f313.s9",
+            "mode": "write"
+          },
+          {
+            "node": "f313.n90",
+            "symbol": "f313.s8",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n91",
+            "symbol": "f313.s6",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n92",
+            "symbol": "f313.s9",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n98",
+            "symbol": "f313.s3",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n99",
+            "symbol": "f313.s4",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n28",
+            "symbol": "f313.s3",
+            "mode": "read_write"
+          },
+          {
+            "node": "f313.n28",
+            "symbol": "f313.s2",
+            "mode": "read"
+          },
+          {
+            "node": "f313.n28",
+            "symbol": "f313.s4",
+            "mode": "read_write"
+          }
+        ],
+        "refs": [
+          {
+            "node": "f313.n7",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::append"
+            }
+          },
+          {
+            "node": "f313.n8",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s3"
+            }
+          },
+          {
+            "node": "f313.n9",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s2"
+            }
+          },
+          {
+            "node": "f313.n10",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s5"
+            }
+          },
+          {
+            "node": "f313.n11",
+            "status": "unresolved",
+            "dispatch": "function_value",
+            "reason": "a function value's target is not known statically"
+          },
+          {
+            "node": "f313.n12",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::len"
+            }
+          },
+          {
+            "node": "f313.n13",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s3"
+            }
+          },
+          {
+            "node": "f313.n14",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::len"
+            },
+            "dispatch": "builtin"
+          },
+          {
+            "node": "f313.n16",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::append"
+            },
+            "dispatch": "builtin"
+          },
+          {
+            "node": "f313.n17",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s3"
+            }
+          },
+          {
+            "node": "f313.n20",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::append"
+            }
+          },
+          {
+            "node": "f313.n21",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s4"
+            }
+          },
+          {
+            "node": "f313.n22",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s5"
+            }
+          },
+          {
+            "node": "f313.n23",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::append"
+            },
+            "dispatch": "builtin"
+          },
+          {
+            "node": "f313.n24",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s4"
+            }
+          },
+          {
+            "node": "f313.n34",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s0"
+            }
+          },
+          {
+            "node": "f313.n35",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s6"
+            }
+          },
+          {
+            "node": "f313.n36",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s7"
+            }
+          },
+          {
+            "node": "f313.n37",
+            "status": "unresolved",
+            "dispatch": "function_value",
+            "reason": "a function value's target is not known statically"
+          },
+          {
+            "node": "f313.n42",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::len"
+            }
+          },
+          {
+            "node": "f313.n43",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s3"
+            }
+          },
+          {
+            "node": "f313.n44",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::len"
+            },
+            "dispatch": "builtin"
+          },
+          {
+            "node": "f313.n47",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::append"
+            }
+          },
+          {
+            "node": "f313.n48",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s3"
+            }
+          },
+          {
+            "node": "f313.n49",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::strings.Repeat"
+            }
+          },
+          {
+            "node": "f313.n52",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::strings.Repeat"
+            },
+            "dispatch": "static"
+          },
+          {
+            "node": "f313.n56",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::append"
+            },
+            "dispatch": "builtin"
+          },
+          {
+            "node": "f313.n57",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s3"
+            }
+          },
+          {
+            "node": "f313.n60",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::append"
+            }
+          },
+          {
+            "node": "f313.n61",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s4"
+            }
+          },
+          {
+            "node": "f313.n63",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::append"
+            },
+            "dispatch": "builtin"
+          },
+          {
+            "node": "f313.n64",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s4"
+            }
+          },
+          {
+            "node": "f313.n70",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::make"
+            }
+          },
+          {
+            "node": "f313.n72",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::len"
+            }
+          },
+          {
+            "node": "f313.n73",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s1"
+            }
+          },
+          {
+            "node": "f313.n74",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::len"
+            },
+            "dispatch": "builtin"
+          },
+          {
+            "node": "f313.n75",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::make"
+            },
+            "dispatch": "builtin"
+          },
+          {
+            "node": "f313.n78",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::copy"
+            }
+          },
+          {
+            "node": "f313.n79",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s8"
+            }
+          },
+          {
+            "node": "f313.n80",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s1"
+            }
+          },
+          {
+            "node": "f313.n81",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::copy"
+            },
+            "dispatch": "builtin"
+          },
+          {
+            "node": "f313.n83",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::sort.Strings"
+            }
+          },
+          {
+            "node": "f313.n84",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s8"
+            }
+          },
+          {
+            "node": "f313.n85",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::sort.Strings"
+            },
+            "dispatch": "static"
+          },
+          {
+            "node": "f313.n90",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s8"
+            }
+          },
+          {
+            "node": "f313.n91",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s6"
+            }
+          },
+          {
+            "node": "f313.n92",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s9"
+            }
+          },
+          {
+            "node": "f313.n93",
+            "status": "unresolved",
+            "dispatch": "function_value",
+            "reason": "a function value's target is not known statically"
+          },
+          {
+            "node": "f313.n98",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s3"
+            }
+          },
+          {
+            "node": "f313.n99",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f313.s4"
+            }
+          }
+        ],
+        "places": [
+          {
+            "id": "f313.p0",
+            "node": "f313.n17",
+            "root": {
+              "symbol": "f313.s3"
+            },
+            "path": [],
+            "access": "write",
+            "mode": "value",
+            "escapes": false
+          },
+          {
+            "id": "f313.p1",
+            "node": "f313.n24",
+            "root": {
+              "symbol": "f313.s4"
+            },
+            "path": [],
+            "access": "write",
+            "mode": "value",
+            "escapes": false
+          },
+          {
+            "id": "f313.p2",
+            "node": "f313.n57",
+            "root": {
+              "symbol": "f313.s3"
+            },
+            "path": [],
+            "access": "write",
+            "mode": "value",
+            "escapes": false
+          },
+          {
+            "id": "f313.p3",
+            "node": "f313.n64",
+            "root": {
+              "symbol": "f313.s4"
+            },
+            "path": [],
+            "access": "write",
+            "mode": "value",
+            "escapes": false
+          },
+          {
+            "id": "f313.p4",
+            "node": "f313.n79",
+            "root": {
+              "symbol": "f313.s8"
+            },
+            "path": [
+              {
+                "index": null
+              }
+            ],
+            "access": "write",
+            "mode": "value",
+            "escapes": false
+          }
+        ],
+        "values": []
+      }
+    ]
+  }
+}

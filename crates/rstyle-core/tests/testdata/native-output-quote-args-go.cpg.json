@@ -1,0 +1,2182 @@
+{
+  "schema_version": "0.1.0",
+  "profile": {
+    "id": "compat.cpg",
+    "version": "0.1.0"
+  },
+  "layout": "bundled",
+  "document": "unit",
+  "producer": {
+    "name": "rstyle-go",
+    "version": "0.2.0",
+    "namespace": "go"
+  },
+  "coverage": {
+    "capabilities": {
+      "aliasing": {
+        "status": "approximated",
+        "description": "places record the writes the effect analysis observes, with its escape decision, and each address taken as a raw place; reads and arguments have no places, and a slice, map or pointer that two bindings share isn't tracked"
+      },
+      "constant-values": {
+        "status": "approximated",
+        "description": "literal values only; constant expressions and iota are not evaluated"
+      },
+      "dispatch": {
+        "status": "approximated",
+        "description": "interface method calls stay dynamic; implementations are not selected"
+      },
+      "evaluation-order": {
+        "status": "approximated",
+        "description": "the CFG follows Go's specified order, except that a select's channels and values are evaluated in the arm that runs them rather than on entry"
+      },
+      "exceptional-flow": {
+        "status": "approximated",
+        "description": "panic and calls known never to return have edges; a panic from a callee or the runtime, recover, and the deferred calls that run on the way out do not"
+      },
+      "generic-instances": {
+        "status": "unsupported",
+        "description": "instances are not recorded; a call through a type parameter is a dependent reference"
+      },
+      "implicit-calls": {
+        "status": "not_applicable",
+        "description": "Go has no destructors, implicit conversions that run code, or overloaded dereferences"
+      },
+      "integer-semantics": {
+        "status": "supported",
+        "description": "widths and signedness come from go/types; signed and unsigned overflow wrap"
+      },
+      "lifetimes": {
+        "status": "not_applicable",
+        "description": "Go is garbage collected"
+      },
+      "macro-provenance": {
+        "status": "not_applicable",
+        "description": "Go has no macros; header statements and implicit switch alternatives carry desugaring provenance"
+      },
+      "mutability": {
+        "status": "approximated",
+        "description": "a binding is immutable when nothing replaces it, takes its address or writes part of its own value; named results stay mutable, since a return writes them; package variables are definitions of kind other, because core reads a static as a constant and each use of a mutable static as a global effect"
+      },
+      "resolution": {
+        "status": "supported",
+        "description": "go/types resolves references; a function outside the typed build overrides this as unknown"
+      },
+      "types": {
+        "status": "approximated",
+        "description": "every typed node refers to a structured type; named types omit their members, and channels and complex numbers are opaque"
+      }
+    },
+    "layers": {
+      "ast": {
+        "status": "supported",
+        "description": "every statement and expression; constructs without a neutral kind are registered go: extensions"
+      },
+      "cfg": {
+        "status": "approximated",
+        "description": "edges between the nodes of a function's own body; a closure's body has none, since it runs when called, and a deferred call stays at its defer statement"
+      },
+      "evidence": {
+        "status": "supported",
+        "description": "coverage per document, with an override per function"
+      },
+      "extension": {
+        "status": "supported",
+        "description": "registered go: extensions"
+      },
+      "method": {
+        "status": "supported",
+        "description": "identity, spans, parameters, receiver, results and generics"
+      },
+      "place": {
+        "status": "approximated",
+        "description": "writes from the effect analysis, with their field, index and dereference steps; which element an index writes isn't tracked"
+      },
+      "ref": {
+        "status": "supported",
+        "description": "identifiers and calls; a call through a function value that is not a local name is unresolved"
+      },
+      "symbol": {
+        "status": "supported",
+        "description": "locals, parameters, receivers and named results, with an access per reference"
+      },
+      "type": {
+        "status": "approximated",
+        "description": "structured types from go/types; named types omit their members"
+      },
+      "unit": {
+        "status": "supported",
+        "description": "packages, files with content, imports and referenced definitions"
+      },
+      "value": {
+        "status": "approximated",
+        "description": "literal values only"
+      }
+    }
+  },
+  "unit": {
+    "id": "unit:github.com/commonfabric/bay/internal/engine",
+    "language": {
+      "name": "go",
+      "version": "go1.27.2"
+    },
+    "toolchain": {
+      "name": "go",
+      "version": "go1.27.2"
+    },
+    "target": {
+      "triple": "linux-arm64",
+      "pointer_width": 64
+    },
+    "configuration": [],
+    "semantics": {
+      "integer_overflow": "wrapping",
+      "exceptions": "unwind"
+    },
+    "files": [
+      {
+        "id": "file:internal/engine/agent.go",
+        "path": "internal/engine/agent.go",
+        "digest": "sha256:0f57ff5503eba3aeb2e1d8b44f3bc7bf14c37bd39e3f6e417467891fb88a56ac",
+        "origin": "source",
+        "content": "package engine\n\nimport (\n\t\"fmt\"\n\t\"regexp\"\n\t\"strings\"\n\n\t\"github.com/commonfabric/bay/internal/manifest\"\n)\n\nfunc (e *Engine) validateAgentName(agentName string) error {\n\tif agentName == \"\" {\n\t\treturn fmt.Errorf(\"agent name is required\")\n\t}\n\tinfo, ok := e.Config.ResolveAgent(agentName)\n\tif !ok {\n\t\treturn fmt.Errorf(\"unknown agent %q\", agentName)\n\t}\n\tif strings.TrimSpace(info.Command) == \"\" {\n\t\treturn fmt.Errorf(\"agent %q has no command configured\", agentName)\n\t}\n\treturn nil\n}\n\n// DefaultAgent returns the effective default agent for a dock, or \"\" if none.\nfunc (e *Engine) DefaultAgent(dockName string) string {\n\tm, err := e.LoadManifest()\n\tif err != nil {\n\t\treturn \"\"\n\t}\n\treturn e.resolvedDockAgent(dockName, m)\n}\n\nfunc (e *Engine) resolveBayAgent(dockName string, m *manifest.Manifest, requested string, requireAgent bool) (string, error) {\n\tif requested != \"\" {\n\t\tif err := e.validateAgentName(requested); err != nil {\n\t\t\treturn \"\", err\n\t\t}\n\t\treturn requested, nil\n\t}\n\n\tagentName := e.resolvedDockAgent(dockName, m)\n\tif agentName == \"\" {\n\t\tif requireAgent {\n\t\t\treturn \"\", fmt.Errorf(\"dock %q has no default agent configured\", dockName)\n\t\t}\n\t\treturn \"\", nil\n\t}\n\tif err := e.validateAgentName(agentName); err != nil {\n\t\treturn \"\", err\n\t}\n\treturn agentName, nil\n}\n\n// buildAgentCommand assembles the agent launch command. When resume is\n// true, the agent's configured resume_args are spliced in (e.g.\n// \"--continue\" for Claude Code) so the prior session is picked up;\n// used by recovery and undo-close. launchArgs are dropped on resume:\n// they carry session-start flags like --model, and replaying those\n// would override state the resumed session restores itself (Claude\n// keeps a resumed session on its own last-selected model).\nfunc (e *Engine) buildAgentCommand(agentName string, agentArgs, launchArgs []string, resume bool) (string, error) {\n\tif err := e.validateAgentName(agentName); err != nil {\n\t\treturn \"\", err\n\t}\n\tinfo, _ := e.Config.ResolveAgent(agentName)\n\tparts := []string{info.Command}\n\tif resume && info.ResumeArgs != \"\" {\n\t\tparts = append(parts, strings.Fields(info.ResumeArgs)...)\n\t}\n\tparts = append(parts, quoteArgs(agentArgs)...)\n\tif !resume {\n\t\tparts = append(parts, quoteArgs(launchArgs)...)\n\t}\n\treturn strings.Join(parts, \" \"), nil\n}\n\n// shellSafeRe matches args that need no quoting when joined into a\n// shell command line. Conservative: anything outside this set gets\n// single-quoted. Deliberately keeps ~ unquoted so leading-tilde paths\n// still expand.\nvar shellSafeRe = regexp.MustCompile(`^[a-zA-Z0-9@%+=:,./_^~-]+$`)\n\n// quoteArgs shell-quotes each configured arg as a single word. Args\n// come from TOML lists where one element is one argument, so an\n// element containing spaces or quotes (e.g. an initial prompt in\n// launch_args) must survive the shell as one word.\nfunc quoteArgs(args []string) []string {\n\tquoted := make([]string, len(args))\n\tfor i, a := range args {\n\t\tif a != \"\" && shellSafeRe.MatchString(a) {\n\t\t\tquoted[i] = a\n\t\t\tcontinue\n\t\t}\n\t\tquoted[i] = \"'\" + strings.ReplaceAll(a, \"'\", `'\\''`) + \"'\"\n\t}\n\treturn quoted\n}\n"
+      }
+    ],
+    "namespaces": [],
+    "imports": [],
+    "definitions": [
+      {
+        "id": "def:go::github.com/commonfabric/bay/internal/engine.quoteArgs",
+        "kind": "function",
+        "name": "quoteArgs",
+        "stable_identity": "go::github.com/commonfabric/bay/internal/engine.quoteArgs",
+        "scope": "unit",
+        "span": {
+          "file": "file:internal/engine/agent.go",
+          "start": 2809,
+          "end": 3071
+        },
+        "callable": {
+          "parameters": [
+            "t10"
+          ],
+          "result": "t10",
+          "generics": 0,
+          "modifiers": []
+        },
+        "compilation": "github.com/commonfabric/bay/internal/engine"
+      },
+      {
+        "id": "def:go::make",
+        "kind": "function",
+        "name": "make",
+        "stable_identity": "go::make",
+        "scope": "library",
+        "standard": true,
+        "operation": "go:make"
+      },
+      {
+        "id": "def:go::len",
+        "kind": "function",
+        "name": "len",
+        "stable_identity": "go::len",
+        "scope": "library",
+        "standard": true,
+        "operation": "go:len"
+      },
+      {
+        "id": "def:go::regexp.Regexp",
+        "kind": "type",
+        "name": "regexp.Regexp",
+        "stable_identity": "go::regexp.Regexp",
+        "scope": "library",
+        "standard": true,
+        "operation": "go:regexp.Regexp"
+      },
+      {
+        "id": "def:go::regexp/syntax.Prog",
+        "kind": "type",
+        "name": "regexp/syntax.Prog",
+        "stable_identity": "go::regexp/syntax.Prog",
+        "scope": "library",
+        "standard": true,
+        "operation": "go:regexp/syntax.Prog"
+      },
+      {
+        "id": "def:go::regexp/syntax.Inst",
+        "kind": "type",
+        "name": "regexp/syntax.Inst",
+        "stable_identity": "go::regexp/syntax.Inst",
+        "scope": "library",
+        "standard": true,
+        "operation": "go:regexp/syntax.Inst"
+      },
+      {
+        "id": "def:go::regexp/syntax.InstOp",
+        "kind": "type",
+        "name": "regexp/syntax.InstOp",
+        "stable_identity": "go::regexp/syntax.InstOp",
+        "scope": "library",
+        "standard": true,
+        "operation": "go:regexp/syntax.InstOp"
+      },
+      {
+        "id": "def:go::regexp.onePassProg",
+        "kind": "type",
+        "name": "regexp.onePassProg",
+        "stable_identity": "go::regexp.onePassProg",
+        "scope": "library",
+        "standard": true,
+        "operation": "go:regexp.onePassProg"
+      },
+      {
+        "id": "def:go::regexp.onePassInst",
+        "kind": "type",
+        "name": "regexp.onePassInst",
+        "stable_identity": "go::regexp.onePassInst",
+        "scope": "library",
+        "standard": true,
+        "operation": "go:regexp.onePassInst"
+      },
+      {
+        "id": "def:go::regexp/syntax.EmptyOp",
+        "kind": "type",
+        "name": "regexp/syntax.EmptyOp",
+        "stable_identity": "go::regexp/syntax.EmptyOp",
+        "scope": "library",
+        "standard": true,
+        "operation": "go:regexp/syntax.EmptyOp"
+      },
+      {
+        "id": "def:go::(*regexp.Regexp).MatchString",
+        "kind": "method",
+        "name": "(*regexp.Regexp).MatchString",
+        "stable_identity": "go::(*regexp.Regexp).MatchString",
+        "scope": "library",
+        "callable": {
+          "owner_type": "t213",
+          "receiver": "t212",
+          "parameters": [
+            "t1"
+          ],
+          "result": "t7",
+          "generics": 0,
+          "modifiers": []
+        },
+        "compilation": "regexp",
+        "standard": true,
+        "operation": "go:regexp.Regexp.MatchString"
+      },
+      {
+        "id": "def:go::github.com/commonfabric/bay/internal/engine.shellSafeRe",
+        "kind": "other",
+        "name": "github.com/commonfabric/bay/internal/engine.shellSafeRe",
+        "stable_identity": "go::github.com/commonfabric/bay/internal/engine.shellSafeRe",
+        "scope": "unit"
+      },
+      {
+        "id": "def:go::strings.ReplaceAll",
+        "kind": "function",
+        "name": "strings.ReplaceAll",
+        "stable_identity": "go::strings.ReplaceAll",
+        "scope": "library",
+        "callable": {
+          "parameters": [
+            "t1",
+            "t1",
+            "t1"
+          ],
+          "result": "t1",
+          "generics": 0,
+          "modifiers": []
+        },
+        "compilation": "strings",
+        "standard": true,
+        "operation": "go:strings.ReplaceAll"
+      }
+    ],
+    "types": [
+      {
+        "id": "t1",
+        "kind": "string",
+        "spelling": "string"
+      },
+      {
+        "id": "t7",
+        "kind": "bool",
+        "spelling": "bool"
+      },
+      {
+        "id": "t10",
+        "kind": "sequence",
+        "spelling": "[]string",
+        "element": "t1",
+        "fixed": false
+      },
+      {
+        "id": "t20",
+        "kind": "integer",
+        "spelling": "int",
+        "bits": 64,
+        "signed": true,
+        "pointer_sized": true
+      },
+      {
+        "id": "t59",
+        "kind": "unit",
+        "spelling": "()"
+      },
+      {
+        "id": "t68",
+        "kind": "integer",
+        "spelling": "uint32",
+        "bits": 32,
+        "signed": false,
+        "pointer_sized": false
+      },
+      {
+        "id": "t72",
+        "kind": "integer",
+        "spelling": "byte",
+        "bits": 8,
+        "signed": false,
+        "pointer_sized": false
+      },
+      {
+        "id": "t71",
+        "kind": "sequence",
+        "spelling": "[]byte",
+        "element": "t72",
+        "fixed": false
+      },
+      {
+        "id": "t209",
+        "kind": "function",
+        "spelling": "def:go::make",
+        "definition": "def:go::make",
+        "parameters": [],
+        "result": "t59"
+      },
+      {
+        "id": "t210",
+        "kind": "function",
+        "spelling": "def:go::len",
+        "definition": "def:go::len",
+        "parameters": [],
+        "result": "t59"
+      },
+      {
+        "id": "t211",
+        "kind": "tuple",
+        "spelling": "(int, string)",
+        "items": [
+          "t20",
+          "t1"
+        ]
+      },
+      {
+        "id": "t218",
+        "kind": "record",
+        "spelling": "regexp/syntax.InstOp",
+        "definition": "def:go::regexp/syntax.InstOp"
+      },
+      {
+        "id": "t220",
+        "kind": "integer",
+        "spelling": "rune",
+        "bits": 32,
+        "signed": true,
+        "pointer_sized": false
+      },
+      {
+        "id": "t219",
+        "kind": "sequence",
+        "spelling": "[]rune",
+        "element": "t220",
+        "fixed": false
+      },
+      {
+        "id": "t217",
+        "kind": "record",
+        "spelling": "regexp/syntax.Inst",
+        "definition": "def:go::regexp/syntax.Inst",
+        "fields": [
+          {
+            "name": "Op",
+            "type": "t218"
+          },
+          {
+            "name": "Out",
+            "type": "t68"
+          },
+          {
+            "name": "Arg",
+            "type": "t68"
+          },
+          {
+            "name": "Rune",
+            "type": "t219"
+          }
+        ]
+      },
+      {
+        "id": "t216",
+        "kind": "sequence",
+        "spelling": "[]regexp/syntax.Inst",
+        "element": "t217",
+        "fixed": false
+      },
+      {
+        "id": "t215",
+        "kind": "record",
+        "spelling": "regexp/syntax.Prog",
+        "definition": "def:go::regexp/syntax.Prog",
+        "fields": [
+          {
+            "name": "Inst",
+            "type": "t216"
+          },
+          {
+            "name": "Start",
+            "type": "t20"
+          },
+          {
+            "name": "NumCap",
+            "type": "t20"
+          }
+        ]
+      },
+      {
+        "id": "t214",
+        "kind": "reference",
+        "spelling": "*regexp/syntax.Prog",
+        "target": "t215",
+        "mode": "exclusive"
+      },
+      {
+        "id": "t225",
+        "kind": "sequence",
+        "spelling": "[]uint32",
+        "element": "t68",
+        "fixed": false
+      },
+      {
+        "id": "t224",
+        "kind": "record",
+        "spelling": "regexp.onePassInst",
+        "definition": "def:go::regexp.onePassInst",
+        "fields": [
+          {
+            "name": "Inst",
+            "type": "t217",
+            "embedded": true
+          },
+          {
+            "name": "Next",
+            "type": "t225"
+          }
+        ]
+      },
+      {
+        "id": "t223",
+        "kind": "sequence",
+        "spelling": "[]regexp.onePassInst",
+        "element": "t224",
+        "fixed": false
+      },
+      {
+        "id": "t222",
+        "kind": "record",
+        "spelling": "regexp.onePassProg",
+        "definition": "def:go::regexp.onePassProg",
+        "fields": [
+          {
+            "name": "Inst",
+            "type": "t223"
+          },
+          {
+            "name": "Start",
+            "type": "t20"
+          },
+          {
+            "name": "NumCap",
+            "type": "t20"
+          }
+        ]
+      },
+      {
+        "id": "t221",
+        "kind": "reference",
+        "spelling": "*regexp.onePassProg",
+        "target": "t222",
+        "mode": "exclusive"
+      },
+      {
+        "id": "t226",
+        "kind": "record",
+        "spelling": "regexp/syntax.EmptyOp",
+        "definition": "def:go::regexp/syntax.EmptyOp"
+      },
+      {
+        "id": "t213",
+        "kind": "record",
+        "spelling": "regexp.Regexp",
+        "definition": "def:go::regexp.Regexp",
+        "fields": [
+          {
+            "name": "expr",
+            "type": "t1"
+          },
+          {
+            "name": "prog",
+            "type": "t214"
+          },
+          {
+            "name": "onepass",
+            "type": "t221"
+          },
+          {
+            "name": "numSubexp",
+            "type": "t20"
+          },
+          {
+            "name": "maxBitStateLen",
+            "type": "t20"
+          },
+          {
+            "name": "subexpNames",
+            "type": "t10"
+          },
+          {
+            "name": "prefix",
+            "type": "t1"
+          },
+          {
+            "name": "prefixBytes",
+            "type": "t71"
+          },
+          {
+            "name": "prefixRune",
+            "type": "t220"
+          },
+          {
+            "name": "prefixEnd",
+            "type": "t68"
+          },
+          {
+            "name": "mpool",
+            "type": "t20"
+          },
+          {
+            "name": "matchcap",
+            "type": "t20"
+          },
+          {
+            "name": "prefixComplete",
+            "type": "t7"
+          },
+          {
+            "name": "cond",
+            "type": "t226"
+          },
+          {
+            "name": "minInputLen",
+            "type": "t20"
+          },
+          {
+            "name": "longest",
+            "type": "t7"
+          }
+        ]
+      },
+      {
+        "id": "t212",
+        "kind": "reference",
+        "spelling": "*regexp.Regexp",
+        "target": "t213",
+        "mode": "exclusive"
+      },
+      {
+        "id": "t227",
+        "kind": "function",
+        "spelling": "def:go::strings.ReplaceAll",
+        "definition": "def:go::strings.ReplaceAll",
+        "parameters": [
+          "t1",
+          "t1",
+          "t1"
+        ],
+        "result": "t1"
+      }
+    ],
+    "values": [],
+    "instances": [],
+    "functions": [
+      {
+        "id": "f4",
+        "definition": "def:go::github.com/commonfabric/bay/internal/engine.quoteArgs",
+        "name": "quoteArgs",
+        "span": {
+          "file": "file:internal/engine/agent.go",
+          "start": 2809,
+          "end": 3071
+        },
+        "signature": {
+          "span": {
+            "file": "file:internal/engine/agent.go",
+            "start": 2809,
+            "end": 2847
+          },
+          "parameters": [
+            {
+              "position": 0,
+              "symbol": "f4.s0",
+              "type": "t10",
+              "span": {
+                "file": "file:internal/engine/agent.go",
+                "start": 2824,
+                "end": 2828
+              },
+              "annotation": {
+                "file": "file:internal/engine/agent.go",
+                "start": 2829,
+                "end": 2837
+              }
+            }
+          ],
+          "result": "t10",
+          "generics": [],
+          "lifetimes": [],
+          "outlives": [],
+          "modifiers": []
+        },
+        "root": "f4.n50",
+        "nodes": [
+          {
+            "id": "f4.n0",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2861,
+              "end": 2865
+            },
+            "children": [],
+            "type": "t209",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n1",
+            "kind": "type_annotation",
+            "original_kind": "ArrayType.type",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2866,
+              "end": 2874
+            },
+            "children": [],
+            "type": "t10",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n2",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2876,
+              "end": 2879
+            },
+            "children": [],
+            "type": "t210",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n3",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2880,
+              "end": 2884
+            },
+            "children": [],
+            "type": "t10",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n4",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2876,
+              "end": 2885
+            },
+            "children": [
+              "f4.n2",
+              "f4.n3"
+            ],
+            "type": "t20",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n5",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2861,
+              "end": 2886
+            },
+            "children": [
+              "f4.n0",
+              "f4.n1",
+              "f4.n4"
+            ],
+            "type": "t10",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n6",
+            "kind": "pattern_binding",
+            "original_kind": "Ident.binding",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2851,
+              "end": 2857
+            },
+            "children": [],
+            "type": "t10",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n7",
+            "kind": "local_declaration",
+            "original_kind": "AssignStmt.define",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2851,
+              "end": 2886
+            },
+            "children": [
+              "f4.n6",
+              "f4.n5"
+            ],
+            "type": "t59",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n8",
+            "kind": "pattern_binding",
+            "original_kind": "Ident.binding",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2892,
+              "end": 2893
+            },
+            "children": [],
+            "type": "t20",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n9",
+            "kind": "pattern_binding",
+            "original_kind": "Ident.binding",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2895,
+              "end": 2896
+            },
+            "children": [],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n10",
+            "kind": "pattern_tuple",
+            "original_kind": "RangeStmt.vars",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2892,
+              "end": 2896
+            },
+            "children": [
+              "f4.n8",
+              "f4.n9"
+            ],
+            "type": "t211",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n11",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2906,
+              "end": 2910
+            },
+            "children": [],
+            "type": "t10",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n12",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2918,
+              "end": 2919
+            },
+            "children": [],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n13",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2923,
+              "end": 2925
+            },
+            "children": [],
+            "type": "t1",
+            "literal": "\"\"",
+            "value": {
+              "kind": "string",
+              "value": ""
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n14",
+            "kind": "operator",
+            "original_kind": "BinaryExpr",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2918,
+              "end": 2925
+            },
+            "children": [
+              "f4.n12",
+              "f4.n13"
+            ],
+            "type": "t7",
+            "operator": "ne",
+            "token": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2920,
+              "end": 2922
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n15",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2929,
+              "end": 2940
+            },
+            "children": [],
+            "type": "t212",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n16",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2953,
+              "end": 2954
+            },
+            "children": [],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n17",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2929,
+              "end": 2955
+            },
+            "children": [
+              "f4.n15",
+              "f4.n16"
+            ],
+            "type": "t7",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n18",
+            "kind": "operator",
+            "original_kind": "BinaryExpr",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2918,
+              "end": 2955
+            },
+            "children": [
+              "f4.n14",
+              "f4.n17"
+            ],
+            "type": "t7",
+            "operator": "and",
+            "token": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2926,
+              "end": 2928
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n19",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2973,
+              "end": 2974
+            },
+            "children": [],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n20",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2961,
+              "end": 2967
+            },
+            "children": [],
+            "type": "t10",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n21",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2968,
+              "end": 2969
+            },
+            "children": [],
+            "type": "t20",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n22",
+            "kind": "index_access",
+            "original_kind": "IndexExpr",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2961,
+              "end": 2970
+            },
+            "children": [
+              "f4.n20",
+              "f4.n21"
+            ],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n23",
+            "kind": "assignment",
+            "original_kind": "AssignStmt",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2961,
+              "end": 2974
+            },
+            "children": [
+              "f4.n22",
+              "f4.n19"
+            ],
+            "type": "t59",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n24",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2961,
+              "end": 2974
+            },
+            "children": [
+              "f4.n23"
+            ],
+            "type": "t59",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n25",
+            "kind": "continue",
+            "original_kind": "BranchStmt.continue",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2978,
+              "end": 2986
+            },
+            "children": [],
+            "type": "t59",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n26",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2978,
+              "end": 2986
+            },
+            "children": [
+              "f4.n25"
+            ],
+            "type": "t59",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n27",
+            "kind": "block",
+            "original_kind": "BlockStmt",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2956,
+              "end": 2990
+            },
+            "children": [
+              "f4.n24",
+              "f4.n26"
+            ],
+            "type": "t59",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n28",
+            "kind": "if",
+            "original_kind": "IfStmt",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2915,
+              "end": 2990
+            },
+            "children": [
+              "f4.n18",
+              "f4.n27"
+            ],
+            "type": "t59",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n29",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2915,
+              "end": 2990
+            },
+            "children": [
+              "f4.n28"
+            ],
+            "type": "t59",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n30",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 3005,
+              "end": 3008
+            },
+            "children": [],
+            "type": "t1",
+            "literal": "\"'\"",
+            "value": {
+              "kind": "string",
+              "value": "'"
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n31",
+            "kind": "identifier",
+            "original_kind": "SelectorExpr.qualified",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 3011,
+              "end": 3029
+            },
+            "children": [],
+            "type": "t227",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n32",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 3030,
+              "end": 3031
+            },
+            "children": [],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n33",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 3033,
+              "end": 3036
+            },
+            "children": [],
+            "type": "t1",
+            "literal": "\"'\"",
+            "value": {
+              "kind": "string",
+              "value": "'"
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n34",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 3038,
+              "end": 3044
+            },
+            "children": [],
+            "type": "t1",
+            "literal": "`'\\''`",
+            "value": {
+              "kind": "string",
+              "value": "'\\''"
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n35",
+            "kind": "call",
+            "original_kind": "CallExpr",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 3011,
+              "end": 3045
+            },
+            "children": [
+              "f4.n31",
+              "f4.n32",
+              "f4.n33",
+              "f4.n34"
+            ],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n36",
+            "kind": "operator",
+            "original_kind": "BinaryExpr",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 3005,
+              "end": 3045
+            },
+            "children": [
+              "f4.n30",
+              "f4.n35"
+            ],
+            "type": "t1",
+            "operator": "add",
+            "token": {
+              "file": "file:internal/engine/agent.go",
+              "start": 3009,
+              "end": 3010
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n37",
+            "kind": "literal",
+            "original_kind": "BasicLit",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 3048,
+              "end": 3051
+            },
+            "children": [],
+            "type": "t1",
+            "literal": "\"'\"",
+            "value": {
+              "kind": "string",
+              "value": "'"
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n38",
+            "kind": "operator",
+            "original_kind": "BinaryExpr",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 3005,
+              "end": 3051
+            },
+            "children": [
+              "f4.n36",
+              "f4.n37"
+            ],
+            "type": "t1",
+            "operator": "add",
+            "token": {
+              "file": "file:internal/engine/agent.go",
+              "start": 3046,
+              "end": 3047
+            },
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n39",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2993,
+              "end": 2999
+            },
+            "children": [],
+            "type": "t10",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n40",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 3000,
+              "end": 3001
+            },
+            "children": [],
+            "type": "t20",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n41",
+            "kind": "index_access",
+            "original_kind": "IndexExpr",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2993,
+              "end": 3002
+            },
+            "children": [
+              "f4.n39",
+              "f4.n40"
+            ],
+            "type": "t1",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n42",
+            "kind": "assignment",
+            "original_kind": "AssignStmt",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2993,
+              "end": 3051
+            },
+            "children": [
+              "f4.n41",
+              "f4.n38"
+            ],
+            "type": "t59",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n43",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2993,
+              "end": 3051
+            },
+            "children": [
+              "f4.n42"
+            ],
+            "type": "t59",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n44",
+            "kind": "block",
+            "original_kind": "BlockStmt",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2911,
+              "end": 3054
+            },
+            "children": [
+              "f4.n29",
+              "f4.n43"
+            ],
+            "type": "t59",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n45",
+            "kind": "for",
+            "original_kind": "RangeStmt",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2888,
+              "end": 3054
+            },
+            "children": [
+              "f4.n10",
+              "f4.n11",
+              "f4.n44"
+            ],
+            "type": "t59",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n46",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2888,
+              "end": 3054
+            },
+            "children": [
+              "f4.n45"
+            ],
+            "type": "t59",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n47",
+            "kind": "identifier",
+            "original_kind": "Ident",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 3063,
+              "end": 3069
+            },
+            "children": [],
+            "type": "t10",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n48",
+            "kind": "return",
+            "original_kind": "ReturnStmt",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 3056,
+              "end": 3069
+            },
+            "children": [
+              "f4.n47"
+            ],
+            "type": "t59",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n49",
+            "kind": "expression_statement",
+            "original_kind": "Stmt",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 3056,
+              "end": 3069
+            },
+            "children": [
+              "f4.n48"
+            ],
+            "type": "t59",
+            "provenance": {
+              "origin": "source"
+            }
+          },
+          {
+            "id": "f4.n50",
+            "kind": "block",
+            "original_kind": "BlockStmt",
+            "span": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2848,
+              "end": 3071
+            },
+            "children": [
+              "f4.n7",
+              "f4.n46",
+              "f4.n49"
+            ],
+            "type": "t59",
+            "provenance": {
+              "origin": "source"
+            }
+          }
+        ],
+        "cfg": {
+          "entry": "f4.entry",
+          "exits": [
+            {
+              "id": "f4.exit",
+              "kind": "normal"
+            }
+          ],
+          "edges": [
+            {
+              "id": "f4.e0",
+              "source": "f4.entry",
+              "target": "f4.n0",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e1",
+              "source": "f4.n0",
+              "target": "f4.n2",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e2",
+              "source": "f4.n2",
+              "target": "f4.n3",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e3",
+              "source": "f4.n3",
+              "target": "f4.n4",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e4",
+              "source": "f4.n4",
+              "target": "f4.n5",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e5",
+              "source": "f4.n5",
+              "target": "f4.n6",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e6",
+              "source": "f4.n6",
+              "target": "f4.n7",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e7",
+              "source": "f4.n7",
+              "target": "f4.n11",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e8",
+              "source": "f4.n11",
+              "target": "f4.n45",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e9",
+              "source": "f4.n45",
+              "target": "f4.n8",
+              "kind": "true"
+            },
+            {
+              "id": "f4.e10",
+              "source": "f4.n8",
+              "target": "f4.n9",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e11",
+              "source": "f4.n9",
+              "target": "f4.n10",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e12",
+              "source": "f4.n10",
+              "target": "f4.n12",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e13",
+              "source": "f4.n12",
+              "target": "f4.n13",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e14",
+              "source": "f4.n13",
+              "target": "f4.n14",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e15",
+              "source": "f4.n14",
+              "target": "f4.n15",
+              "kind": "true"
+            },
+            {
+              "id": "f4.e16",
+              "source": "f4.n15",
+              "target": "f4.n16",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e17",
+              "source": "f4.n16",
+              "target": "f4.n17",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e18",
+              "source": "f4.n17",
+              "target": "f4.n18",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e19",
+              "source": "f4.n14",
+              "target": "f4.n18",
+              "kind": "false"
+            },
+            {
+              "id": "f4.e20",
+              "source": "f4.n18",
+              "target": "f4.n20",
+              "kind": "true"
+            },
+            {
+              "id": "f4.e21",
+              "source": "f4.n20",
+              "target": "f4.n21",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e22",
+              "source": "f4.n21",
+              "target": "f4.n19",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e23",
+              "source": "f4.n19",
+              "target": "f4.n22",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e24",
+              "source": "f4.n22",
+              "target": "f4.n23",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e25",
+              "source": "f4.n23",
+              "target": "f4.n24",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e26",
+              "source": "f4.n24",
+              "target": "f4.n25",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e27",
+              "source": "f4.n18",
+              "target": "f4.n28",
+              "kind": "false"
+            },
+            {
+              "id": "f4.e28",
+              "source": "f4.n28",
+              "target": "f4.n29",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e29",
+              "source": "f4.n29",
+              "target": "f4.n39",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e30",
+              "source": "f4.n39",
+              "target": "f4.n40",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e31",
+              "source": "f4.n40",
+              "target": "f4.n30",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e32",
+              "source": "f4.n30",
+              "target": "f4.n31",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e33",
+              "source": "f4.n31",
+              "target": "f4.n32",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e34",
+              "source": "f4.n32",
+              "target": "f4.n33",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e35",
+              "source": "f4.n33",
+              "target": "f4.n34",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e36",
+              "source": "f4.n34",
+              "target": "f4.n35",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e37",
+              "source": "f4.n35",
+              "target": "f4.n36",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e38",
+              "source": "f4.n36",
+              "target": "f4.n37",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e39",
+              "source": "f4.n37",
+              "target": "f4.n38",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e40",
+              "source": "f4.n38",
+              "target": "f4.n41",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e41",
+              "source": "f4.n41",
+              "target": "f4.n42",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e42",
+              "source": "f4.n42",
+              "target": "f4.n43",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e43",
+              "source": "f4.n43",
+              "target": "f4.n44",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e44",
+              "source": "f4.n44",
+              "target": "f4.n45",
+              "kind": "normal",
+              "loop_role": "back_edge"
+            },
+            {
+              "id": "f4.e45",
+              "source": "f4.n25",
+              "target": "f4.n45",
+              "kind": "continue",
+              "loop_role": "back_edge"
+            },
+            {
+              "id": "f4.e46",
+              "source": "f4.n45",
+              "target": "f4.n46",
+              "kind": "false",
+              "loop_role": "loop_exit"
+            },
+            {
+              "id": "f4.e47",
+              "source": "f4.n46",
+              "target": "f4.n47",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e48",
+              "source": "f4.n47",
+              "target": "f4.n48",
+              "kind": "normal"
+            },
+            {
+              "id": "f4.e49",
+              "source": "f4.n48",
+              "target": "f4.exit",
+              "kind": "return"
+            }
+          ]
+        },
+        "symbols": [
+          {
+            "id": "f4.s0",
+            "name": "args",
+            "kind": "parameter",
+            "scope": "f4",
+            "declared": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2824,
+              "end": 2828
+            },
+            "mutable": false,
+            "type": "t10"
+          },
+          {
+            "id": "f4.s1",
+            "name": "quoted",
+            "kind": "local",
+            "scope": "f4",
+            "declared": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2851,
+              "end": 2857
+            },
+            "node": "f4.n6",
+            "mutable": false,
+            "type": "t10"
+          },
+          {
+            "id": "f4.s2",
+            "name": "i",
+            "kind": "local",
+            "scope": "f4",
+            "declared": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2892,
+              "end": 2893
+            },
+            "node": "f4.n8",
+            "mutable": false,
+            "type": "t20"
+          },
+          {
+            "id": "f4.s3",
+            "name": "a",
+            "kind": "local",
+            "scope": "f4",
+            "declared": {
+              "file": "file:internal/engine/agent.go",
+              "start": 2895,
+              "end": 2896
+            },
+            "node": "f4.n9",
+            "mutable": false,
+            "type": "t1"
+          }
+        ],
+        "accesses": [
+          {
+            "node": "f4.n3",
+            "symbol": "f4.s0",
+            "mode": "read"
+          },
+          {
+            "node": "f4.n6",
+            "symbol": "f4.s1",
+            "mode": "write"
+          },
+          {
+            "node": "f4.n8",
+            "symbol": "f4.s2",
+            "mode": "write"
+          },
+          {
+            "node": "f4.n9",
+            "symbol": "f4.s3",
+            "mode": "write"
+          },
+          {
+            "node": "f4.n11",
+            "symbol": "f4.s0",
+            "mode": "read"
+          },
+          {
+            "node": "f4.n12",
+            "symbol": "f4.s3",
+            "mode": "read"
+          },
+          {
+            "node": "f4.n16",
+            "symbol": "f4.s3",
+            "mode": "read"
+          },
+          {
+            "node": "f4.n19",
+            "symbol": "f4.s3",
+            "mode": "read"
+          },
+          {
+            "node": "f4.n20",
+            "symbol": "f4.s1",
+            "mode": "read_write"
+          },
+          {
+            "node": "f4.n21",
+            "symbol": "f4.s2",
+            "mode": "read"
+          },
+          {
+            "node": "f4.n32",
+            "symbol": "f4.s3",
+            "mode": "read"
+          },
+          {
+            "node": "f4.n39",
+            "symbol": "f4.s1",
+            "mode": "read_write"
+          },
+          {
+            "node": "f4.n40",
+            "symbol": "f4.s2",
+            "mode": "read"
+          },
+          {
+            "node": "f4.n47",
+            "symbol": "f4.s1",
+            "mode": "read"
+          }
+        ],
+        "refs": [
+          {
+            "node": "f4.n0",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::make"
+            }
+          },
+          {
+            "node": "f4.n2",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::len"
+            }
+          },
+          {
+            "node": "f4.n3",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f4.s0"
+            }
+          },
+          {
+            "node": "f4.n4",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::len"
+            },
+            "dispatch": "builtin"
+          },
+          {
+            "node": "f4.n5",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::make"
+            },
+            "dispatch": "builtin"
+          },
+          {
+            "node": "f4.n11",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f4.s0"
+            }
+          },
+          {
+            "node": "f4.n12",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f4.s3"
+            }
+          },
+          {
+            "node": "f4.n15",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::github.com/commonfabric/bay/internal/engine.shellSafeRe"
+            }
+          },
+          {
+            "node": "f4.n16",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f4.s3"
+            }
+          },
+          {
+            "node": "f4.n17",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::(*regexp.Regexp).MatchString"
+            },
+            "dispatch": "method"
+          },
+          {
+            "node": "f4.n19",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f4.s3"
+            }
+          },
+          {
+            "node": "f4.n20",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f4.s1"
+            }
+          },
+          {
+            "node": "f4.n21",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f4.s2"
+            }
+          },
+          {
+            "node": "f4.n31",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::strings.ReplaceAll"
+            }
+          },
+          {
+            "node": "f4.n32",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f4.s3"
+            }
+          },
+          {
+            "node": "f4.n35",
+            "status": "resolved",
+            "target": {
+              "kind": "definition",
+              "id": "def:go::strings.ReplaceAll"
+            },
+            "dispatch": "static"
+          },
+          {
+            "node": "f4.n39",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f4.s1"
+            }
+          },
+          {
+            "node": "f4.n40",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f4.s2"
+            }
+          },
+          {
+            "node": "f4.n47",
+            "status": "resolved",
+            "target": {
+              "kind": "symbol",
+              "id": "f4.s1"
+            }
+          }
+        ],
+        "places": [
+          {
+            "id": "f4.p0",
+            "node": "f4.n20",
+            "root": {
+              "symbol": "f4.s1"
+            },
+            "path": [
+              {
+                "index": null
+              }
+            ],
+            "access": "write",
+            "mode": "value",
+            "escapes": false
+          },
+          {
+            "id": "f4.p1",
+            "node": "f4.n39",
+            "root": {
+              "symbol": "f4.s1"
+            },
+            "path": [
+              {
+                "index": null
+              }
+            ],
+            "access": "write",
+            "mode": "value",
+            "escapes": false
+          }
+        ],
+        "values": []
+      }
+    ]
+  }
+}
