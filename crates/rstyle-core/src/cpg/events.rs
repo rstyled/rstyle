@@ -449,7 +449,8 @@ impl<'a> Walk<'a> {
         let calls_back = callee.reference.calls_back.as_ref();
         let named = calls_back.is_some_and(|calls_back| calls_back.named());
         let written = self.handed_callables(node, (callee.reference, runs))?;
-        Ok(if named || written.is_some() {
+        let certified = super::invocation::callback_free(self.body, self.tables, node, runs);
+        Ok(if named || written.is_some() || certified {
             self.classes.class_without_callback(operation)
         } else {
             self.classes.class(operation)

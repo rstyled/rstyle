@@ -1,5 +1,5 @@
-//! `for` loops over primitive unsigned ranges, stable shared slices, and sources a loop counts:
-//! ranges a library call makes, tuples and fixed-length sequences, and integers.
+//! `for` loops over primitive unsigned ranges, shared sequences with a known extent, and sources a
+//! loop counts: ranges a library call makes, tuples and fixed-length sequences, and integers.
 
 use super::super::model::{Node, NodeKind, Origin, Type, TypeKind};
 use super::Collector;
@@ -64,6 +64,9 @@ impl<'a> Collector<'_, '_, 'a> {
             let reason = "Unrecognized resolved for-loop desugaring";
             return Ok(self.unsupported(expression, next, reason));
         };
+        if let Some(entry) = self.for_iterator_chain(expression, &parts, next)? {
+            return Ok(entry);
+        }
         match self.scan_values(&parts)? {
             Ok(mut counted) => {
                 let evaluated = std::mem::take(&mut counted.evaluated);
@@ -307,17 +310,10 @@ impl<'a> Collector<'_, '_, 'a> {
         let Some(receiver) = iteration_receiver(self.facts, head)? else {
             return Ok(None);
         };
-        let Some(place) = self.place(receiver)? else {
+        let Some(limit) = self.sequence_extent(receiver)? else {
             return Ok(None);
         };
-        let Some(label) = self.extents.get(&place.key()).cloned() else {
-            return Ok(None);
-        };
-        Ok(Some((
-            Value::Const(0),
-            Value::Input(label),
-            self.facts.pointer_bits,
-        )))
+        Ok(Some((Value::Const(0), limit, self.facts.pointer_bits)))
     }
 }
 

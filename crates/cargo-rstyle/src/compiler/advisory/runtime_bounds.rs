@@ -4,7 +4,9 @@ use crate::compiler::FunctionKey;
 use rstyle_core::wording::Wording;
 use rstyle_core::{
     advisory::runtime_bounds::{Input, KEY, Observation},
-    cpg::bounds::report::{Evidence, LIMITATIONS, degree, evidence, render_result},
+    cpg::bounds::report::{
+        Coverage, Evidence, FunctionContext, LIMITATIONS, degree, evidence, render_result,
+    },
     runtime_bounds::{
         self, Limits,
         compose::{Analyzed, Composer},
@@ -18,8 +20,16 @@ pub(super) struct Report {
     schema: &'static str,
     pub input_complete: bool,
     limitations: &'static [&'static str],
+    coverage_scope: CoverageScope,
+    coverage: Coverage,
     rows: Vec<Row>,
     selected: Vec<usize>,
+}
+
+#[derive(Serialize)]
+struct CoverageScope {
+    roster: &'static str,
+    source_scope: crate::compiler::CompilerSourceScope,
 }
 
 #[derive(Serialize)]
@@ -27,6 +37,8 @@ struct Row {
     key: FunctionKey,
     name: String,
     path: String,
+    #[serde(flatten)]
+    context: FunctionContext,
     #[serde(flatten)]
     evidence: Evidence,
 }
@@ -38,7 +50,36 @@ pub(super) fn evaluate(ctx: &Context<'_>, unit: UnitId) -> Option<Report> {
     let index = owners(ctx);
     let lookup = |id: &str| analyzed(index.get(id).copied().flatten()?);
     let mut composer = Composer::new(lookup, Limits::default());
+    let assessed = assessed(ctx, unit);
+    let mut rows: Vec<_> = assessed
+        .iter()
+        .map(|function| row(function, &ctx.capture.plan.root, &mut composer))
+        .collect();
+    let coverage = Coverage::new(
+        assessed
+            .iter()
+            .map(|function| &function.facts.document().record),
+        rows.iter().map(|row| &row.evidence),
+    );
+    rows.sort_by_key(|row| (std::cmp::Reverse(degree(&row.evidence)), row.key));
+    Some(Report {
+        schema: "rstyle.compiler-runtime-bounds-report/2",
+        input_complete: coverage.input_complete(),
+        limitations: LIMITATIONS,
+        coverage_scope: CoverageScope {
+            roster: "assessed_functions_in_unit",
+            source_scope: ctx.args.compiler_pattern_scope,
+        },
+        coverage,
+        selected: (0..rows
+            .len()
+            .min(ctx.args.compiler_runtime_top.unwrap_or(usize::MAX)))
+            .collect(),
+        rows,
+    })
+}
 
+fn assessed<'a>(ctx: &'a Context<'_>, unit: UnitId) -> Vec<&'a crate::compiler::Function> {
     let mut assessed: Vec<_> = ctx
         .handoff
         .assessed
@@ -52,21 +93,7 @@ pub(super) fn evaluate(ctx: &Context<'_>, unit: UnitId) -> Option<Report> {
     // Composing shares what it has worked out, so visit functions as a run over documents does.
     assessed.sort_by_key(|function| function.facts.document().record.canonical_key());
 
-    let mut rows: Vec<_> = assessed
-        .into_iter()
-        .map(|function| row(function, &ctx.capture.plan.root, &mut composer))
-        .collect();
-    rows.sort_by_key(|row| (std::cmp::Reverse(degree(&row.evidence)), row.key));
-    Some(Report {
-        schema: "rstyle.compiler-runtime-bounds-report/2",
-        input_complete: rows.iter().all(|row| row.evidence.missing.is_none()),
-        limitations: LIMITATIONS,
-        selected: (0..rows
-            .len()
-            .min(ctx.args.compiler_runtime_top.unwrap_or(usize::MAX)))
-            .collect(),
-        rows,
-    })
+    assessed
 }
 
 // Owners across every unit, keyed by compilation and path so callees in other
@@ -126,6 +153,7 @@ fn row<F: FnMut(&str) -> Option<Analyzed>>(
         key: function.key,
         name: function.facts.view().name.to_string(),
         path: path.unwrap_or_default(),
+        context: FunctionContext::from(&function.facts.document().record),
         evidence: Evidence {
             composed,
             ..evidence(input)
@@ -203,12 +231,18 @@ mod tests {
             key: "function:u0:f1".parse().unwrap(),
             name: "poll".into(),
             path: "src/lib.rs".into(),
+            context: FunctionContext::default(),
             evidence: evidence(Ok(observation)),
         };
         let report = Report {
             schema: "test",
-            input_complete: true,
+            input_complete: false,
             limitations: &[],
+            coverage_scope: CoverageScope {
+                roster: "assessed_functions_in_unit",
+                source_scope: crate::compiler::CompilerSourceScope::Authored,
+            },
+            coverage: Coverage::new(std::iter::empty(), std::iter::once(&row.evidence)),
             rows: vec![row],
             selected: vec![0],
         };
