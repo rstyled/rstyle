@@ -5,8 +5,15 @@
 //! up and instantiates the contract's step expression with the call's argument sizes.
 //! The same files declare each operation's iteration and extent roles, so a frontend
 //! recognizes traversals by key instead of carrying its own method tables.
+mod allocation;
 mod extension;
+mod invocation;
 mod iteration;
+mod state;
+
+pub use allocation::{Allocation, Storage};
+pub use invocation::{CallForm, CallbackFree, TypeGuard};
+pub use state::{StateArgument, StateCallbackFree};
 
 pub use extension::{Control, Extension, Implicit};
 pub use iteration::{
@@ -85,6 +92,12 @@ struct File {
     #[serde(default)]
     callable: Vec<iteration::CallableEntry>,
     #[serde(default)]
+    allocation: Vec<allocation::Entry>,
+    #[serde(default)]
+    callback_free: Vec<invocation::Entry>,
+    #[serde(default)]
+    state_callback_free: Vec<state::Entry>,
+    #[serde(default)]
     extension: Vec<extension::ExtensionEntry>,
 }
 
@@ -104,6 +117,9 @@ pub struct Contracts {
     consumers: BTreeMap<String, Iteration<ConsumerEffect>>,
     extents: BTreeMap<String, Extent>,
     callables: BTreeMap<String, iteration::Callable>,
+    allocations: BTreeMap<String, Allocation>,
+    callback_free: BTreeMap<String, CallbackFree>,
+    state_callback_free: BTreeMap<String, Vec<StateCallbackFree>>,
     extensions: BTreeMap<String, Extension>,
 }
 
@@ -165,25 +181,54 @@ impl Contracts {
             Ok((&entry.operations[..], contract))
         });
         declare(&mut self.operations, (namespace, "step"), steps)?;
+        self.extend_storage(&file)?;
+        self.extend_roles(&file)
+    }
+
+    fn extend_storage(&mut self, file: &File) -> Result<(), String> {
+        let namespace = file.namespace.as_str();
         let extents = file
             .extent
             .iter()
             .map(|entry| Ok((&entry.operations[..], entry.extent())));
         declare(&mut self.extents, (namespace, "extent"), extents)?;
-
-        self.extend_roles(&file)
+        let allocations = file.allocation.iter();
+        let allocations = allocations.map(|entry| Ok((&entry.operations[..], entry.allocation()?)));
+        declare(
+            &mut self.allocations,
+            (namespace, "allocation"),
+            allocations,
+        )
     }
 
-    /// The roles a file gives the language's own extension nodes, then its iteration roles.
     fn extend_roles(&mut self, file: &File) -> Result<(), String> {
+        self.extend_language(file)?;
+        self.extend_invocations(file)?;
+        self.extend_iteration(file)
+    }
+
+    /// The roles a file gives the language's own extension nodes.
+    fn extend_language(&mut self, file: &File) -> Result<(), String> {
         let namespace = file.namespace.as_str();
         let extensions = file
             .extension
             .iter()
             .map(|entry| Ok((&entry.extensions[..], entry.extension(namespace)?)));
-        declare(&mut self.extensions, (namespace, "extension"), extensions)?;
+        declare(&mut self.extensions, (namespace, "extension"), extensions)
+    }
 
-        self.extend_iteration(file)
+    fn extend_invocations(&mut self, file: &File) -> Result<(), String> {
+        let namespace = file.namespace.as_str();
+        let roles = file
+            .callback_free
+            .iter()
+            .map(|entry| Ok((&entry.operations[..], entry.callback_free()?)));
+        declare(&mut self.callback_free, (namespace, "callback-free"), roles)?;
+        state::declare(
+            &mut self.state_callback_free,
+            namespace,
+            &file.state_callback_free,
+        )
     }
 
     fn extend_iteration(&mut self, file: &File) -> Result<(), String> {
@@ -234,6 +279,25 @@ impl Contracts {
     /// What an operation measures about its receiver's extent.
     pub fn extent(&self, operation: &str) -> Option<&Extent> {
         self.extents.get(operation)
+    }
+
+    /// What native storage an operation returns; this declares neither callback nor step cost.
+    pub fn allocation(&self, operation: &str) -> Option<&Allocation> {
+        self.allocations.get(operation)
+    }
+
+    /// Conditions under which a call invokes no workspace code of its own.
+    /// This declares neither costs, purity, nor how a handed callable runs.
+    pub fn callback_free(&self, operation: &str) -> Option<&CallbackFree> {
+        self.callback_free.get(operation)
+    }
+
+    /// Exact standard receiver families whose selected parameterless interface method
+    /// invokes no workspace code. This declares no cost, extent, purity or callback role.
+    pub fn state_callback_free(&self, operation: &str) -> &[StateCallbackFree] {
+        self.state_callback_free
+            .get(operation)
+            .map_or(&[], Vec::as_slice)
     }
 
     /// How runtime bounds lower a node of a registered extension, such as `py:dict`.

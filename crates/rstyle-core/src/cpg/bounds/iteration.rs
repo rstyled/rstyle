@@ -1,6 +1,6 @@
-//! `for` loops over primitive unsigned ranges and stable shared slices.
+//! `for` loops over primitive unsigned ranges and shared sequences with a known extent.
 
-use super::super::model::{Node, NodeKind};
+use super::super::model::{Node, NodeKind, Origin};
 use super::Collector;
 use super::extent::iteration_receiver;
 use super::facts::Facts;
@@ -42,6 +42,9 @@ impl<'a> Collector<'_, '_, 'a> {
             let reason = "Unrecognized resolved for-loop desugaring";
             return Ok(self.unsupported(expression, next, reason));
         };
+        if let Some(entry) = self.for_iterator_chain(expression, &parts, next)? {
+            return Ok(entry);
+        }
         match self.scan_values(&parts)? {
             Ok(values) => self.prepare_scan((expression, parts), values, next),
             Err(reason) => Ok(self.unsupported(expression, next, reason)),
@@ -199,17 +202,10 @@ impl<'a> Collector<'_, '_, 'a> {
         let Some(receiver) = iteration_receiver(self.facts, head)? else {
             return Ok(None);
         };
-        let Some(place) = self.place(receiver)? else {
+        let Some(limit) = self.sequence_extent(receiver)? else {
             return Ok(None);
         };
-        let Some(label) = self.extents.get(&place.key()).cloned() else {
-            return Ok(None);
-        };
-        Ok(Some((
-            Value::Const(0),
-            Value::Input(label),
-            self.facts.pointer_bits,
-        )))
+        Ok(Some((Value::Const(0), limit, self.facts.pointer_bits)))
     }
 }
 
@@ -222,12 +218,20 @@ pub(super) fn for_head<'a>(
         return Ok(None);
     }
     let wrapper = facts.body.child(expression, 1)?;
-    let head = facts
+    let generated_for = wrapper.synthetic
+        && wrapper.provenance.origin == Origin::Desugaring
+        && wrapper.provenance.construct.as_deref() == Some("for");
+    if !generated_for {
+        return Ok(Some(wrapper));
+    }
+    let mut sources = facts
         .sources(wrapper)?
         .into_iter()
-        .rev()
-        .find(|child| !child.synthetic)
-        .unwrap_or(wrapper);
+        .filter(|child| !child.synthetic);
+    let head = match (sources.next(), sources.next()) {
+        (Some(head), None) => head,
+        _ => wrapper,
+    };
 
     Ok(Some(head))
 }

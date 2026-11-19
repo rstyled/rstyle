@@ -4,7 +4,8 @@ use super::super::model::{Dispatch, Node, NodeKind};
 use super::Collector;
 use super::chains::{Callback, evaluated};
 use super::extent::run_once;
-use crate::runtime_bounds::{Action, Argument, Callee, Condition, Flow, Value};
+use super::writes::Write;
+use crate::runtime_bounds::{Action, Callee, Condition, Flow, Value};
 
 type Lowered = Result<u32, String>;
 
@@ -116,19 +117,7 @@ impl<'a> Collector<'_, '_, 'a> {
             None => "indirect call".into(),
         };
         let (target, operation) = self.call_target(expression, callee);
-        let mut inputs: Vec<Argument> = arguments
-            .iter()
-            .map(|argument| self.argument(argument))
-            .collect::<Result<_, _>>()?;
-        // The value a call of a type makes is its function's receiver, which no argument passes.
-        if self
-            .facts
-            .type_call(expression, callee)
-            .and_then(|function| function.callable.as_ref())
-            .is_some_and(|callable| callable.receiver.is_some())
-        {
-            inputs.insert(0, Argument::Opaque);
-        }
+        let inputs = self.summary_arguments(expression)?;
         let action = Action::Call {
             callee: name,
             target,
@@ -137,7 +126,9 @@ impl<'a> Collector<'_, '_, 'a> {
             operation,
         };
         let call = self.node(action, Flow::Goto(next), expression);
-        let entry = self.arguments(&arguments, call)?;
+        let runtime = self.allocation_operands(expression)?;
+        let evaluated = runtime.as_deref().unwrap_or(&arguments);
+        let entry = self.arguments(evaluated, call)?;
 
         self.expr(callee, entry)
     }
@@ -227,7 +218,6 @@ impl<'a> Collector<'_, '_, 'a> {
     }
 
     fn method_invocation(&mut self, expression: &'a Node, next: u32) -> Lowered {
-        let inputs = self.evaluated_by(expression)?;
         let callee = self
             .facts
             .reference(expression)
@@ -240,13 +230,16 @@ impl<'a> Collector<'_, '_, 'a> {
         let action = Action::Call {
             callee,
             target,
-            arguments: inputs
-                .iter()
-                .map(|input| self.argument(input))
-                .collect::<Result<_, _>>()?,
+            arguments: self.summary_arguments(expression)?,
             may_modify: false,
             operation,
         };
+        self.method_entry(expression, action, next)
+    }
+
+    /// Build the receiver and written argument evaluation before the method's call action.
+    fn method_entry(&mut self, expression: &'a Node, action: Action, next: u32) -> Lowered {
+        let inputs = self.evaluated_by(expression)?;
         let call = self.node(action, Flow::Goto(next), expression);
         let entry = self.arguments(&inputs[1..], call)?;
 
@@ -256,11 +249,17 @@ impl<'a> Collector<'_, '_, 'a> {
     fn assignment(&mut self, expression: &'a Node, next: u32) -> Lowered {
         match self.assignment_action(expression)? {
             Ok((action, right)) => {
-                let assignment = self.node(action, Flow::Goto(next), expression);
+                let assignment = self.assignment_entry(expression, action, next)?;
                 self.expr(right, assignment)
             }
             Err(reason) => Ok(self.unsupported(expression, next, reason)),
         }
+    }
+
+    fn assignment_entry(&mut self, expression: &'a Node, action: Action, next: u32) -> Lowered {
+        let assignment = self.node(action, Flow::Goto(next), expression);
+        let place = self.facts.body.child(expression, 0)?;
+        self.assignment_place(place, assignment)
     }
 
     fn assignment_action(
@@ -269,14 +268,33 @@ impl<'a> Collector<'_, '_, 'a> {
     ) -> Result<Result<(Action, &'a Node), &'static str>, String> {
         let left = self.facts.body.child(expression, 0)?;
         let right = self.facts.body.child(expression, 1)?;
-        let compound = expression.kind == NodeKind::CompoundAssignment;
-        let add = compound && expression.operator.as_deref() == Some("add");
-        let Some(variable) = self.local_id(left) else {
-            return Ok(Err("Assignment through unmodeled place or alias"));
-        };
         if !self.builtin(expression) {
             return Ok(Err("Overloaded assignment"));
         }
+        match self.written(left) {
+            Write::Scalar(variable) => Ok(Ok((
+                self.scalar_assignment(expression, right, variable)?,
+                right,
+            ))),
+            // The value still runs, including every call, adjustment and cleanup.
+            Write::Irrelevant => Ok(Ok((Action::Nop, right))),
+            Write::NativeElement if expression.kind == NodeKind::Assignment => {
+                Ok(Ok((Action::Nop, right)))
+            }
+            Write::NativeElement | Write::Unmodeled => {
+                Ok(Err("Assignment through unmodeled place or alias"))
+            }
+        }
+    }
+
+    fn scalar_assignment(
+        &self,
+        expression: &'a Node,
+        right: &'a Node,
+        variable: u32,
+    ) -> Result<Action, String> {
+        let compound = expression.kind == NodeKind::CompoundAssignment;
+        let add = compound && expression.operator.as_deref() == Some("add");
         let explicit = right.kind == NodeKind::Operator
             && right.operator.as_deref() == Some("add")
             && right.children.len() == 2
@@ -296,13 +314,16 @@ impl<'a> Collector<'_, '_, 'a> {
             }
         };
 
-        Ok(Ok((action, right)))
+        Ok(action)
     }
 
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
     /// `target = value` as the block that lowers it: a let of the value, then one
     /// assignment of an unknown value per place, built backward.
     fn destructuring(&mut self, expression: &'a Node, next: u32) -> Lowered {
+        if !self.builtin(expression) {
+            return Ok(self.unsupported(expression, next, "Overloaded assignment"));
+        }
         let target = self.facts.body.child(expression, 0)?;
         let value = self.facts.body.child(expression, 1)?;
         let places = self.facts.body.places(target)?;
@@ -314,8 +335,8 @@ impl<'a> Collector<'_, '_, 'a> {
             if !self.enter_expression() {
                 continue;
             }
-            entry = match self.local_id(place) {
-                Some(variable) => {
+            entry = match self.written(place) {
+                Write::Scalar(variable) => {
                     let action = Action::Assign {
                         variable,
                         value: Value::Unknown,
@@ -327,7 +348,8 @@ impl<'a> Collector<'_, '_, 'a> {
                     }
                     assignment
                 }
-                None => {
+                Write::Irrelevant => entry,
+                Write::NativeElement | Write::Unmodeled => {
                     self.unsupported(place, entry, "Assignment through unmodeled place or alias")
                 }
             };
@@ -341,6 +363,9 @@ impl<'a> Collector<'_, '_, 'a> {
     fn while_loop(&mut self, expression: &'a Node, next: u32) -> Lowered {
         let condition = self.facts.body.child(expression, 0)?;
         let body = self.facts.body.child(expression, 1)?;
+        if let Some(entry) = self.conjunctive_loop(expression, next)? {
+            return Ok(entry);
+        }
         let header = self.loop_header(expression, next);
         let condition_entry = self.expr(condition, header)?;
         let then_node = self.loop_body(expression, body, (next, condition_entry))?;

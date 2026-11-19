@@ -1,0 +1,101 @@
+{
+  "corpus": "rstyle-main frozen production replay",
+  "manifest_file": "documents.manifest.json",
+  "manifest_checksum": "sha256:2fb0b26c09a559ab4421fccaf68217717d92fd96cd2008d67c6e24426c11f9b9",
+  "documents": [
+    {
+      "file": "document-000013.cpg.json.zst",
+      "checksum": "sha256:cd68bd09f2aa83e15d804947a01f45fa2d08154e554ee2ba7d7959909b3e0b38",
+      "bytes": 210519,
+      "encoding": "zstd",
+      "decoded_bytes": 2501808,
+      "decoded_checksum": "sha256:1a301b327da15242815f3bff1a120d446ae6e5f6e041922a46961cb3a44a9a5b"
+    },
+    {
+      "file": "document-000065.cpg.json.zst",
+      "checksum": "sha256:3bc74bfc308351dc26a09f108c9b01f8a03135d3ff2a9533678f9e8168808a0e",
+      "bytes": 582187,
+      "encoding": "zstd",
+      "decoded_bytes": 11299908,
+      "decoded_checksum": "sha256:2299a4e3418f1fe3f586fce64f1f8fb09eb04adb38328cd929cce6a12d76890a"
+    },
+    {
+      "file": "document-000106.cpg.json.zst",
+      "checksum": "sha256:cc5ccf9c4609d3429bd938ee6bd0773332ef7e29715a4b9c90f9b27f59b6db0e",
+      "bytes": 117283,
+      "encoding": "zstd",
+      "decoded_bytes": 1158049,
+      "decoded_checksum": "sha256:ea06ff1a539d952dd0de7e8b1c9ecc5987852624f5fdf8ba4830ce9e91c08968"
+    },
+    {
+      "file": "document-000096.cpg.json.zst",
+      "checksum": "sha256:9a6435d2f28d796151ededb4fc063ae2440c2608f44694e2bd4a7635c3e13125",
+      "bytes": 100495,
+      "encoding": "zstd",
+      "decoded_bytes": 1062277,
+      "decoded_checksum": "sha256:f73a72653146e4bc84067fc10d3b4bf93ad78b0a90b788becf4d3f19702fb921"
+    }
+  ],
+  "owner": "rstyle_core::cluster::classes_of",
+  "owner_checksum": "sha256:ad36cfe870c3c78b65e8ca8d9600a255a5c3cc41b2e8174771fa12550a069fe7",
+  "owner_checksum_encoding": "UTF-8 JSON with lexicographically sorted object keys, no insignificant whitespace",
+  "retained_functions": [
+    {
+      "owner": "rstyle_core::cluster::classes_of",
+      "definition": "def:rstyle_core::cluster::classes_of",
+      "function": "fn:rstyle_core::cluster::classes_of",
+      "document": "document-000013.cpg.json.zst",
+      "checksum": "sha256:ad36cfe870c3c78b65e8ca8d9600a255a5c3cc41b2e8174771fa12550a069fe7"
+    },
+    {
+      "owner": "rstyle_core::facts::{impl#101}::eq",
+      "definition": "def:rstyle_core::facts::{impl#101}::eq",
+      "function": "fn:rstyle_core::facts::{impl#101}::eq",
+      "document": "document-000065.cpg.json.zst",
+      "checksum": "sha256:3d15e6a690e51951aac97f71c40350905f8ef274db89cad506ffc3362518d1db"
+    },
+    {
+      "owner": "rstyle_core::wl::call_class",
+      "definition": "def:rstyle_core::wl::call_class",
+      "function": "fn:rstyle_core::wl::call_class",
+      "document": "document-000106.cpg.json.zst",
+      "checksum": "sha256:6dff9e77bce2aefb1d56a76f8b3aa28533a020d9b205cd9caf57d927f5e45dbc"
+    },
+    {
+      "owner": "rstyle_core::shape::normalize",
+      "definition": "def:rstyle_core::shape::normalize",
+      "function": "fn:rstyle_core::shape::normalize",
+      "document": "document-000096.cpg.json.zst",
+      "checksum": "sha256:40e70a141e8779e3dcfb130aabceac4963c13e54e021d00ca5bad2014d4cf9ef"
+    }
+  ],
+  "fixture_checksum": "sha256:adae808374a7d3c0d63209431bd2535dfc5ae582fcf48dd6d73b8b077128964a",
+  "reduction": "The original primary function and selected workspace callees needed for its composed outcome are retained unchanged. Definitions, types, files, values and instances are their transitive ID dependency closure. Function facts, referenced source bytes, compilation semantics and implicit-call capability remain unchanged. Unrelated functions and session extensions are omitted. The classes fixture retains the original shape::normalize body to expose its actual unmodeled-semantics blocker; its downstream callees are not expanded because that body is already Unknown locally.",
+  "source_files": [
+    {
+      "id": "file:crates/rstyle-core/src/cluster.rs",
+      "digest": "sha256:0cc1391c4460c95065a4fd1915269e099b4eef6d94c59a8ca068a3e863f5e26d",
+      "content_checksum": "sha256:0cc1391c4460c95065a4fd1915269e099b4eef6d94c59a8ca068a3e863f5e26d"
+    },
+    {
+      "id": "file:crates/rstyle-core/src/facts.rs",
+      "digest": "sha256:fbe753d43746567ab7ed353dff86393b0cba39e2aa6f6f2d6bedf5ffc4cdc8de",
+      "content_checksum": "sha256:fbe753d43746567ab7ed353dff86393b0cba39e2aa6f6f2d6bedf5ffc4cdc8de"
+    },
+    {
+      "id": "file:crates/rstyle-core/src/lib.rs",
+      "digest": "sha256:eee14f7d38c14823aafbc8844a0841f3da605c61d683e11fecf143431acc585b",
+      "content_checksum": "sha256:eee14f7d38c14823aafbc8844a0841f3da605c61d683e11fecf143431acc585b"
+    },
+    {
+      "id": "file:crates/rstyle-core/src/wl.rs",
+      "digest": "sha256:31461a63d83e9fa2125ffbecedb92866e24aaec32f6c1e6dface413661eb06fc",
+      "content_checksum": "sha256:31461a63d83e9fa2125ffbecedb92866e24aaec32f6c1e6dface413661eb06fc"
+    },
+    {
+      "id": "file:crates/rstyle-core/src/shape.rs",
+      "digest": "sha256:b28c11c9711d54942f9b0cf54508b0f1aa2f52cdd02f1b37caec9cc42b157cbd",
+      "content_checksum": "sha256:b28c11c9711d54942f9b0cf54508b0f1aa2f52cdd02f1b37caec9cc42b157cbd"
+    }
+  ]
+}
