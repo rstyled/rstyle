@@ -198,10 +198,14 @@ impl<'a> Collector<'_, '_, 'a> {
         };
         let (limit, integer) = match (ty.kind, self.facts.integer(Some(ty))) {
             (_, Some(integer)) => (self.value(head), integer),
-            (TypeKind::Tuple, None) => (
-                Value::Const(ty.items.as_ref().map_or(0, Vec::len) as u64),
-                Integer::unsigned(self.facts.pointer_bits),
-            ),
+            // A tuple type that doesn't list its items has an unknown length, not none.
+            (TypeKind::Tuple, None) => match ty.items.as_ref() {
+                Some(items) => (
+                    Value::Const(items.len() as u64),
+                    Integer::unsigned(self.facts.pointer_bits),
+                ),
+                None => return Ok(None),
+            },
             (_, None) => match fixed_length(ty) {
                 Some(length) => (
                     Value::Const(length),

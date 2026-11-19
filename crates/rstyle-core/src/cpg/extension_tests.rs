@@ -217,3 +217,17 @@ fn a_generated_wrapper_of_two_sources_is_unsized() {
     let program = program(document);
     assert!(program.contains("have a size model"), "{program}");
 }
+
+/// A source of a tuple type counts the items its type lists, and one whose type doesn't list them
+/// has no count, rather than none.
+#[test]
+fn a_tuple_source_counts_only_the_items_its_type_lists() {
+    let listed = json!({"id": "type:triple", "kind": "tuple", "spelling": "(u32, u32, u32)",
+                        "items": ["type:u32", "type:u32", "type:u32"]});
+    let counted = program(scanning(Some(listed)));
+    assert!(counted.contains(r#""value":{"Const":3}"#), "{counted}");
+    let unlisted = json!({"id": "type:triple", "kind": "tuple", "spelling": "tuple"});
+    let unlisted = program(scanning(Some(unlisted)));
+    assert!(unlisted.contains("have a size model"), "{unlisted}");
+}
+
