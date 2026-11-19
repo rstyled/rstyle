@@ -88,13 +88,16 @@ over = 0
 operations = ["zip.__new__"]
 
 # A comprehension runs the for loops it desugars to where it's written, then builds its result. A
-# generator expression runs where it's consumed, so it is lowered in place only as an argument of
-# the call that consumes it.
+# generator expression runs where it's consumed, so it is lowered in place only where the call it's
+# an argument of drains it before returning: unpacked into the call's arguments, or handed first to
+# a builtin that iterates it and keeps nothing of it. A call that could keep it, return it or pass
+# it on, as `sum`'s `start` and `max`'s `default` can, leaves it unsupported.
 
 [[extension]]
 basis = "A comprehension runs the for loops it desugars to, then builds its list, set or dict, which hashes a set's or dict's keys and can run their __hash__ and __eq__"
 implicit = "Always"
 lazy = "lazy"
+consumed_by = ["sum", "any", "all", "min", "max", "sorted", "list.__init__", "tuple.__new__", "set.__init__", "frozenset.__new__", "dict.__init__"]
 extensions = ["comprehension"]
 
 [[extension]]

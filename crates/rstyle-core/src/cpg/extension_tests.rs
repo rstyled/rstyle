@@ -6,6 +6,7 @@ use super::run_bounds;
 use serde_json::{Value, json};
 
 const EXAMPLE: &str = include_str!("testdata/example.cpg.json");
+const COMPREHENSIONS: &str = include_str!("testdata/comprehensions-py.cpg.json");
 
 fn count_function(document: &mut Value) -> &mut Value {
     let functions = document["unit"]["functions"].as_array_mut().unwrap();
@@ -229,5 +230,46 @@ fn a_tuple_source_counts_only_the_items_its_type_lists() {
     let unlisted = json!({"id": "type:triple", "kind": "tuple", "spelling": "tuple"});
     let unlisted = program(scanning(Some(unlisted)));
     assert!(unlisted.contains("have a size model"), "{unlisted}");
+}
+
+/// The program of the function named `name` in `document`.
+fn named(document: Value, name: &str) -> String {
+    let programs = run_bounds(vec![document]).unwrap();
+    let suffix = format!(".{name}");
+    let (_, input) = programs.iter().find(|(f, _)| f.ends_with(&suffix)).unwrap();
+    serde_json::to_string(input).unwrap()
+}
+
+/// `summed`'s program, after `change` edits the reference of its call of `sum`, whose argument is
+/// a generator expression.
+fn summed(change: impl FnOnce(&mut Value)) -> String {
+    let mut document: Value = serde_json::from_str(COMPREHENSIONS).unwrap();
+    let functions = document["unit"]["functions"].as_array_mut().unwrap();
+    let summed = functions
+        .iter_mut()
+        .find(|f| f["name"] == "summed")
+        .unwrap();
+    let refs = summed["refs"].as_array_mut().unwrap();
+    change(refs.iter_mut().find(|r| r["node"] == "f4.n8").unwrap());
+    named(document, "summed")
+}
+
+const UNCONSUMED: &str = "A lazy value not consumed by the call it's an argument of is unmodeled";
+
+/// A generator expression handed first to a builtin that drains it runs where it's written. One a
+/// call could keep, return or pass on, by a keyword, after another argument or to a function of
+/// the workspace's own, is unsupported.
+#[test]
+fn a_lazy_value_runs_in_place_only_where_its_call_drains_it() {
+    let drained = summed(|_| {});
+    assert!(!drained.contains(UNCONSUMED), "{drained}");
+    let kept = summed(|call| {
+        call["target"]["id"] = json!("def:py::comprehensions.summed");
+    });
+    assert!(kept.contains(UNCONSUMED), "{kept}");
+    let keyword = summed(|call| call["arguments"] = json!([{"parameter": "start"}]));
+    assert!(keyword.contains(UNCONSUMED), "{keyword}");
+    let later = summed(|call| call["arguments"] = json!([{"position": 1}]));
+    assert!(later.contains(UNCONSUMED), "{later}");
 }
 
