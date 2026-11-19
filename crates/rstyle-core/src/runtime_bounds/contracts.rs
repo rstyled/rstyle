@@ -10,6 +10,7 @@ mod extension;
 mod invocation;
 mod iteration;
 mod loops;
+mod ranges;
 mod state;
 
 pub use allocation::{Allocation, Storage};
@@ -22,6 +23,7 @@ pub use iteration::{
     Runs, StageEffect,
 };
 pub use loops::{Guard, LoopForm, OperatorRole};
+pub use ranges::{RangeForm, Traversal};
 
 use super::Bound;
 use serde::{Deserialize, Serialize};
@@ -105,6 +107,10 @@ struct File {
     loops: Vec<loops::LoopEntry>,
     #[serde(default)]
     operator: Vec<loops::OperatorEntry>,
+    #[serde(default)]
+    range: Vec<ranges::RangeEntry>,
+    #[serde(default)]
+    traversal: Vec<ranges::TraversalEntry>,
 }
 
 #[derive(Deserialize)]
@@ -129,6 +135,8 @@ pub struct Contracts {
     extensions: BTreeMap<String, Extension>,
     loops: BTreeMap<String, LoopForm>,
     operators: BTreeMap<String, OperatorRole>,
+    ranges: BTreeMap<String, Vec<RangeForm>>,
+    traversals: BTreeMap<String, Traversal>,
 }
 
 impl File {
@@ -241,10 +249,11 @@ impl Contracts {
         )
     }
 
-    /// The forms a file gives the language's loops whose guard is in their body, and the roles
-    /// it gives the language's own operators.
+    /// The forms a file gives the language's loops whose guard is in their body and its calls
+    /// that make ranges, and the roles it gives the language's own operators.
     fn extend_forms(&mut self, file: &File) -> Result<(), String> {
         let namespace = file.namespace.as_str();
+        self.extend_sources(file)?;
         let loops = file
             .loops
             .iter()
@@ -255,6 +264,21 @@ impl Contracts {
             .iter()
             .map(|entry| Ok((&entry.operators[..], entry.role)));
         declare(&mut self.operators, (namespace, "operator"), operators)
+    }
+
+    /// The calls a file says make a range of integers, or traverse one of their arguments.
+    fn extend_sources(&mut self, file: &File) -> Result<(), String> {
+        let namespace = file.namespace.as_str();
+        let ranges = file
+            .range
+            .iter()
+            .map(|entry| Ok((&entry.operations[..], entry.forms()?)));
+        declare(&mut self.ranges, (namespace, "range"), ranges)?;
+        let traversals = file
+            .traversal
+            .iter()
+            .map(|entry| Ok((&entry.operations[..], entry.traversal()?)));
+        declare(&mut self.traversals, (namespace, "traversal"), traversals)
     }
 
     fn extend_iteration(&mut self, file: &File) -> Result<(), String> {
@@ -324,6 +348,18 @@ impl Contracts {
         self.state_callback_free
             .get(operation)
             .map_or(&[], Vec::as_slice)
+    }
+
+    /// Where each arity of a call that makes a range of integers holds its bounds, such as
+    /// `py:range.__new__`'s.
+    pub fn range(&self, operation: &str) -> Option<&[RangeForm]> {
+        self.ranges.get(operation).map(Vec::as_slice)
+    }
+
+    /// Which argument a call that yields one item per item of it traverses, such as
+    /// `py:enumerate.__new__`'s first.
+    pub fn traversal(&self, operation: &str) -> Option<&Traversal> {
+        self.traversals.get(operation)
     }
 
     /// The form of a loop by the frontend's original kind of it, such as `cxx:DoStmt`.
@@ -620,6 +656,53 @@ mod tests {
         assert_eq!(twice, "Library operation t:D has two loop roles");
         let guard = file(&forms.replace("Last", "First"));
         assert!(Contracts::parse_all(&[&guard]).is_err());
+    }
+
+    #[test]
+    fn range_and_traversal_roles_say_what_a_loop_counts() {
+        let contracts = Contracts::embedded();
+        let forms = contracts.range("py:range.__new__").expect("range forms");
+        assert_eq!(forms.len(), 3);
+        assert_eq!(
+            forms[0],
+            RangeForm {
+                arity: 1,
+                start: None,
+                stop: 0,
+                step: None
+            }
+        );
+        let enumerate = contracts
+            .traversal("py:enumerate.__new__")
+            .expect("enumerate");
+        assert_eq!(
+            (enumerate.over, enumerate.arities.as_slice()),
+            (0, &[1, 2][..])
+        );
+        assert!(contracts.traversal("py:sorted").is_none());
+        assert!(contracts.range("range.__new__").is_none());
+
+        let roles = "[[range]]\nbasis = \"b\"\nforms = [{ arity = 2, start = 0, stop = 1 }]\noperations = [\"r\"]\n[[traversal]]\nbasis = \"b\"\narities = [1]\nover = 0\noperations = [\"t\"]\n";
+        let one = Contracts::parse_all(&[&file(roles)]).unwrap();
+        assert_eq!(one.range("t:r").unwrap()[0].start, Some(0));
+        assert_eq!(one.traversal("t:t").unwrap().over, 0);
+        let twice = Contracts::parse_all(&[&file(roles), &file(roles)]).unwrap_err();
+        assert_eq!(twice, "Library operation t:r has two range roles");
+        // Each form names distinct arguments of its own arity, once per arity.
+        for forms in [
+            "[{ arity = 2, start = 1, stop = 1 }]",
+            "[{ arity = 1, stop = 1 }]",
+            "[{ arity = 1, stop = 0 }, { arity = 1, stop = 0 }]",
+            "[]",
+        ] {
+            let malformed = file(&roles.replace("[{ arity = 2, start = 0, stop = 1 }]", forms));
+            assert!(Contracts::parse_all(&[&malformed]).is_err(), "{forms}");
+        }
+        let outside = file(&roles.replace("over = 0", "over = 1"));
+        assert_eq!(
+            Contracts::parse_all(&[&outside]).unwrap_err(),
+            "Traversal role over 1 has arities [1]"
+        );
     }
 
     #[test]

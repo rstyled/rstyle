@@ -84,6 +84,18 @@ To silence one function, put an `rstyle-allow` above it. Its bound stays in the 
 - unsigned exclusive ranges
 - traversal of shared slices and standard `Vec` values, including fields reached through shared
   references
+- a range a library call makes, by a contract's `[[range]]` role, as Python's `range(n)` counts from
+  zero up to `n`, and a call that traverses one of its arguments, by a `[[traversal]]` role, as
+  `enumerate(xs)` counts what `xs` counts
+- a tuple, a sequence whose type has one fixed length, and an integer, which a `for` counts from zero up
+  to, as Go's `for i := range n` does
+
+A source a loop counts this way is evaluated once before its first pass. A signed count, such as a Python
+`range`'s, bounds only from a constant start of at least zero, so `range(a, b)` and a range that counts
+down stay opaque. A loop's source is the call it's written with, as `for x in enumerate(xs)` is. Only a
+compiler-generated `for` wrapper is looked through, so a call no role names is never counted by the
+length of one of its arguments. Python's `sorted` has no role, since it compares the items, which can
+run their own methods. Go writes no length for an array type, so a Go array isn't counted.
 
 **Loops without a guard.** A loop with no guard of its own, as Rust's `loop`, Go's `for {}` and C++'s
 `for (;;)` are, may run any number of passes and leaves through a `break`, a `return` or what it raises.
@@ -165,8 +177,9 @@ composed result carries an opaque factor for the call. An extension without a ro
 **Fixed shared sequences.** A shared sequence with compiler-proven fixed length uses that constant for
 its scans, resolved standard traversal chains and length queries. A shared array-to-slice coercion is
 accepted only when its type facts preserve the element type. Callback loops still contribute their work.
-Owned or writable arrays, unknown constant-generic lengths, custom iteration, computed receivers and
-lengths outside the target pointer width retain conservative handling.
+Writable arrays, unknown constant-generic lengths, custom iteration, computed receivers and lengths
+outside the target pointer width retain conservative handling. A `for` over an owned array is counted
+by its fixed length, as any fixed-length sequence is.
 
 Resolved inherent standard `str.chars`, `str.bytes`, `str.char_indices` and `str.lines`
 sources use the same shared traversal model. Their receiver must be a stable shared
@@ -390,6 +403,9 @@ roles, so frontends carry no method tables:
   no member, as a `**` keyword argument does. Its `control` says instead how it raises (`Throw`,
   `Assert`) or handles (`Try`, `With`), and a `Try`'s `handlers` name the extensions among its children
   that are handlers, as a `match` among them is.
+- A `[[range]]` gives a call that makes a range of integers the argument that holds its `start`,
+  `stop` and `step` at each `arity` it's called with. A `[[traversal]]` gives a call that yields at most
+  one item per item of its argument `over` the `arities` it has that role at.
 - A `[[loop]]` gives a loop node's original kind, such as `DoStmt`, its `guard`: `Last`, the last
   statement of its block. An `[[operator]]` gives a language's own operator, such as `comma`, a role core
   evaluates: `Sequence`.

@@ -160,3 +160,60 @@ fn a_do_statement_without_a_test_is_unsupported() {
         "{program}"
     );
 }
+
+/// `count` with the source of its scan given a type of its own, or none.
+fn scanning(ty: Option<Value>) -> Value {
+    let mut document: Value = serde_json::from_str(EXAMPLE).unwrap();
+    if let Some(ty) = &ty {
+        document["unit"]["types"]
+            .as_array_mut()
+            .unwrap()
+            .push(ty.clone());
+    }
+    let function = count_function(&mut document);
+    let nodes = function["nodes"].as_array_mut().unwrap();
+    let items = nodes.iter_mut().find(|node| node["id"] == "count.items");
+    let items = items.unwrap().as_object_mut().unwrap();
+    match ty {
+        Some(ty) => _ = items.insert("type".into(), ty["id"].clone()),
+        None => _ = items.remove("type"),
+    }
+    document
+}
+
+/// A source of a sequence type of one fixed length, as an array's, counts that many passes.
+#[test]
+fn a_fixed_length_source_counts_its_length() {
+    let array = json!({"id": "type:array", "kind": "sequence", "spelling": "[u32; 4]",
+                       "element": "type:u32", "fixed": true, "length": 4});
+    let program = program(scanning(Some(array)));
+    assert!(program.contains(r#""value":{"Const":4}"#), "{program}");
+    assert!(!program.contains("Unsupported"), "{program}");
+}
+
+/// A source of no type has no count.
+#[test]
+fn a_source_of_no_type_is_unsized() {
+    let program = program(scanning(None));
+    assert!(program.contains("have a size model"), "{program}");
+}
+
+/// A generated `for` wrapper that holds more than one source isn't looked through, so the loop
+/// isn't counted by either.
+#[test]
+fn a_generated_wrapper_of_two_sources_is_unsized() {
+    let mut document: Value = serde_json::from_str(EXAMPLE).unwrap();
+    let function = count_function(&mut document);
+    let mut other = part(function, "count.other", "identifier", json!([]));
+    other["original_kind"] = json!("expr_path");
+    let nodes = function["nodes"].as_array_mut().unwrap();
+    nodes.push(other);
+    let wrapper = nodes
+        .iter_mut()
+        .find(|node| node["id"] == "count.into_iter");
+    let sources = wrapper.unwrap()["children"].as_array_mut().unwrap();
+    sources.push(json!("count.other"));
+    refer(function, "count.other", "count.items");
+    let program = program(document);
+    assert!(program.contains("have a size model"), "{program}");
+}

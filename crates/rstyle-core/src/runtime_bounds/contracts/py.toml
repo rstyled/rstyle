@@ -51,3 +51,38 @@ extensions = ["except"]
 basis = "with evaluates each context and calls its __enter__, or __aenter__ in async with, binding what that returns; every way out of its body calls each context's __exit__, innermost first, and __exit__ can end an exception the body raised"
 control = "With"
 extensions = ["with"]
+
+# Range roles: a call that makes a range of integers counting up from a start to an exclusive stop,
+# by where each arity holds its bounds, so a `for` over it is a counted scan.
+
+[[range]]
+basis = "range(stop) counts from zero up to stop, range(start, stop) from start, and range(start, stop, step) by step; a stop at or below the start yields nothing"
+forms = [
+  { arity = 1, stop = 0 },
+  { arity = 2, start = 0, stop = 1 },
+  { arity = 3, start = 0, stop = 1, step = 2 },
+]
+operations = ["range.__new__"]
+
+# Traversal roles: a call that yields at most one item for each item of one of its arguments, so a
+# `for` over it counts what that argument counts. Only an argument the loop could count itself, a
+# list or tuple the function only reads or a range, is counted, and the interpreter iterates it with
+# its own code. `sorted` has no role: it compares the items, which can run their own methods.
+
+[[traversal]]
+basis = "enumerate yields one numbered item for each item of its first argument"
+arities = [1, 2]
+over = 0
+operations = ["enumerate.__new__"]
+
+[[traversal]]
+basis = "reversed yields each item of its argument once, from the last"
+arities = [1]
+over = 0
+operations = ["reversed.__new__"]
+
+[[traversal]]
+basis = "zip yields one tuple per item until its shortest argument ends, so no more than its first argument has"
+arities = [2, 3, 4]
+over = 0
+operations = ["zip.__new__"]

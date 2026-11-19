@@ -483,6 +483,7 @@ mod flow;
 mod ids;
 mod keywords;
 mod loops;
+mod ranges;
 #[cfg(unix)]
 mod runner;
 mod stdin;

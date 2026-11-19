@@ -94,9 +94,9 @@ fn a_fixed_source_does_not_resolve_a_handed_function_pointer() {
 
 #[test]
 fn owned_and_writable_arrays_do_not_gain_a_borrowed_traversal_model() {
-    for name in ["owned", "writable"] {
-        unknown(document(), name);
-    }
+    unknown(document(), "writable");
+    // An owned array is a sequence of one fixed length, which a `for` counts by that length.
+    assert_eq!(bound(document(), "owned"), Bound::Const(4));
 }
 
 #[test]
