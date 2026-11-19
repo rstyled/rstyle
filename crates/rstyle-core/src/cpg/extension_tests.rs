@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 
 const EXAMPLE: &str = include_str!("testdata/example.cpg.json");
 const COMPREHENSIONS: &str = include_str!("testdata/comprehensions-py.cpg.json");
+const DEFERRED: &str = include_str!("testdata/deferred-go.cpg.json");
 
 fn count_function(document: &mut Value) -> &mut Value {
     let functions = document["unit"]["functions"].as_array_mut().unwrap();
@@ -273,3 +274,56 @@ fn a_lazy_value_runs_in_place_only_where_its_call_drains_it() {
     assert!(later.contains(UNCONSUMED), "{later}");
 }
 
+/// `Reported` with its deferred closure literal bound to an immutable local `f` first, and the
+/// defer calling `f`: `f := func() {...}; defer f()`.
+fn deferring_a_local_closure() -> Value {
+    let mut document: Value = serde_json::from_str(DEFERRED).unwrap();
+    let functions = document["unit"]["functions"].as_array_mut().unwrap();
+    let function = functions
+        .iter_mut()
+        .find(|f| f["name"] == "Reported")
+        .unwrap();
+    let span =
+        |start: usize, end: usize| json!({"file": "file:deferred.go", "start": start, "end": end});
+    let nodes = function["nodes"].as_array_mut().unwrap();
+    for node in nodes.iter_mut() {
+        match node["id"].as_str() {
+            Some("f3.n26") => node["children"] = json!(["f3.n34"]),
+            Some("f3.n33") => node["children"] = json!(["f3.n4", "f3.n36", "f3.n28", "f3.n32"]),
+            _ => {}
+        }
+    }
+    let source = json!({"origin": "source"});
+    nodes.extend([
+        json!({"id": "f3.n34", "kind": "identifier", "original_kind": "Ident", "children": [],
+               "span": span(790, 791), "type": "t17", "provenance": source}),
+        json!({"id": "f3.n35", "kind": "pattern_binding", "original_kind": "Ident.binding",
+               "children": [], "span": span(790, 791), "type": "t17", "provenance": source}),
+        json!({"id": "f3.n36", "kind": "local_declaration", "original_kind": "AssignStmt.define",
+               "children": ["f3.n35", "f3.n25"], "span": span(790, 852), "type": "t8",
+               "provenance": source}),
+    ]);
+    function["symbols"].as_array_mut().unwrap().push(json!({
+        "id": "f3.s3", "name": "f", "kind": "local", "scope": "f3", "node": "f3.n35",
+        "declared": {"file": "file:deferred.go", "start": 790, "end": 791},
+        "mutable": false, "type": "t17"
+    }));
+    function["refs"].as_array_mut().unwrap().push(
+        json!({"node": "f3.n34", "status": "resolved", "target": {"kind": "symbol", "id": "f3.s3"}}),
+    );
+    let accesses = function["accesses"].as_array_mut().unwrap();
+    accesses.push(json!({"node": "f3.n35", "symbol": "f3.s3", "mode": "write"}));
+    accesses.push(json!({"node": "f3.n34", "symbol": "f3.s3", "mode": "read"}));
+    document
+}
+
+/// A deferred call of a closure an immutable local holds reads what the closure does when it
+/// runs, as one of a closure written there does, so it's unsupported too.
+#[test]
+fn a_deferred_call_of_a_local_closure_is_unsupported() {
+    const LATER: &str = "A closure that runs later reads values that can change first";
+    let written = named(serde_json::from_str(DEFERRED).unwrap(), "Reported");
+    assert!(written.contains(LATER), "{written}");
+    let local = named(deferring_a_local_closure(), "Reported");
+    assert!(local.contains(LATER), "{local}");
+}
