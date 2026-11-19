@@ -1,0 +1,68 @@
+{
+  "corpus": "rstyle-main frozen production replay",
+  "manifest_file": "documents.manifest.json",
+  "manifest_checksum": "sha256:2fb0b26c09a559ab4421fccaf68217717d92fd96cd2008d67c6e24426c11f9b9",
+  "documents": [
+    {
+      "file": "document-000049.cpg.json.zst",
+      "checksum": "sha256:a0e61a85d8d7e5dc981b335cd0092579bb541991b7ea28df542699a59e43c85b",
+      "bytes": 259999,
+      "encoding": "zstd",
+      "decoded_bytes": 2626425,
+      "decoded_checksum": "sha256:9b9c337e253481ac7ca047168dd6a6e40a6ad6733aaad59f1dc1a55c97f16b2d"
+    },
+    {
+      "file": "document-000046.cpg.json.zst",
+      "checksum": "sha256:27def8f1bca7299c4b75e88e8f4352b226e3051a2a358bfa4de76d03861906aa",
+      "bytes": 970444,
+      "encoding": "zstd",
+      "decoded_bytes": 21031447,
+      "decoded_checksum": "sha256:a8d8e3c4dd44a5b0cd21525e0a1e9030897e72002dfdbb10eec8480dca7aa19c"
+    }
+  ],
+  "owner": "rstyle_core::cpg::records::located",
+  "owner_checksum": "sha256:0255b17d5ea8931f232e52458f37a52f9225ac18506dfe4d7c79972364d915ac",
+  "owner_checksum_encoding": "UTF-8 JSON with lexicographically sorted object keys, no insignificant whitespace",
+  "retained_functions": [
+    {
+      "owner": "rstyle_core::cpg::records::located",
+      "definition": "def:rstyle_core::cpg::records::located",
+      "function": "fn:rstyle_core::cpg::records::located",
+      "document": "document-000049.cpg.json.zst",
+      "checksum": "sha256:0255b17d5ea8931f232e52458f37a52f9225ac18506dfe4d7c79972364d915ac"
+    },
+    {
+      "owner": "rstyle_core::cpg::records::macro_written_root",
+      "definition": "def:rstyle_core::cpg::records::macro_written_root",
+      "function": "fn:rstyle_core::cpg::records::macro_written_root",
+      "document": "document-000049.cpg.json.zst",
+      "checksum": "sha256:62831a9eee6861fed4d554a9ef2475fc6dc9a0a40acdcabd5c01d1006796430b"
+    },
+    {
+      "owner": "rstyle_core::cpg::model::{impl#145}::eq",
+      "definition": "def:rstyle_core::cpg::model::{impl#145}::eq",
+      "function": "fn:rstyle_core::cpg::model::{impl#145}::eq",
+      "document": "document-000046.cpg.json.zst",
+      "checksum": "sha256:2db82b14847a344d0c10aa990fda6a3f096a9fc153f080d605c3bfe9f5998dd7"
+    }
+  ],
+  "fixture_checksum": "sha256:87b5dacfd88af879a0a1d575a227ca6bb1ea9e0f970fbfc3dc446176267434d1",
+  "reduction": "The primary original function and exact transitive workspace callees are retained. Definitions, types, values and instances are their transitive ID dependency closure. Function facts, referenced source bytes, compilation semantics and implicit-call capability remain unchanged. Unrelated functions and session extensions are omitted.",
+  "source_files": [
+    {
+      "id": "file:crates/rstyle-core/src/cpg/model.rs",
+      "digest": "sha256:2d5d0cc9f7c10ef9f095949b4e2be32ab7c78acd3311164ad3cd1b4d12d4b536",
+      "content_checksum": "sha256:2d5d0cc9f7c10ef9f095949b4e2be32ab7c78acd3311164ad3cd1b4d12d4b536"
+    },
+    {
+      "id": "file:crates/rstyle-core/src/cpg/records.rs",
+      "digest": "sha256:db62e91e00a209c4ffe463b613e98dcf47bb346b8e8656bcdf079efe1b14c468",
+      "content_checksum": "sha256:db62e91e00a209c4ffe463b613e98dcf47bb346b8e8656bcdf079efe1b14c468"
+    },
+    {
+      "id": "file:crates/rstyle-core/src/lib.rs",
+      "digest": "sha256:eee14f7d38c14823aafbc8844a0841f3da605c61d683e11fecf143431acc585b",
+      "content_checksum": "sha256:eee14f7d38c14823aafbc8844a0841f3da605c61d683e11fecf143431acc585b"
+    }
+  ]
+}

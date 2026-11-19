@@ -4,6 +4,8 @@ use crate::cpg::tree::{Body, Tables};
 use crate::runtime_bounds::contracts::Contracts;
 use serde_json::{Value, json};
 
+mod unwrap_or;
+
 const ROLE: &str = "schema = 'rstyle.library-contracts/1'\nnamespace = 't'\n\
     [[callback_free]]\nform = 'Function'\narity = 2\ncleanup_free = [0, 1]\n\
     types = [{ argument = 1, keys = ['rust:u32'] }]\n\

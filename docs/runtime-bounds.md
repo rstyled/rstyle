@@ -198,6 +198,15 @@ The initial contracts cover `bool::then_some` with cleanup-free payloads,
 cost uncertainty remain. Callback freedom supplies context to existing effect classes;
 it does not declare purity or remove unknown effects.
 
+`Option::unwrap_or` is also callback-free when its eager fallback has cleanup-free
+storage. The contained value is moved out of the option, so its type need not be
+cleanup-free for this call; cleanup of the returned value remains the caller's
+responsibility. A borrowed fallback does not destroy its referent, even when that
+referent owns values. An owned fallback with unknown storage or a workspace destructor
+keeps the call unresolved. Both the option and fallback are evaluated once before
+selection, including calls that construct an unused fallback. The library call and
+its existing step contract remain visible; this certificate introduces no fallback
+invocation, cost contract or new size relation.
 **Callbacks held in standard state.** A separate contract can certify a parameterless
 iteration-interface method from its selected standard implementation and exact nominal
 receiver. The declared member, implementation link, exclusive receiver, instantiated
