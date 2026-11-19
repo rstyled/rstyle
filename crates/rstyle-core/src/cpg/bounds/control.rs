@@ -39,7 +39,7 @@ impl<'a> Collector<'_, '_, 'a> {
     }
 
     /// An unlabeled block that is not a `const` block.
-    fn plain_block(&self, block: &Node) -> bool {
+    pub(super) fn plain_block(&self, block: &Node) -> bool {
         block.label.is_none() && !block.modifiers.iter().any(|m| m == "const")
     }
 
@@ -361,6 +361,10 @@ impl<'a> Collector<'_, '_, 'a> {
     }
 
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
+    /// The condition runs before every pass and once more before the loop ends. When evaluating
+    /// it runs anything, as a call does, it's lowered twice: once before the first test, and again
+    /// at the end of each pass and where a `continue` goes. So every pass goes back to the guard,
+    /// the loop's one header, and the condition still runs once per pass and once more.
     fn while_loop(&mut self, expression: &'a Node, next: u32) -> Lowered {
         let condition = self.facts.body.child(expression, 0)?;
         let body = self.facts.body.child(expression, 1)?;
@@ -368,12 +372,15 @@ impl<'a> Collector<'_, '_, 'a> {
             return Ok(entry);
         }
         let header = self.loop_header(expression, next);
-        let condition_entry = self.expr(condition, header)?;
-        let then_node = self.loop_body(expression, body, (next, condition_entry))?;
-        let condition = self.condition(super::primitive::peeled(self.facts, condition)?)?;
-        self.finish_loop(header, condition, (then_node, next));
+        let retest = self.expr(condition, header)?;
+        let then_node = self.loop_body(expression, body, (next, retest))?;
+        let guard = self.condition(super::primitive::peeled(self.facts, condition)?)?;
+        self.finish_loop(header, guard, (then_node, next));
+        if retest == header {
+            return Ok(header);
+        }
 
-        Ok(condition_entry)
+        self.expr(condition, header)
     }
 
     pub(super) fn loop_header(&mut self, at: &Node, next: u32) -> u32 {

@@ -482,6 +482,7 @@ mod exceptions;
 mod extensions;
 mod facts;
 mod flow;
+mod guards;
 mod ids;
 mod keywords;
 mod loops;

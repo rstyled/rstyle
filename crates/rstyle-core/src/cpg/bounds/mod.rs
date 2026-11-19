@@ -219,7 +219,10 @@ impl<'a> Collector<'_, '_, 'a> {
     }
 
     /// A block's statements and its tail expression.
-    fn statements(&self, block: &'a Node) -> Result<(Vec<&'a Node>, Option<&'a Node>), String> {
+    pub(super) fn statements(
+        &self,
+        block: &'a Node,
+    ) -> Result<(Vec<&'a Node>, Option<&'a Node>), String> {
         let mut statements = self.facts.body.children(block)?;
         let tail = match statements.last() {
             Some(last) if !is_statement(last) => statements.pop(),

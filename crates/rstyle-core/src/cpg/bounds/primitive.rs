@@ -3,6 +3,7 @@
 use super::super::model::{Node, NodeKind};
 use super::Collector;
 use super::facts::Facts;
+use crate::runtime_bounds::contracts::Contracts;
 use crate::runtime_bounds::{Action, Condition, Flow, Value};
 use crate::wording::Message;
 
@@ -155,7 +156,7 @@ impl<'a> Collector<'_, '_, 'a> {
     }
 
     pub(super) fn condition(&self, expression: &'a Node) -> Result<Condition, String> {
-        let expression = peeled(self.facts, expression)?;
+        let expression = self.tested(expression)?;
         if expression.kind != NodeKind::Operator
             || expression.operator.as_deref() != Some("lt")
             || expression.children.len() != 2
@@ -175,6 +176,28 @@ impl<'a> Collector<'_, '_, 'a> {
                 })
             }
             _ => Ok(Condition::Unknown),
+        }
+    }
+}
+
+impl<'a> Collector<'_, '_, 'a> {
+    /// The value a condition tests once what it evaluates first has run: a plain block's tail after
+    /// its statements, and the last operand of an operator the contracts give the `Sequence` role.
+    /// The lowering evaluates the rest before the test, so a write there is in the program.
+    fn tested(&self, mut condition: &'a Node) -> Result<&'a Node, String> {
+        loop {
+            condition = peeled(self.facts, condition)?;
+            let operator = condition.operator.as_deref().unwrap_or_default();
+            let sequence = Contracts::embedded().sequence(operator) && self.builtin(condition);
+            let inner = match condition.kind {
+                NodeKind::Block if self.plain_block(condition) => self.statements(condition)?.1,
+                NodeKind::Operator if sequence => self.facts.body.children(condition)?.pop(),
+                _ => None,
+            };
+            match inner {
+                Some(inner) => condition = inner,
+                None => return Ok(condition),
+            }
         }
     }
 }

@@ -97,6 +97,13 @@ compiler-generated `for` wrapper is looked through, so a call no role names is n
 length of one of its arguments. Python's `sorted` has no role, since it compares the items, which can
 run their own methods. Go writes no length for an array type, so a Go array isn't counted.
 
+**Conditions that run something.** A `while` condition runs before every pass and once more. When
+evaluating it runs anything, as a call or an overloaded operator does, it's lowered before the first test
+and again at the end of each pass, where a `continue` goes too, so every pass returns to the loop's one
+guard. The comparison a condition tests is read after what it runs first: a block's tail, as in Rust's
+`while { f(); i < n }`, and the last operand of an operator the contracts give the `Sequence` role, as C++'s
+`while (f(), i < n)` has. A guard that isn't a counter's `<` leaves the loop's entries opaque.
+
 **Loops without a guard.** A loop with no guard of its own, as Rust's `loop`, Go's `for {}` and C++'s
 `for (;;)` are, may run any number of passes and leaves through a `break`, a `return` or what it raises.
 Its own entries are an opaque `?loop` factor, and the rest of the function keeps its bound. A language's
