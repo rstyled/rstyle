@@ -183,6 +183,12 @@ its count times the callee's bound, with callee inputs replaced by per-invocatio
 caller's arguments. Lengths follow shared places and field paths, so passing `&g.edges` into a slice scan
 contributes `len(g.edges)`.
 
+An immutable local alias initialized once outside loops can retain the formal input's length
+provenance when its initializer is a fully typed shared place rooted in an immutable shared formal.
+Field paths must have complete structural type facts. Both the local alias and its original formal
+place are checked for writes, borrows and captures. Unknown projections, computed initializers,
+destructuring and aliases of other locals retain local or unresolved size information.
+
 A call of a type, such as Python's `Made(xs, ys)`, runs the function its own reference names when the
 frontend resolves that statically, here `Made.__init__`. The value the call makes is that function's
 receiver, so `xs` and `ys` are the parameters after `self`. A frontend leaves the reference unresolved when
