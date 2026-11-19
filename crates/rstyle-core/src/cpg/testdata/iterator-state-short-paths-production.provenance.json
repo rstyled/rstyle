@@ -1,0 +1,41 @@
+{
+  "corpus": "rstyle-main frozen production replay",
+  "manifest_file": "documents.manifest.json",
+  "manifest_checksum": "sha256:2fb0b26c09a559ab4421fccaf68217717d92fd96cd2008d67c6e24426c11f9b9",
+  "documents": [
+    {
+      "file": "document-000010.cpg.json.zst",
+      "checksum": "sha256:7cdc4e637ecfa55e6a7d5041e92edb6387e254e5870b417fc5dc690002c643a9",
+      "bytes": 364537,
+      "encoding": "zstd",
+      "decoded_bytes": 4184265,
+      "decoded_checksum": "sha256:6bd19f61d56864c6f1fff41aee3c4e962464977d9365791c5cf460fc6fc100d0"
+    }
+  ],
+  "owner": "rstyle_core::candidates::short_paths",
+  "owner_checksum": "sha256:c2bc8e6fe0f0464cd42774d444bada1ed3ac6a443ad2217943b7ea4cd9f22862",
+  "owner_checksum_encoding": "UTF-8 JSON with lexicographically sorted object keys, no insignificant whitespace",
+  "retained_functions": [
+    {
+      "owner": "rstyle_core::candidates::short_paths",
+      "definition": "def:rstyle_core::candidates::short_paths",
+      "function": "fn:rstyle_core::candidates::short_paths",
+      "document": "document-000010.cpg.json.zst",
+      "checksum": "sha256:c2bc8e6fe0f0464cd42774d444bada1ed3ac6a443ad2217943b7ea4cd9f22862"
+    }
+  ],
+  "fixture_checksum": "sha256:d07bfa7481bd63537f34725936eb2361bbe1697b928e8ef5b6b95df1dde6b548",
+  "reduction": "The primary original function and exact transitive workspace callees are retained. Definitions, types, values and instances are their transitive ID dependency closure. Function facts, referenced source bytes, compilation semantics and implicit-call capability remain unchanged. Unrelated functions and session extensions are omitted.",
+  "source_files": [
+    {
+      "id": "file:crates/rstyle-core/src/candidates.rs",
+      "digest": "sha256:3a96f70b7db221c7632edfea92c8c825ba7097f26fc79fb8138028115efeb2ab",
+      "content_checksum": "sha256:3a96f70b7db221c7632edfea92c8c825ba7097f26fc79fb8138028115efeb2ab"
+    },
+    {
+      "id": "file:crates/rstyle-core/src/lib.rs",
+      "digest": "sha256:eee14f7d38c14823aafbc8844a0841f3da605c61d683e11fecf143431acc585b",
+      "content_checksum": "sha256:eee14f7d38c14823aafbc8844a0841f3da605c61d683e11fecf143431acc585b"
+    }
+  ]
+}

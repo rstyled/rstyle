@@ -1,6 +1,8 @@
 //! Call-site certificates for library bodies that invoke no caller-supplied code.
 //! Evaluation of their receiver, arguments and surrounding cleanup is unchanged.
 
+mod state;
+
 use super::model::{
     Definition, DefinitionKind, Dispatch, Node, NodeKind, RefStatus, Scope, TargetKind, Type,
     TypeKind,
@@ -14,14 +16,14 @@ pub(super) fn callback_free(
     call: &Node,
     callee: &Definition,
 ) -> bool {
-    Invocation {
+    let invocation = Invocation {
         body,
         tables,
         call,
         callee,
         contracts: Contracts::embedded(),
-    }
-    .certified()
+    };
+    invocation.certified() || invocation.state_certified()
 }
 
 struct Invocation<'b, 'a> {
@@ -74,8 +76,7 @@ impl<'a> Invocation<'_, 'a> {
         let Some(reference) = self.body.reference(&self.call.id) else {
             return false;
         };
-        self.call.kind == NodeKind::Call
-            && reference.status == RefStatus::Resolved
+        self.unenumerated(reference)
             && reference.target.as_ref().is_some_and(|target| {
                 target.kind == TargetKind::Definition
                     && target.id.as_deref() == Some(self.callee.id.as_str())
@@ -84,12 +85,6 @@ impl<'a> Invocation<'_, 'a> {
                 target.kind == TargetKind::Definition
                     && target.id.as_deref() == Some(self.callee.id.as_str())
             })
-            && reference.arguments.is_none()
-            && reference
-                .calls_back
-                .as_ref()
-                .is_none_or(|callbacks| callbacks.runs.is_none())
-            && reference.drives.is_none()
             && self.callee.standard
             && self.callee.scope == Scope::Library
             && self.callee.implements.is_none()
@@ -99,6 +94,17 @@ impl<'a> Invocation<'_, 'a> {
                 .as_deref()
                 .and_then(|id| self.tables.definition(id).ok())
                 .is_none_or(|owner| owner.kind != DefinitionKind::Trait)
+    }
+
+    fn unenumerated(&self, reference: &super::model::Ref) -> bool {
+        self.call.kind == NodeKind::Call
+            && reference.status == RefStatus::Resolved
+            && reference.arguments.is_none()
+            && reference
+                .calls_back
+                .as_ref()
+                .is_none_or(|callbacks| callbacks.runs.is_none())
+            && reference.drives.is_none()
     }
 
     fn layout(&self, role: &CallbackFree) -> bool {
