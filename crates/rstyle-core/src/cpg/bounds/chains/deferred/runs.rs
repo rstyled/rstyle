@@ -6,12 +6,15 @@ use std::collections::BTreeSet;
 
 impl<'a> Collector<'_, '_, 'a> {
     pub(super) fn deferred_runs(&self, call: &'a Node, reference: &Ref) -> bool {
-        let Some((callbacks, runs)) = reference
-            .calls_back
-            .as_ref()
-            .and_then(|callbacks| callbacks.runs.as_ref().map(|runs| (callbacks, runs)))
-        else {
+        let Some(callbacks) = reference.calls_back.as_ref() else {
             return true;
+        };
+        // A call said to run nothing back can't hold a callback the pipeline models.
+        let Some(runs) = callbacks.runs.as_ref() else {
+            return callbacks.value
+                || self
+                    .deferred_callbacks(call)
+                    .is_none_or(|modeled| modeled.is_empty());
         };
         if !callbacks.value || runs.is_empty() || runs.len() > MAX_STAGES + 1 {
             return false;

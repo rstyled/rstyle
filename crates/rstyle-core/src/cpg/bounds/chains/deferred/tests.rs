@@ -1126,6 +1126,31 @@ fn install_named_plans(value: &mut Value) {
     reference(value, Site::Tail)["calls_back"]["runs"] = json!(runs);
 }
 
+/// Whether the callback plan of the call at `site` agrees with the pipeline's.
+fn runs_valid(value: Value, site: Site) -> bool {
+    let call = id(&value, site);
+    with_frame(value, |collector| {
+        let root = collector.facts.body.root().unwrap();
+        let local = collector.facts.body.child(root, 0).unwrap();
+        let tail = collector.facts.body.child(root, 1).unwrap();
+        collector.deferred = binding(collector.facts, local, tail).unwrap();
+        let node = collector.facts.body.node(&call).unwrap();
+        let reference = collector.facts.reference(node).unwrap();
+        collector.deferred_runs(node, reference)
+    })
+}
+
+#[test]
+fn a_plan_that_runs_nothing_back_holds_no_modeled_callback() {
+    let value = document(PAIRS);
+    assert!(runs_valid(value.clone(), Site::Source));
+    let mut silent = value;
+    let plan = &mut reference(&mut silent, Site::Adapter)["calls_back"];
+    plan["value"] = json!(false);
+    plan.as_object_mut().unwrap().remove("runs");
+    assert!(!runs_valid(silent, Site::Adapter));
+}
+
 fn named_call_valid(value: Value, site: Site) -> bool {
     let call = id(&value, site);
     with_frame(value, |collector| {
