@@ -24,7 +24,8 @@ fn a_keyword_argument_is_lowered_as_what_it_passes() {
 }
 
 /// What a keyword passes is lowered as it would be anywhere: a lambda nothing runs here leaves
-/// the function unknown, and a mapping unpacked into keywords isn't one argument.
+/// the function unknown, and a mapping unpacked into keywords is a call of its own, since
+/// unpacking it can reach the mapping's own methods.
 #[test]
 fn what_a_keyword_passes_is_read_as_it_is_elsewhere() {
     let python = bounds("keywords-py.cpg.json");
@@ -33,9 +34,6 @@ fn what_a_keyword_passes_is_read_as_it_is_elsewhere() {
         "{}",
         python["keyed"]
     );
-    assert!(
-        python["spread"].starts_with("unknown: Expression"),
-        "{}",
-        python["spread"]
-    );
+    let unpacked = "\npy:keyword invocations <= 1";
+    assert!(python["spread"].contains(unpacked), "{}", python["spread"]);
 }

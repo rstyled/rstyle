@@ -6,6 +6,7 @@
 //! The same files declare each operation's iteration and extent roles, so a frontend
 //! recognizes traversals by key instead of carrying its own method tables.
 mod allocation;
+mod extension;
 mod invocation;
 mod iteration;
 mod state;
@@ -14,6 +15,7 @@ pub use allocation::{Allocation, Storage};
 pub use invocation::{CallForm, CallbackFree, TypeGuard};
 pub use state::{StateArgument, StateCallbackFree};
 
+pub use extension::{Extension, Implicit};
 pub use iteration::{
     ConsumerEffect, Dispatch, Dispatched, Extent, ExtentRole, Handed, ItemAgnostic, Iteration,
     Runs, StageEffect,
@@ -31,6 +33,7 @@ const EMBEDDED: &[&str] = &[
     include_str!("contracts/rust.toml"),
     include_str!("contracts/cxx.toml"),
     include_str!("contracts/go.toml"),
+    include_str!("contracts/py.toml"),
 ];
 
 /// Per-invocation steps of one operation, over the sizes of its arguments.
@@ -94,6 +97,8 @@ struct File {
     callback_free: Vec<invocation::Entry>,
     #[serde(default)]
     state_callback_free: Vec<state::Entry>,
+    #[serde(default)]
+    extension: Vec<extension::ExtensionEntry>,
 }
 
 #[derive(Deserialize)]
@@ -115,6 +120,7 @@ pub struct Contracts {
     allocations: BTreeMap<String, Allocation>,
     callback_free: BTreeMap<String, CallbackFree>,
     state_callback_free: BTreeMap<String, Vec<StateCallbackFree>>,
+    extensions: BTreeMap<String, Extension>,
 }
 
 impl File {
@@ -196,8 +202,19 @@ impl Contracts {
     }
 
     fn extend_roles(&mut self, file: &File) -> Result<(), String> {
+        self.extend_language(file)?;
         self.extend_invocations(file)?;
         self.extend_iteration(file)
+    }
+
+    /// The roles a file gives the language's own extension nodes.
+    fn extend_language(&mut self, file: &File) -> Result<(), String> {
+        let namespace = file.namespace.as_str();
+        let extensions = file
+            .extension
+            .iter()
+            .map(|entry| Ok((&entry.extensions[..], entry.extension())));
+        declare(&mut self.extensions, (namespace, "extension"), extensions)
     }
 
     fn extend_invocations(&mut self, file: &File) -> Result<(), String> {
@@ -281,6 +298,11 @@ impl Contracts {
         self.state_callback_free
             .get(operation)
             .map_or(&[], Vec::as_slice)
+    }
+
+    /// How runtime bounds lower a node of a registered extension, such as `py:dict`.
+    pub fn extension(&self, extension: &str) -> Option<&Extension> {
+        self.extensions.get(extension)
     }
 
     pub fn get(&self, operation: &str) -> Option<&Contract> {
@@ -473,6 +495,39 @@ mod tests {
         }
         let per_item = file(&callable.replace("AtMostOnce", "PerItem"));
         assert!(Contracts::parse_all(&[&per_item]).is_err());
+    }
+
+    #[test]
+    fn embedded_contracts_give_extensions_their_roles() {
+        let contracts = Contracts::embedded();
+        let role = |extension: &str| contracts.extension(extension).map(|role| role.implicit);
+        assert_eq!(role("py:fstring"), Some(Implicit::Never));
+        assert_eq!(role("py:format"), Some(Implicit::Always));
+        assert_eq!(role("py:keyword"), Some(Implicit::WithoutMember));
+        assert_eq!(role("go:slice"), Some(Implicit::Never));
+        assert!(
+            contracts
+                .extension("py:dict")
+                .unwrap()
+                .basis
+                .contains("hashes")
+        );
+        // Control of its own isn't a role, and roles are keyed by namespace.
+        assert_eq!(role("py:try"), None);
+        assert_eq!(role("slice"), None);
+        assert!(contracts.get("py:dict").is_none());
+    }
+
+    #[test]
+    fn extension_roles_are_validated() {
+        let extension =
+            "[[extension]]\nbasis = \"b\"\nimplicit = \"Always\"\nextensions = [\"e\"]\n";
+        let one = Contracts::parse_all(&[&file(extension)]).unwrap();
+        assert_eq!(one.extension("t:e").unwrap().implicit, Implicit::Always);
+        let twice = Contracts::parse_all(&[&file(extension), &file(extension)]).unwrap_err();
+        assert_eq!(twice, "Library operation t:e has two extension roles");
+        let unknown = file(&extension.replace("Always", "Sometimes"));
+        assert!(Contracts::parse_all(&[&unknown]).is_err());
     }
 
     #[test]

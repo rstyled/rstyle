@@ -10,6 +10,7 @@ mod chains;
 mod control;
 mod deferred;
 mod dispatch;
+mod extension;
 mod extent;
 pub mod facts;
 mod frame;

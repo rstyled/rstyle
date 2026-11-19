@@ -131,6 +131,8 @@ mod callable_role_tests;
 #[cfg(test)]
 mod dependence_tests;
 #[cfg(test)]
+mod extension_tests;
+#[cfg(test)]
 mod failures_tests;
 #[cfg(test)]
 mod flow_tests;

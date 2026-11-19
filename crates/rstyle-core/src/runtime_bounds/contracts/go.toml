@@ -30,3 +30,12 @@ runs = "AtMostOnce"
 arity = 1
 callbacks = [0]
 operations = ["sync.Once.Do"]
+
+# Extension roles: how runtime bounds lower a node the profile registers for Go, by its name
+# without the `go:` namespace. The node evaluates its children once, in the order the registry
+# writes them, and `implicit` says when it also runs an operation the document names no callee for.
+
+[[extension]]
+basis = "Slicing reads and bounds-checks the operand's header and its bounds without calling anything"
+implicit = "Never"
+extensions = ["slice"]

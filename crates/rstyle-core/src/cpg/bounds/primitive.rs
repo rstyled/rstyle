@@ -29,6 +29,7 @@ impl<'a> Collector<'_, '_, 'a> {
             NodeKind::PatternCondition => self.expr(self.facts.body.child(expression, 1)?, next),
             NodeKind::Identifier => Ok(self.path(expression, next)),
             NodeKind::Literal => Ok(next),
+            NodeKind::Extension if let Some(entry) = self.extension(expression, next)? => Ok(entry),
             _ => {
                 let reason = self
                     .facts
