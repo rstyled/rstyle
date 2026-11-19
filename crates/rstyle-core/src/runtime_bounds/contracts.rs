@@ -182,6 +182,16 @@ impl Contracts {
         for text in files {
             contracts.extend(text)?;
         }
+        // Certifying a call callback-free would discard a callable another role says it runs.
+        let handed = contracts
+            .callback_free
+            .keys()
+            .find(|operation| contracts.handed(operation).is_some());
+        if let Some(operation) = handed {
+            return Err(format!(
+                "Operation {operation} is callback-free and runs a callable it's handed"
+            ));
+        }
         Ok(contracts)
     }
 
@@ -536,6 +546,21 @@ mod tests {
         handed("rust:Result.map_or_else", &[0, 1], Runs::AtMostOnce);
         // A step contract says what a call costs, not what it runs.
         assert_eq!(contracts.handed("rust:Vec.len"), None);
+    }
+
+    #[test]
+    fn a_callback_free_operation_runs_no_callable_it_is_handed() {
+        let callable = "[[callable]]\nbasis = \"b\"\nruns = \"AtMostOnce\"\narity = 1\ncallbacks = [0]\noperations = [\"O.map\"]\n";
+        let free = "[[callback_free]]\nbasis = \"b\"\nform = \"Member\"\narity = 1\ncleanup_free = []\ntypes = [{ argument = 0, keys = [\"t:O\"] }]\noperations = [\"O.map\"]\n";
+        assert!(Contracts::parse_all(&[&file(callable)]).is_ok());
+        assert!(Contracts::parse_all(&[&file(free)]).is_ok());
+        // In one file or in two, the operation would be certified callback-free and its
+        // callable discarded.
+        let expected = "Operation t:O.map is callback-free and runs a callable it's handed";
+        let one = file(&format!("{callable}{free}"));
+        assert_eq!(Contracts::parse_all(&[&one]).unwrap_err(), expected);
+        let two = Contracts::parse_all(&[&file(callable), &file(free)]).unwrap_err();
+        assert_eq!(two, expected);
     }
 
     #[test]
