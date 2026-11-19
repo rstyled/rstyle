@@ -11,7 +11,12 @@ impl<'a> Collector<'_, '_, 'a> {
     /// an omitted default is not the next written argument, nor a zero-valued argument.
     pub(super) fn summary_arguments(&mut self, call: &'a Node) -> Result<Vec<Argument>, String> {
         let passed = self.facts.body.arguments(call)?;
-        let layout = self.argument_layout(call);
+        // An allocator's written operands include a compile-time type its callable doesn't
+        // list, so its call keeps every written slot, as one whose callable isn't known does.
+        let layout = match self.allocation_operands(call)? {
+            Some(_) => None,
+            None => self.argument_layout(call),
+        };
         let count = layout.map_or(passed.len(), |(count, _)| count);
         if count > MAX_VARIABLES || !self.charge(count) {
             return Ok(Vec::new());
