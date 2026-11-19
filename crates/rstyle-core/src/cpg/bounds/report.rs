@@ -10,6 +10,11 @@ use crate::{
     },
     suppress,
 };
+mod coverage;
+#[cfg(test)]
+mod coverage_tests;
+
+pub use coverage::Coverage;
 use serde::Serialize;
 use std::collections::{BTreeSet, HashMap};
 
@@ -46,18 +51,53 @@ struct DocumentRow {
     name: String,
     path: String,
     #[serde(flatten)]
+    context: FunctionContext,
+    #[serde(flatten)]
     evidence: Evidence,
     /// An `rstyle-allow` above the function names `RULE`. Its bound stays in this report.
     #[serde(skip)]
     allowed: bool,
 }
 
-/// Bounds of a run over documents, which names functions by path alone.
+/// The identity and source context retained even when review-only fields are dropped.
+/// Line and column are zero when no measured source location is available.
+#[derive(Default, Serialize)]
+pub struct FunctionContext {
+    identity: String,
+    compilation: String,
+    function: String,
+    root: String,
+    line: usize,
+    column: usize,
+    test: bool,
+}
+
+impl From<&Record> for FunctionContext {
+    fn from(record: &Record) -> Self {
+        let (line, column) = match &record.measured {
+            Measured::Known(facts) | Measured::Body(facts) => (facts.line, facts.column),
+            Measured::Generated(observation) => (observation.line, observation.column),
+            Measured::Unavailable(_) => (0, 0),
+        };
+        Self {
+            identity: record.identity.clone(),
+            compilation: record.compilation.clone(),
+            function: record.function.clone(),
+            root: record.root.clone(),
+            line,
+            column,
+            test: record.test,
+        }
+    }
+}
+
+/// Bounds of a run over documents, with coverage over the full function roster.
 #[derive(Serialize)]
 pub struct DocumentReport {
     schema: &'static str,
     input_complete: bool,
     limitations: &'static [&'static str],
+    coverage: Coverage,
     rows: Vec<DocumentRow>,
 }
 
@@ -82,17 +122,21 @@ pub fn from_records(records: &[Record], top: Option<usize>) -> DocumentReport {
             Some(DocumentRow {
                 name: record.name.clone(),
                 path: facts.path.clone(),
+                context: FunctionContext::from(record),
                 evidence: record_evidence(record, &mut composer),
                 allowed: suppress::allows(&facts.preceding_line, RULE),
             })
         })
         .collect();
+    let coverage = Coverage::new(records.iter(), rows.iter().map(|row| &row.evidence));
+    let input_complete = coverage.input_complete();
     rows.sort_by_key(|row| std::cmp::Reverse(degree(&row.evidence)));
     rows.truncate(top.unwrap_or(usize::MAX));
 
     DocumentReport {
         schema: "rstyle.cpg-runtime-bounds-report/1",
-        input_complete: rows.iter().all(|row| row.evidence.missing.is_none()),
+        input_complete,
+        coverage,
         limitations: LIMITATIONS,
         rows,
     }
@@ -370,10 +414,11 @@ fn expression(bound: &runtime_bounds::Bound) -> String {
 mod tests {
     use super::*;
 
-    fn row(outcome: Outcome) -> DocumentRow {
+    pub(super) fn row(outcome: Outcome) -> DocumentRow {
         DocumentRow {
             name: "dedupe".into(),
             path: "src/lib.rs".into(),
+            context: FunctionContext::default(),
             evidence: Evidence {
                 capture_status: "captured",
                 inputs: None,
@@ -385,7 +430,10 @@ mod tests {
         }
     }
 
-    fn assessment(bound: runtime_bounds::Bound, lines: &[usize]) -> runtime_bounds::Assessment {
+    pub(super) fn assessment(
+        bound: runtime_bounds::Bound,
+        lines: &[usize],
+    ) -> runtime_bounds::Assessment {
         let loop_at = |line: &usize| runtime_bounds::LoopBound {
             header: 0,
             source: Some(runtime_bounds::Source {
@@ -409,6 +457,7 @@ mod tests {
     fn report(rows: Vec<DocumentRow>) -> DocumentReport {
         DocumentReport {
             schema: "test",
+            coverage: Coverage::new(std::iter::empty(), rows.iter().map(|row| &row.evidence)),
             input_complete: true,
             limitations: LIMITATIONS,
             rows,
