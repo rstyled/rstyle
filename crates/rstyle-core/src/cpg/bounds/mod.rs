@@ -2,6 +2,8 @@
 //! Runtime bounds). The lowering is backward: each construct is lowered so that it
 //! continues at `next`, and returns its entry node.
 
+mod allocation;
+mod arguments;
 mod calls;
 mod canonical;
 mod chains;
@@ -11,9 +13,11 @@ mod dispatch;
 mod extent;
 pub mod facts;
 mod frame;
+mod guards;
 mod iteration;
 mod primitive;
 pub mod report;
+mod writes;
 
 use super::model::{Node, NodeKind};
 use crate::advisory::runtime_bounds::{Input, MAX_NODES, MAX_VARIABLES};
@@ -40,6 +44,7 @@ pub(crate) struct Collector<'f, 'b, 'a> {
     depth: usize,
     work: usize,
     extents: BTreeMap<String, String>,
+    extent_origins: BTreeMap<String, extent::Place<'a>>,
     closures: BTreeMap<&'a str, &'a Node>,
     returns: Vec<u32>,
     formals: BTreeMap<&'a str, u32>,
@@ -58,6 +63,7 @@ impl<'f, 'b, 'a> Collector<'f, 'b, 'a> {
             depth: 0,
             work: 0,
             extents: BTreeMap::new(),
+            extent_origins: BTreeMap::new(),
             closures: BTreeMap::new(),
             returns: Vec::new(),
             formals: BTreeMap::new(),
@@ -91,7 +97,7 @@ impl<'a> Collector<'_, '_, 'a> {
                     .into(),
             });
         }
-        self.install_extents(&parameters, frame.extents)?;
+        self.install_extents(&parameters, frame.extents, frame.origins)?;
         self.parameters(&parameters)?;
         let root = self.facts.body.root()?;
         match frame.reason {

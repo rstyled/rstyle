@@ -21,6 +21,72 @@ have been removed from this checkout; recorded evidence remains in Git history.
 | `test.sh` | `scripts/test.sh [cargo test args]` runs `cargo test --workspace --locked` against a shared `CARGO_TARGET_DIR` (default `~/.cache/rstyle/target`) so worktrees don't rebuild dependencies. |
 | `test_codenet.py` | `python3 scripts/test_codenet.py` tests `codenet_sample.py` on a fake package (needs cargo). |
 
+## Local MCP and temporary hosted check bypass
+
+To temporarily stop new hosted `Rstyle` checks, set `[review] status_check = false`
+in `rstyle.toml`. The setting takes effect once it reaches the base branch.
+Restore `status_check = true` after finishing the local reviews to resume App
+checks. The `.github/workflows/ci.yml` jobs, including self-checks and patterns,
+stay as they are. This setting does not cancel existing checks or disable the
+App's background reviews and storage.
+The local review can complete existing App checks with the owning App's
+credential, as described below; a local report alone does not finish them.
+
+Build this checkout's analyzer and a sibling checkout of
+[`rstyled/rstyle-mcp-server`](https://github.com/rstyled/rstyle-mcp-server).
+Until merged, use its [`fix/local-no-cloud` branch / PR #162](https://github.com/rstyled/rstyle-mcp-server/pull/162)
+for full local reviews, current-analyzer startup and large local report support:
+
+```sh
+cargo build --locked -p cargo-rstyle -p rstyle-driver
+(cd ../rstyle-mcp-server && cargo +1.93.0 build --locked)
+RSTYLE_MCP_BIN="$(cd ../rstyle-mcp-server && pwd)/target/debug/rstyle-mcp-server" \
+  ./scripts/local-mcp.sh
+```
+
+The launcher is a stdio server: the MCP client starts it and owns its lifetime.
+Set the client's command to the absolute path of `scripts/local-mcp.sh`, with
+no arguments, and set `RSTYLE_MCP_BIN` to the built server. `RSTYLE_BIN` optionally
+selects a different analyzer; its matching `rstyle-driver` must be beside it.
+Without that override, the launcher uses this checkout's `target/debug` (or
+`CARGO_TARGET_DIR/debug`). Builds must happen before connecting.
+
+Call `rstyle_check` or `rstyle_patterns` with
+`{"path":"/absolute/path/to/project","language":"rust"}`. These tools use the
+local analyzer and the project's rules and ignore file. Reports and compiler
+caches stay on disk. The launcher rejects HTTP mode and remote repository
+imports and clears hosted report configuration: it never contacts Cloudflare
+or D1. Cargo may still download dependencies and execute build scripts.
+Each response names its full output in `local.artifact`. Above 64 KiB the
+response's `stdout` is empty and `local.stdout_included` is false; read that
+local file for the report. Reports up to 512 MiB stream to disk.
+Current rstyle has no `clones` subcommand; the MCP server must include the fix
+that makes that command optional at startup. Older analyzers that support it
+also expose `rstyle_clones`.
+
+For a full PR review, call `rstyle_review` with the PR's `pull` URL, `path` to
+this checkout, and `publish: false`. It checks the pinned base and head in a
+separate local clone with the hosted runner's `check,patterns,bounds` filters,
+compares their saved runs for merge risk, and renders the same review and inline
+suggestions. Repeat the call while it returns `running`; completed scans are
+reused. Python 3.11+, Git and a signed-in `gh` are required. The user's checkout
+stays unchanged, and compute and report storage are local.
+
+`publish: true` posts that review to GitHub and finishes pending `Rstyle` checks
+with its actual verdict, after verifying the PR's base and head are unchanged.
+This requires the App credential in a private file named by
+`RSTYLE_REVIEW_GITHUB_TOKEN_FILE`: its installation token, or JSON containing
+`app_id` and PEM `private_key` or a `private_key_file` path. GitHub only lets the
+owning App update its checks. If no check exists, publication creates one.
+Without that credential, the full review is saved locally and reports
+`publication: "needs_app_token"`. Publication uses GitHub; Cua, Cloudflare and
+D1 stay outside the local review path. See the MCP repository's README for
+progress, storage, retry and publication details.
+
+For the exact existing CI style gates locally, run `scripts/ci-style.py` as
+described below; the individual check/pattern tools use their normal analyzer
+options rather than CI's gate options.
+
 ## Labeled-example evaluation (`rust_refactoring_examples/`)
 
 | Script | What it does |

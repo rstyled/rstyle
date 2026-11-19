@@ -124,7 +124,7 @@ fn with_frame<R>(value: Value, check: impl FnOnce(&mut Collector<'_, '_, '_>) ->
         let parameters = collector.parameter_symbols().unwrap();
         let frame = frame::inspect(collector.facts, &parameters).unwrap();
         collector
-            .install_extents(&parameters, frame.extents)
+            .install_extents(&parameters, frame.extents, frame.origins)
             .unwrap();
         collector.parameters(&parameters).unwrap();
         check(collector)
