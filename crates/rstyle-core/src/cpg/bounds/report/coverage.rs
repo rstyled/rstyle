@@ -1,6 +1,6 @@
 //! Counts over the full input roster, before report selection. These are separate measures:
 //! a proven zero-loop owner, a proven scan and a library contract are different information.
-use super::{DocumentRow, Evidence};
+use super::Evidence;
 use crate::cpg::records::{Measured, Record};
 use crate::runtime_bounds::{Bound, Outcome, compose::Composed};
 use serde::Serialize;
@@ -8,8 +8,9 @@ use std::collections::BTreeMap;
 
 type Counts = BTreeMap<&'static str, usize>;
 
+/// Distinct counts of captured inputs, proof outcomes, loop work and library completeness.
 #[derive(Serialize)]
-pub(super) struct Coverage {
+pub struct Coverage {
     roster: Counts,
     capture: Counts,
     local: Counts,
@@ -20,20 +21,25 @@ pub(super) struct Coverage {
 }
 
 impl Coverage {
-    pub(super) fn new(records: &[Record], rows: &[DocumentRow]) -> Self {
-        let evidence = || rows.iter().map(|row| &row.evidence);
+    /// Counts only the supplied roster and evidence, before presentation selection. A caller
+    /// must state which owners it supplied; absent owners cannot be inferred from these counts.
+    pub fn new<'a>(
+        records: impl Iterator<Item = &'a Record>,
+        evidence: impl Iterator<Item = &'a Evidence> + Clone,
+    ) -> Self {
         Self {
-            roster: counts(records.iter().map(roster)),
-            capture: counts(evidence().map(|item| item.capture_status)),
-            local: counts(evidence().map(local)),
-            composed: counts(evidence().map(composed)),
-            proven_local_loops: counts(evidence().filter_map(local_loops)),
-            proven_composed_loops: counts(evidence().filter_map(composed_loops)),
-            library_steps: counts(evidence().map(library)),
+            roster: counts(records.map(roster)),
+            capture: counts(evidence.clone().map(|item| item.capture_status)),
+            local: counts(evidence.clone().map(local)),
+            composed: counts(evidence.clone().map(composed)),
+            proven_local_loops: counts(evidence.clone().filter_map(local_loops)),
+            proven_composed_loops: counts(evidence.clone().filter_map(composed_loops)),
+            library_steps: counts(evidence.map(library)),
         }
     }
 
-    pub(super) fn input_complete(&self) -> bool {
+    /// Whether all supplied owners have measured input and all supplied bounds are captured.
+    pub fn input_complete(&self) -> bool {
         self.roster.get("unavailable").copied().unwrap_or(0) == 0
             && self.capture.keys().all(|status| *status == "captured")
     }

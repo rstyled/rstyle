@@ -11,6 +11,19 @@
 schema = "rstyle.library-contracts/1"
 namespace = "go"
 
+[[allocation]]
+basis = "The built-in allocator creates a fresh native slice header and backing storage with exactly the requested length; replacing an element invokes no setter and leaves the header's length unchanged. The type operand is static; length evaluation and allocation costs remain separate."
+storage = "FreshNativeSequence"
+arity = 2
+type_argument = 0
+length_argument = 1
+operations = ["make"]
+
+[[extent]]
+basis = "The resolved built-in len returns a native slice's current length without changing its header. Map and channel lengths are not stable slice extents."
+role = "Length"
+operations = ["len"]
+
 [[callable]]
 basis = "Runs the function the first time it's called on this Once, and returns when that call has"
 runs = "AtMostOnce"

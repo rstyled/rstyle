@@ -49,6 +49,12 @@ including those outside `--top`. It describes capture availability, not proof su
 may still yield unknown or partial results. These counts add no proofs, do not count every latent blocker,
 and describe only the supplied input roster, not functions absent from the capture.
 
+The compiler report (`rstyle.compiler-runtime-bounds-report/2`) includes the same stable context and
+coverage maps. Its `coverage_scope` explicitly limits the denominator to `assessed_functions_in_unit`
+and the requested `authored` or `captured` source population. Owners absent from that handoff are not
+counted. The compiler keeps every scoped row and uses `selected` indices for `--top`; selection does not
+change coverage. Generated empty functions can add zero-loop proofs, without adding a scan proof.
+
 ## In the check run
 
 When bounds run alongside `check`, each function with a proven bound of degree two or more is a
@@ -84,6 +90,11 @@ least zero, and any other start makes that loop opaque. A signed input counts as
 `while i < n` over an `i64` gives `max(n, 0)`, and that floor survives composition with a caller's
 argument. A conversion between signed and unsigned stays unknown.
 
+**Short-circuit guards.** A pure leading numeric guard in `while i < limit && predicate` can bound
+the later predicate and body. The predicate retains its calls and short-circuit evaluation, including
+a final false result. Counter progress, invariant limits and no-overflow checks still apply. Arbitrary
+Boolean guards and loops whose branches advance different counters remain conservative.
+
 **Unbounded integers.** A language whose integers have no width, as Python's don't, says so with
 `integer_overflow: unbounded` and leaves `bits` out of its integer types. They count as signed values, read
 at 64 bits. What's proved of a counter under its guard holds at any width, and a constant too large for 64
@@ -102,6 +113,28 @@ its initializer once, then chooses between binding the pattern and running the f
 Both paths remain possible: `continue`, `return`, counter writes and calls keep their control and
 cost effects. A failure path that can bypass a counter increment does not establish loop progress.
 Pattern guards, writable reference patterns and hidden cleanup keep their existing restrictions.
+
+**Primitive scratch writes.** A direct write to a local or by-value parameter of primitive Boolean,
+character, floating-point or unit type can preserve bounds when the store affects no modeled scalar
+or selected extent. The right-hand side still runs, including its calls, counter writes and cleanup.
+Fields, indexes, references, aggregates, adjusted places, unknown types and overloaded assignments
+retain conservative handling. A Boolean assignment does not prove progress of a Boolean-controlled loop.
+
+**Fresh output storage.** A resolved builtin allocation with an explicit storage contract can certify
+a fresh native sequence with builtin element writes. An ordinary indexed assignment can then preserve
+a scan bound when the sequence is held in an immutable local, its value shape is complete, and its
+base and index are effect-free. The allocation and right-hand side still run. Unknown setters,
+overloaded assignments, indirect bases, effectful indexes and possible cleanup retain conservative
+handling. This certifies unrelated storage and does not prove library operation costs.
+
+**Exact allocation lengths.** An allocation contract may identify the argument that supplies the
+result's exact length. For a certified fresh native sequence in an immutable direct local, bounds
+can use a nonnegative literal length or the selected length of an immutable direct formal sequence.
+Both headers must pass the existing whole-body privacy checks: rebinding, borrows, captures,
+escaping places, and incomplete facts prevent the relation. This first increment does not follow
+local chains or changing scalar length variables. The relation affects lengths only; it does not
+make allocated elements aliases of the formal's elements. Allocation, length, copy, sort, callback,
+and right-hand-side evaluation remain in the captured program.
 
 **Arguments.** A call evaluates its receiver or callee, then what each argument passes. An argument that
 holds its value under a name, as Python's `print(total, end="")` does, passes that value. One that unpacks
@@ -188,6 +221,19 @@ its count times the callee's bound, with callee inputs replaced by per-invocatio
 caller's arguments. Lengths follow shared places and field paths, so passing `&g.edges` into a slice scan
 contributes `len(g.edges)`.
 
+Call arguments run in written evaluation order, while their summary inputs follow the formal positions
+recorded by the frontend. Thus `scan(unused=0, limit=n)` passes `n` to the formal `limit` even when it
+is written last. Missing arguments retain unknown sizes; the analysis does not guess their defaults.
+Summary inputs require a known, fixed callable interface. Unresolved positions, duplicate bindings,
+spreads, variadic interfaces and mismatched receiver layouts leave argument sizes opaque, while the
+call and its argument evaluation remain counted. Argument rosters are bounded before allocation.
+
+An immutable local alias initialized once outside loops can retain the formal input's length
+provenance when its initializer is a fully typed shared place rooted in an immutable shared formal.
+Field paths must have complete structural type facts. Both the local alias and its original formal
+place are checked for writes, borrows and captures. Unknown projections, computed initializers,
+destructuring and aliases of other locals retain local or unresolved size information.
+
 A call of a type, such as Python's `Made(xs, ys)`, runs the function its own reference names when the
 frontend resolves that statically, here `Made.__init__`. The value the call makes is that function's
 receiver, so `xs` and `ys` are the parameters after `self`. A frontend leaves the reference unresolved when
@@ -239,6 +285,13 @@ roles, so frontends carry no method tables:
 - A `[[callable]]` names functions and members that run a callable for the call itself, the arguments
   that are callables, counted after the receiver or the callee, and how often it runs one. One that runs
   one at most once lowers to a branch around each.
+- `[[allocation]]` certifies the storage created by a builtin allocator, independently of its cost.
+  `FreshNativeSequence` promises native element writes without user setters; a declared static type
+  operand is skipped only after matching a childless type annotation at the certified position.
+  An optional `length_argument` certifies exact result cardinality at a distinct original post-callee
+  argument position. Resolved builtin `len` reads native sequence lengths; maps and channels are
+  excluded. These reads are optional extent sources, so an unrelated mutable length read does not
+  reject otherwise known loop limits.
 - A `[[callback_free]]` gives a resolved operation's `Member` or `Function` form, its
   post-receiver/callee arity, exact type-key guards and operands requiring cleanup-free
   storage. Member operand 0 is the receiver; Function operand 0 is the first argument.
