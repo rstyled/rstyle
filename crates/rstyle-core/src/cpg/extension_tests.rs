@@ -241,18 +241,21 @@ fn named(document: Value, name: &str) -> String {
     serde_json::to_string(input).unwrap()
 }
 
+/// The program of `name` in the comprehensions document, after `change` edits that function.
+fn comprehension(name: &str, change: impl FnOnce(&mut Value)) -> String {
+    let mut document: Value = serde_json::from_str(COMPREHENSIONS).unwrap();
+    let functions = document["unit"]["functions"].as_array_mut().unwrap();
+    change(functions.iter_mut().find(|f| f["name"] == name).unwrap());
+    named(document, name)
+}
+
 /// `summed`'s program, after `change` edits the reference of its call of `sum`, whose argument is
 /// a generator expression.
 fn summed(change: impl FnOnce(&mut Value)) -> String {
-    let mut document: Value = serde_json::from_str(COMPREHENSIONS).unwrap();
-    let functions = document["unit"]["functions"].as_array_mut().unwrap();
-    let summed = functions
-        .iter_mut()
-        .find(|f| f["name"] == "summed")
-        .unwrap();
-    let refs = summed["refs"].as_array_mut().unwrap();
-    change(refs.iter_mut().find(|r| r["node"] == "f4.n8").unwrap());
-    named(document, "summed")
+    comprehension("summed", |function| {
+        let refs = function["refs"].as_array_mut().unwrap();
+        change(refs.iter_mut().find(|r| r["node"] == "f4.n8").unwrap());
+    })
 }
 
 const UNCONSUMED: &str = "A lazy value not consumed by the call it's an argument of is unmodeled";
@@ -272,6 +275,38 @@ fn a_lazy_value_runs_in_place_only_where_its_call_drains_it() {
     assert!(keyword.contains(UNCONSUMED), "{keyword}");
     let later = summed(|call| call["arguments"] = json!([{"position": 1}]));
     assert!(later.contains(UNCONSUMED), "{later}");
+}
+
+/// A generator expression that isn't one of a call's written arguments isn't drained by it: one
+/// a local holds, one in a wrapper outside any call, one in a call with no reference and one that
+/// is the call's callee.
+#[test]
+fn a_lazy_value_outside_a_calls_written_arguments_is_unsupported() {
+    let stored = comprehension("stored", |_| {});
+    assert!(stored.contains(UNCONSUMED), "{stored}");
+    let wrapped = comprehension("stored", |function| {
+        let nodes = function["nodes"].as_array_mut().unwrap();
+        let mut wrapper = nodes.iter().find(|n| n["id"] == "f6.n6").unwrap().clone();
+        wrapper["id"] = json!("f6.wrapper");
+        wrapper["extension"] = json!("py:fstring");
+        wrapper["children"] = json!(["f6.n6"]);
+        wrapper.as_object_mut().unwrap().remove("modifiers");
+        nodes.push(wrapper);
+        let declaration = nodes.iter_mut().find(|n| n["id"] == "f6.n8").unwrap();
+        declaration["children"] = json!(["f6.n7", "f6.wrapper"]);
+    });
+    assert!(wrapped.contains(UNCONSUMED), "{wrapped}");
+    let unreferenced = comprehension("summed", |function| {
+        let refs = function["refs"].as_array_mut().unwrap();
+        refs.retain(|r| r["node"] != "f4.n8");
+    });
+    assert!(unreferenced.contains(UNCONSUMED), "{unreferenced}");
+    let callee = comprehension("summed", |function| {
+        let nodes = function["nodes"].as_array_mut().unwrap();
+        let call = nodes.iter_mut().find(|n| n["id"] == "f4.n8").unwrap();
+        call["children"] = json!(["f4.n7", "f4.n0"]);
+    });
+    assert!(callee.contains(UNCONSUMED), "{callee}");
 }
 
 /// `Reported` with its deferred closure literal bound to an immutable local `f` first, and the
