@@ -42,6 +42,9 @@ impl<'a> Collector<'_, '_, 'a> {
             let reason = "Unrecognized resolved for-loop desugaring";
             return Ok(self.unsupported(expression, next, reason));
         };
+        if let Some(entry) = self.for_iterator_chain(expression, &parts, next)? {
+            return Ok(entry);
+        }
         match self.scan_values(&parts)? {
             Ok(values) => self.prepare_scan((expression, parts), values, next),
             Err(reason) => Ok(self.unsupported(expression, next, reason)),
