@@ -108,6 +108,7 @@ impl<'a> Collector<'_, '_, 'a> {
         &mut self,
         parameters: &[Parameter<'a>],
         places: Vec<Place<'a>>,
+        origins: std::collections::BTreeMap<String, Place<'a>>,
     ) -> Result<(), String> {
         self.formal_positions(parameters);
         for place in places {
@@ -118,9 +119,13 @@ impl<'a> Collector<'_, '_, 'a> {
                 length,
             );
             self.program.inputs.push(place.label.clone());
-            self.program.extents.push(self.provenance(&place));
+            let source = origins.get(&place.key()).unwrap_or(&place);
+            let mut provenance = self.provenance(source);
+            provenance.input = place.label.clone();
+            self.program.extents.push(provenance);
             self.extents.insert(place.key(), place.label);
         }
+        self.extent_origins = origins;
         Ok(())
     }
 
@@ -134,11 +139,7 @@ impl<'a> Collector<'_, '_, 'a> {
         };
         if !self.facts.interface_member(declared) {
             let operation = declared.operation.clone();
-            return self.classified(
-                declared,
-                operation,
-                reference.calls_back.as_ref().map(|c| c.value),
-            );
+            return self.classified(declared, operation, self.callback_status(node, declared));
         }
         // Interface members resolve only through static selection of an implementation.
         if reference.status == RefStatus::Dependent {
@@ -155,12 +156,26 @@ impl<'a> Collector<'_, '_, 'a> {
         else {
             return (Callee::Unresolved, None);
         };
-        let calls_back = reference.calls_back.as_ref().map(|c| c.value);
+        let calls_back = self.callback_status(node, implementation);
         // An interface's own default body has no implementation key.
         let operation = (!self.facts.interface_member(implementation))
             .then(|| implementation.operation.clone())
             .flatten();
         self.classified(implementation, operation, calls_back)
+    }
+
+    fn callback_status(&self, node: &Node, callee: &Definition) -> Option<bool> {
+        let captured = self
+            .facts
+            .reference(node)
+            .and_then(|reference| reference.calls_back.as_ref())
+            .map(|callbacks| callbacks.value);
+        if super::super::invocation::callback_free(self.facts.body, self.facts.tables, node, callee)
+        {
+            Some(false)
+        } else {
+            captured
+        }
     }
 
     // Standard bodies are excluded only when they cannot call back into workspace code;
@@ -272,10 +287,13 @@ impl<'a> Collector<'_, '_, 'a> {
             return Ok(Argument::Scalar(self.value(argument)));
         }
         Ok(match self.place(argument)? {
-            Some(place) => Argument::Place {
-                root: self.root(place.root),
-                fields: place.path.clone(),
-            },
+            Some(place) => {
+                let source = self.extent_origins.get(&place.key()).unwrap_or(&place);
+                Argument::Place {
+                    root: self.root(source.root),
+                    fields: source.path.clone(),
+                }
+            }
             None => Argument::Opaque,
         })
     }

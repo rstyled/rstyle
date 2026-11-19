@@ -3,8 +3,8 @@
 # Keys are `<self type>.<member>`: the defining impl's self type by its compiler
 # diagnostic item name (`BTreeMap`, `Vec`), else its lang item name (`String`,
 # `owned_box`), else its primitive kind (`slice`, `str`, `usize`), and the resolved
-# member name. The frontend emits them only for standard-library bodies that cannot
-# call back into workspace code.
+# member name. These identify resolved standard-library bodies; callback facts or
+# a conditional callback-free certificate determine whether workspace calls remain.
 #
 # `steps` bounds element operations per invocation (comparisons, element clones,
 # byte copies) up to a constant factor. The cost of each element operation itself,
@@ -16,6 +16,57 @@
 
 schema = "rstyle.library-contracts/1"
 namespace = "rust"
+
+# Callback-free roles do not declare costs, purity, or callable invocation behavior.
+# Cleanup positions include the receiver at 0; arity counts only arguments after it.
+
+[[callback_free]]
+basis = "The primitive boolean selects or discards an already evaluated value without invoking a callable; discarding that value must run no workspace cleanup"
+form = "Member"
+arity = 1
+cleanup_free = [1]
+types = [{ argument = 0, keys = ["rust:bool"] }]
+operations = ["bool.then_some"]
+
+[[callback_free]]
+basis = "Copies the referenced value using the marker Copy trait, which invokes no user code, and moves the resulting option"
+form = "Member"
+arity = 0
+cleanup_free = []
+types = [{ argument = 0, keys = ["rust:Option"] }]
+operations = ["Option.copied"]
+
+[[callback_free]]
+basis = "Moves the contained value or the already evaluated fallback without invoking a callable; only the unused fallback can be discarded, so its cleanup must run no workspace code"
+form = "Member"
+arity = 1
+cleanup_free = [1]
+types = [{ argument = 0, keys = ["rust:Option"] }]
+operations = ["Option.unwrap_or"]
+
+[[callback_free]]
+basis = "Moves an Ok value or discards an Err value without invoking a callable; receiver cleanup must run no workspace code"
+form = "Member"
+arity = 0
+cleanup_free = [0]
+types = [{ argument = 0, keys = ["rust:Result"] }]
+operations = ["Result.ok"]
+
+[[callback_free]]
+basis = "Constructs a reverse split searcher for a primitive string or character pattern without invoking caller code; pattern cleanup must run no workspace code"
+form = "Member"
+arity = 1
+cleanup_free = [1]
+types = [{ argument = 0, keys = ["rust:str"] }, { argument = 1, keys = ["rust:str", "rust:char"] }]
+operations = ["str.rsplit"]
+
+# A selected parameterless interface implementation can be certified by its exact
+# standard nominal receiver and complete generic type roster. This declares no cost.
+[[state_callback_free]]
+basis = "The standard reverse split iterator searches using only its private string or character searcher and yields borrowed strings, without caller callbacks or item cleanup"
+receiver = "core::str::iter::RSplit"
+arguments = [[{ key = "rust:str", shared = true }, { key = "rust:char", shared = false }]]
+operations = ["Iterator.next"]
 
 [[contract]]
 basis = "B-tree search: tree height is logarithmic in the entry count"
@@ -109,6 +160,9 @@ operations = [
 # receiver and `callback` the index of the argument run once per item. Every other
 # argument is evaluated once, before the first item. Upper bounds rely on these
 # effects, never on `size_hint`.
+# `deferred` separately certifies that constructing the adapter only stores its
+# evaluated receiver and arguments. Their evaluation, capture and cleanup still
+# need call-site proofs; callbacks and trait operations run only when it is driven.
 #
 # `dispatch.standard` lists types whose trait impls the call may run per item (`Item`
 # is the iterator's item type, `Generic = i` the call's type argument `i` with the
@@ -118,6 +172,7 @@ operations = [
 [[stage]]
 basis = "Yields each source item once, unchanged in count"
 effect = "Pass"
+deferred = true
 operations = ["Iterator.copied", "Iterator.enumerate", "Iterator.rev"]
 
 [[stage]]
@@ -136,6 +191,7 @@ operations = ["Iterator.inspect", "Iterator.map"]
 [[stage]]
 basis = "Runs the predicate once per item and may drop the item"
 effect = "Filter"
+deferred = true
 arity = 1
 callback = 0
 operations = ["Iterator.filter", "Iterator.filter_map", "Iterator.skip_while"]
@@ -287,3 +343,8 @@ operations = ["Vec.len", "slice.len", "str.len"]
 basis = "Yields shared references to each element of a contiguous buffer once, in order"
 role = "Traversal"
 operations = ["slice.iter"]
+
+[[extent]]
+basis = "Traverses immutable UTF-8 str contents with no callable arguments: bytes yields exactly the byte length; chars and char_indices yield at most one scalar per byte; lines yields at most one shared string per byte and none for empty input. Yielded primitives and shared strings have no owning cleanup"
+role = "Traversal"
+operations = ["str.chars", "str.bytes", "str.char_indices", "str.lines"]
