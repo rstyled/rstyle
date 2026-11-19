@@ -49,7 +49,7 @@ basis = "Moves an Ok value or discards an Err value without invoking a callable;
 form = "Member"
 arity = 0
 cleanup_free = [0]
-types = [{ argument = 0, keys = ["rust:Result"] }]
+types = [{ argument = 0, keys = ["rust:Result"], holds_arguments = true }]
 operations = ["Result.ok"]
 
 [[callback_free]]
