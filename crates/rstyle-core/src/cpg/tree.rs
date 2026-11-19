@@ -1,7 +1,8 @@
 //! Per-function and per-unit indexes, with the tree checks the derivations rely on.
 
 use super::model::{
-    Definition, Dispatch, FileSpan, Function, Node, NodeKind, Origin, Ref, Symbol, Type, Unit,
+    Definition, DefinitionKind, Dispatch, FileSpan, Function, Node, NodeKind, Origin, Ref, Symbol,
+    Type, TypeKind, Unit,
 };
 use crate::wording::Wording;
 use std::collections::{BTreeMap, BTreeSet};
@@ -45,6 +46,17 @@ impl<'a> Tables<'a> {
 
     pub fn ty(&self, id: &str) -> Result<&'a Type, String> {
         lookup(&self.types, id, || format!("Unknown type {id}"))
+    }
+
+    /// Checks the type's own destructor declaration; owned members need separate checks.
+    /// Records and sums require a resolved nominal type declaration.
+    pub fn no_own_destructor(&self, ty: &Type) -> bool {
+        match ty.definition.as_deref() {
+            Some(id) => self.definition(id).is_ok_and(|definition| {
+                definition.kind == DefinitionKind::Type && !definition.destructor
+            }),
+            None => !matches!(ty.kind, TypeKind::Record | TypeKind::Sum),
+        }
     }
 }
 

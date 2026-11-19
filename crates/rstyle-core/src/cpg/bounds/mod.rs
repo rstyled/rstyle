@@ -2,18 +2,23 @@
 //! Runtime bounds). The lowering is backward: each construct is lowered so that it
 //! continues at `next`, and returns its entry node.
 
+mod allocation;
+mod arguments;
 mod calls;
 mod canonical;
 mod chains;
 mod control;
+mod deferred;
 mod dispatch;
 mod extension;
 mod extent;
 pub mod facts;
 mod frame;
+mod guards;
 mod iteration;
 mod primitive;
 pub mod report;
+mod writes;
 
 use super::model::{Node, NodeKind};
 use crate::advisory::runtime_bounds::{Input, MAX_NODES, MAX_VARIABLES};
@@ -25,31 +30,7 @@ use std::collections::BTreeMap;
 
 /// The runtime-bound program of one function.
 pub fn lower(facts: &Facts<'_, '_>, arithmetic: Arithmetic) -> Result<Input, String> {
-    let mut collector = Collector {
-        facts,
-        program: Program {
-            inputs: Vec::new(),
-            variables: Vec::new(),
-            nodes: Vec::new(),
-            entry: 0,
-            loop_headers: Vec::new(),
-            formals: Vec::new(),
-            extents: Vec::new(),
-            arithmetic,
-        },
-        numbers: facts.symbol_numbers(),
-        locals: BTreeMap::new(),
-        loops: Vec::new(),
-        exhausted: false,
-        depth: 0,
-        work: 0,
-        extents: BTreeMap::new(),
-        closures: BTreeMap::new(),
-        returns: Vec::new(),
-        formals: BTreeMap::new(),
-    };
-
-    collector.collect()
+    Collector::new(facts, arithmetic).collect()
 }
 
 pub(crate) struct Collector<'f, 'b, 'a> {
@@ -64,9 +45,32 @@ pub(crate) struct Collector<'f, 'b, 'a> {
     depth: usize,
     work: usize,
     extents: BTreeMap<String, String>,
+    extent_origins: BTreeMap<String, extent::Place<'a>>,
     closures: BTreeMap<&'a str, &'a Node>,
     returns: Vec<u32>,
     formals: BTreeMap<&'a str, u32>,
+    deferred: Option<deferred::Binding<'a>>,
+}
+
+impl<'f, 'b, 'a> Collector<'f, 'b, 'a> {
+    fn new(facts: &'f Facts<'b, 'a>, arithmetic: Arithmetic) -> Self {
+        Self {
+            facts,
+            program: empty(arithmetic),
+            numbers: facts.symbol_numbers(),
+            locals: BTreeMap::new(),
+            loops: Vec::new(),
+            exhausted: false,
+            depth: 0,
+            work: 0,
+            extents: BTreeMap::new(),
+            extent_origins: BTreeMap::new(),
+            closures: BTreeMap::new(),
+            returns: Vec::new(),
+            formals: BTreeMap::new(),
+            deferred: None,
+        }
+    }
 }
 
 impl<'a> Collector<'_, '_, 'a> {
@@ -94,12 +98,15 @@ impl<'a> Collector<'_, '_, 'a> {
                     .into(),
             });
         }
-        self.install_extents(&parameters, frame.extents)?;
+        self.install_extents(&parameters, frame.extents, frame.origins)?;
         self.parameters(&parameters)?;
         let root = self.facts.body.root()?;
         match frame.reason {
             Some(reason) => self.reject_body(root, &reason),
-            None => self.capture_body(root)?,
+            None => {
+                self.prepare_deferred(root)?;
+                self.capture_body(root)?;
+            }
         }
         if self.exhausted {
             return Ok(Input::BudgetExhausted {
@@ -341,33 +348,50 @@ impl<'a> Collector<'_, '_, 'a> {
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
     fn local(&mut self, local: &'a Node, next: u32) -> Result<u32, String> {
         let parts = self.local_parts(local)?;
-        let next = self.declaration_writes(parts.pattern, next)?;
+        if let Some(entry) = self.initialize_deferred(&parts, next)? {
+            return Ok(entry);
+        }
         // Immutable local closures run only where they are directly invoked.
         if let Some(symbol) = self.binding_symbol(parts.pattern)
             && self.closures.contains_key(symbol)
         {
             return Ok(next);
         }
-        if parts.otherwise.is_some() {
-            return Ok(self.unsupported(local, next, "let-else control flow is unmodeled"));
+        let selected = self.local_assignment(local, &parts, next)?;
+        let continuation = match parts.otherwise {
+            Some(otherwise) => {
+                let rejected = self.expr(otherwise, next)?;
+                self.choice((selected, rejected), local)
+            }
+            None => selected,
+        };
+
+        // The initializer runs once before the pattern chooses either continuation.
+        match parts.init {
+            Some(init) => self.expr(init, continuation),
+            None => Ok(continuation),
         }
+    }
+
+    /// Successful pattern selection writes its bindings; failure runs only the else branch.
+    fn local_assignment(
+        &mut self,
+        local: &Node,
+        parts: &Local<'a>,
+        next: u32,
+    ) -> Result<u32, String> {
+        let next = self.declaration_writes(parts.pattern, next)?;
         let variable = self
             .binding_symbol(parts.pattern)
             .and_then(|symbol| self.locals.get(symbol).copied());
 
-        match (variable, parts.init) {
-            (Some(variable), init) => {
-                let value = init.map_or(Value::Unknown, |init| self.value(init));
-                let assignment =
-                    self.node(Action::Assign { variable, value }, Flow::Goto(next), local);
-                match init {
-                    Some(init) => self.expr(init, assignment),
-                    None => Ok(assignment),
-                }
+        Ok(match variable {
+            Some(variable) => {
+                let value = parts.init.map_or(Value::Unknown, |init| self.value(init));
+                self.node(Action::Assign { variable, value }, Flow::Goto(next), local)
             }
-            (None, Some(init)) => self.expr(init, next),
-            (None, None) => Ok(next),
-        }
+            None => next,
+        })
     }
 
     /// The symbol of a binding pattern without a subpattern, whatever its mode.

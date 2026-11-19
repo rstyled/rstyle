@@ -13,6 +13,7 @@ mod events;
 mod facts;
 pub mod failures;
 pub mod flow;
+mod invocation;
 pub mod layout;
 mod metrics;
 pub mod model;
@@ -123,6 +124,8 @@ pub fn authored(record: records::Record) -> Option<FnFacts> {
 
 #[cfg(test)]
 mod body_tests;
+#[cfg(test)]
+mod bounds_write_tests;
 #[cfg(test)]
 mod callable_role_tests;
 #[cfg(test)]

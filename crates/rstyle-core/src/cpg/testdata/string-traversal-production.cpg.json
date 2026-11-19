@@ -1,0 +1,2726 @@
+{
+  "coverage": {
+    "capabilities": {
+      "aliasing": {
+        "description": "Places come from rustc's expression-use visitor for writes and exclusive borrows only",
+        "status": "approximated"
+      },
+      "constant-values": {
+        "description": "Constant values are not emitted",
+        "status": "unsupported"
+      },
+      "dispatch": {
+        "description": "Static, method, dynamic and function-value dispatch from typeck; selected trait implementations from instance resolution",
+        "status": "supported"
+      },
+      "evaluation-order": {
+        "description": "Operands, assignments and branches in the order the language specifies",
+        "status": "supported"
+      },
+      "exceptional-flow": {
+        "description": "A panic ends its path; unwinding is not a transfer",
+        "status": "unsupported"
+      },
+      "generic-instances": {
+        "description": "Instances are not recorded",
+        "status": "unsupported"
+      },
+      "implicit-calls": {
+        "description": "Destructors and implicit conversions are not emitted",
+        "status": "unsupported"
+      },
+      "integer-semantics": {
+        "description": "Integer widths and signedness are recorded where types are",
+        "status": "approximated"
+      },
+      "lifetimes": {
+        "description": "Lifetimes are not emitted",
+        "status": "unsupported"
+      },
+      "macro-provenance": {
+        "description": "Macro-expanded and desugared nodes carry their outermost call site",
+        "status": "supported"
+      },
+      "mutability": {
+        "description": "Binding mutability from HIR binding modes",
+        "status": "supported"
+      },
+      "resolution": {
+        "description": "Paths and calls are resolved by rustc; built-in operators carry no references",
+        "status": "approximated"
+      },
+      "types": {
+        "description": "Types are recorded for signatures, places and called values only",
+        "status": "approximated"
+      }
+    },
+    "layers": {
+      "ast": {
+        "description": "The HIR tree with for, while and ? restored to their source shape",
+        "status": "supported"
+      },
+      "cfg": {
+        "description": "Every transfer but unwinding; closure bodies are opaque and coroutine bodies run in place",
+        "status": "approximated"
+      },
+      "evidence": {
+        "description": "Coverage declarations only",
+        "status": "approximated"
+      },
+      "extension": {
+        "description": "Reference patterns use rust:reference-pattern",
+        "status": "supported"
+      },
+      "method": {
+        "description": "Identity, spans, parameters and receiver; generics and lifetimes are not emitted",
+        "status": "approximated"
+      },
+      "place": {
+        "description": "Writes and exclusive borrows from rustc's expression-use visitor",
+        "status": "approximated"
+      },
+      "ref": {
+        "description": "Paths, calls and method calls",
+        "status": "approximated"
+      },
+      "symbol": {
+        "description": "Bindings with their reads and writes",
+        "status": "supported"
+      },
+      "type": {
+        "description": "Signature, place and called-value types",
+        "status": "approximated"
+      },
+      "unit": {
+        "description": "Unit files with content, target and edition",
+        "status": "supported"
+      },
+      "value": {
+        "description": "No compile-time values are emitted",
+        "status": "unsupported"
+      }
+    }
+  },
+  "document": "unit",
+  "layout": "bundled",
+  "producer": {
+    "name": "rstyle-driver",
+    "namespace": "rust",
+    "revision": "03bb587eee9eb8a88f5f2124158ba8995f6aa8b9",
+    "version": "0.1.0"
+  },
+  "profile": {
+    "id": "compat.cpg",
+    "version": "0.1.0"
+  },
+  "schema_version": "0.1.0",
+  "unit": {
+    "configuration": [
+      "debug_assertions",
+      "fmt_debug=\"full\"",
+      "overflow_checks",
+      "panic=\"unwind\"",
+      "relocation_model=\"pic\"",
+      "target_abi=\"\"",
+      "target_arch=\"aarch64\"",
+      "target_endian=\"little\"",
+      "target_env=\"gnu\"",
+      "target_family=\"unix\"",
+      "target_feature=\"neon\"",
+      "target_feature=\"outline-atomics\"",
+      "target_has_atomic",
+      "target_has_atomic=\"128\"",
+      "target_has_atomic=\"16\"",
+      "target_has_atomic=\"32\"",
+      "target_has_atomic=\"64\"",
+      "target_has_atomic=\"8\"",
+      "target_has_atomic=\"ptr\"",
+      "target_has_atomic_load_store",
+      "target_has_atomic_load_store=\"128\"",
+      "target_has_atomic_load_store=\"16\"",
+      "target_has_atomic_load_store=\"32\"",
+      "target_has_atomic_load_store=\"64\"",
+      "target_has_atomic_load_store=\"8\"",
+      "target_has_atomic_load_store=\"ptr\"",
+      "target_has_atomic_primitive_alignment=\"128\"",
+      "target_has_atomic_primitive_alignment=\"16\"",
+      "target_has_atomic_primitive_alignment=\"32\"",
+      "target_has_atomic_primitive_alignment=\"64\"",
+      "target_has_atomic_primitive_alignment=\"8\"",
+      "target_has_atomic_primitive_alignment=\"ptr\"",
+      "target_has_reliable_f128",
+      "target_has_reliable_f128_math",
+      "target_has_reliable_f16",
+      "target_has_reliable_f16_math",
+      "target_has_reliable_f16b",
+      "target_has_threads",
+      "target_object_format=\"elf\"",
+      "target_os=\"linux\"",
+      "target_pointer_width=\"64\"",
+      "target_thread_local",
+      "target_vendor=\"unknown\"",
+      "ub_checks",
+      "unix"
+    ],
+    "definitions": [
+      {
+        "compilation": "4fb79f9e16feedc9",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "32f06e8b887aa93fcf2246c66949279d",
+            "crate_name": "alloc",
+            "def_kind": "Struct",
+            "def_path": "alloc[4fb7]::string::String",
+            "def_path_hash": "DefPathHash(Fingerprint(5744235351073811913, 7654062566702167184))",
+            "generics": {
+              "count": 0,
+              "own": [],
+              "parented": false
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/liballoc-87b71dd0d25fbaca.rmeta",
+            "stable_crate_id": "StableCrateId(5744235351073811913)"
+          }
+        },
+        "id": "def:alloc::string::String",
+        "kind": "type",
+        "modifiers": [],
+        "name": "std::string::String",
+        "scope": "library",
+        "stable_identity": "alloc::string::String",
+        "standard": true
+      },
+      {
+        "compilation": "4fb79f9e16feedc9",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "32f06e8b887aa93fcf2246c66949279d",
+            "crate_name": "alloc",
+            "def_kind": "Impl { of_trait: false }",
+            "def_path": "alloc[4fb7]::string::{impl#0}",
+            "def_path_hash": "DefPathHash(Fingerprint(5744235351073811913, 8363164550859588862))",
+            "generics": {
+              "count": 0,
+              "own": [],
+              "parented": false
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/liballoc-87b71dd0d25fbaca.rmeta",
+            "stable_crate_id": "StableCrateId(5744235351073811913)"
+          }
+        },
+        "id": "def:alloc::string::{impl#0}",
+        "kind": "other",
+        "modifiers": [],
+        "name": "std::string::String",
+        "scope": "library",
+        "stable_identity": "alloc::string::{impl#0}",
+        "standard": true
+      },
+      {
+        "callable": {
+          "generics": 0,
+          "modifiers": [],
+          "owner_type": "type:std::string::String",
+          "parameters": [
+            "type:char"
+          ],
+          "receiver": "type:&mut std::string::String",
+          "result": "type:()"
+        },
+        "compilation": "4fb79f9e16feedc9",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "32f06e8b887aa93fcf2246c66949279d",
+            "crate_name": "alloc",
+            "def_kind": "AssocFn",
+            "def_path": "alloc[4fb7]::string::{impl#0}::push",
+            "def_path_hash": "DefPathHash(Fingerprint(5744235351073811913, 5284468375287512726))",
+            "generics": {
+              "count": 0,
+              "own": [],
+              "parented": true
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/liballoc-87b71dd0d25fbaca.rmeta",
+            "stable_crate_id": "StableCrateId(5744235351073811913)"
+          }
+        },
+        "id": "def:alloc::string::{impl#0}::push",
+        "kind": "method",
+        "modifiers": [],
+        "name": "std::string::String::push",
+        "operation": "rust:String.push",
+        "owner": "def:alloc::string::{impl#0}",
+        "scope": "library",
+        "stable_identity": "alloc::string::{impl#0}::push",
+        "standard": true
+      },
+      {
+        "callable": {
+          "generics": 0,
+          "modifiers": [],
+          "owner_type": "type:std::string::String",
+          "parameters": [
+            "type:usize"
+          ],
+          "result": "type:std::string::String"
+        },
+        "compilation": "4fb79f9e16feedc9",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "32f06e8b887aa93fcf2246c66949279d",
+            "crate_name": "alloc",
+            "def_kind": "AssocFn",
+            "def_path": "alloc[4fb7]::string::{impl#0}::with_capacity",
+            "def_path_hash": "DefPathHash(Fingerprint(5744235351073811913, 17589897816006638195))",
+            "generics": {
+              "count": 0,
+              "own": [],
+              "parented": true
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/liballoc-87b71dd0d25fbaca.rmeta",
+            "stable_crate_id": "StableCrateId(5744235351073811913)"
+          }
+        },
+        "id": "def:alloc::string::{impl#0}::with_capacity",
+        "kind": "function",
+        "modifiers": [],
+        "name": "std::string::String::with_capacity",
+        "operation": "rust:String.with_capacity",
+        "owner": "def:alloc::string::{impl#0}",
+        "scope": "library",
+        "stable_identity": "alloc::string::{impl#0}::with_capacity",
+        "standard": true
+      },
+      {
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "Trait",
+            "def_path": "core[4de9]::iter::traits::collect::IntoIterator",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 1089614804111167686))",
+            "diagnostic": "IntoIterator",
+            "generics": {
+              "count": 1,
+              "own": [
+                "type"
+              ],
+              "parented": false
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::iter::traits::collect::IntoIterator",
+        "kind": "trait",
+        "modifiers": [],
+        "name": "std::iter::IntoIterator",
+        "scope": "library",
+        "stable_identity": "core::iter::traits::collect::IntoIterator",
+        "standard": true
+      },
+      {
+        "callable": {
+          "generics": 0,
+          "modifiers": [
+            "const"
+          ],
+          "parameters": [],
+          "receiver": "type:Self#Self=0",
+          "result": "type:<Self as std::iter::IntoIterator>::IntoIter#Self=0"
+        },
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "AssocFn",
+            "def_path": "core[4de9]::iter::traits::collect::IntoIterator::into_iter",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 5923006674451191792))",
+            "generics": {
+              "count": 1,
+              "own": [],
+              "parented": true
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::iter::traits::collect::IntoIterator::into_iter",
+        "kind": "method",
+        "modifiers": [
+          "abstract"
+        ],
+        "name": "std::iter::IntoIterator::into_iter",
+        "operation": "rust:IntoIterator.into_iter",
+        "owner": "def:core::iter::traits::collect::IntoIterator",
+        "scope": "library",
+        "stable_identity": "core::iter::traits::collect::IntoIterator::into_iter",
+        "standard": true
+      },
+      {
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "Impl { of_trait: true }",
+            "def_path": "core[4de9]::iter::traits::collect::{impl#0}",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 3891494630356777291))",
+            "generics": {
+              "count": 1,
+              "own": [
+                "type"
+              ],
+              "parented": false
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::iter::traits::collect::{impl#0}",
+        "kind": "other",
+        "modifiers": [],
+        "name": "<I as std::iter::IntoIterator>",
+        "scope": "library",
+        "stable_identity": "core::iter::traits::collect::{impl#0}",
+        "standard": true
+      },
+      {
+        "callable": {
+          "generics": 0,
+          "modifiers": [
+            "const"
+          ],
+          "owner_type": "type:I#I=0",
+          "parameters": [],
+          "receiver": "type:I#I=0",
+          "result": "type:I#I=0"
+        },
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "AssocFn",
+            "def_path": "core[4de9]::iter::traits::collect::{impl#0}::into_iter",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 2342372928077460919))",
+            "generics": {
+              "count": 1,
+              "own": [],
+              "parented": true
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::iter::traits::collect::{impl#0}::into_iter",
+        "implements": "def:core::iter::traits::collect::IntoIterator::into_iter",
+        "kind": "method",
+        "modifiers": [],
+        "name": "<I as std::iter::IntoIterator>::into_iter",
+        "operation": "rust:core::iter::traits::collect::{impl#0}::into_iter",
+        "owner": "def:core::iter::traits::collect::{impl#0}",
+        "scope": "library",
+        "stable_identity": "core::iter::traits::collect::{impl#0}::into_iter",
+        "standard": true
+      },
+      {
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "Trait",
+            "def_path": "core[4de9]::iter::traits::iterator::Iterator",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 1577146506677873524))",
+            "diagnostic": "Iterator",
+            "generics": {
+              "count": 1,
+              "own": [
+                "type"
+              ],
+              "parented": false
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::iter::traits::iterator::Iterator",
+        "kind": "trait",
+        "modifiers": [],
+        "name": "std::iter::Iterator",
+        "scope": "library",
+        "stable_identity": "core::iter::traits::iterator::Iterator",
+        "standard": true
+      },
+      {
+        "callable": {
+          "generics": 0,
+          "modifiers": [
+            "const"
+          ],
+          "parameters": [],
+          "receiver": "type:&mut Self#Self=0",
+          "result": "type:std::option::Option<<Self as std::iter::Iterator>::Item>#Self=0"
+        },
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "AssocFn",
+            "def_path": "core[4de9]::iter::traits::iterator::Iterator::next",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 12446239520372717758))",
+            "generics": {
+              "count": 1,
+              "own": [],
+              "parented": true
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::iter::traits::iterator::Iterator::next",
+        "iteration": true,
+        "kind": "method",
+        "modifiers": [
+          "abstract"
+        ],
+        "name": "std::iter::Iterator::next",
+        "operation": "rust:Iterator.next",
+        "owner": "def:core::iter::traits::iterator::Iterator",
+        "scope": "library",
+        "stable_identity": "core::iter::traits::iterator::Iterator::next",
+        "standard": true
+      },
+      {
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "Enum",
+            "def_path": "core[4de9]::option::Option",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 5328416817104062757))",
+            "diagnostic": "Option",
+            "generics": {
+              "count": 1,
+              "own": [
+                "type"
+              ],
+              "parented": false
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::option::Option",
+        "kind": "type",
+        "modifiers": [],
+        "name": "std::option::Option",
+        "scope": "library",
+        "stable_identity": "core::option::Option",
+        "standard": true
+      },
+      {
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "Variant",
+            "def_path": "core[4de9]::option::Option::None",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 5257931994609130846))",
+            "enum": "def:core::option::Option",
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)",
+            "variant": "None"
+          }
+        },
+        "id": "def:core::option::Option::None",
+        "kind": "variant",
+        "modifiers": [],
+        "name": "std::prelude::v1::None",
+        "scope": "library",
+        "stable_identity": "core::option::Option::None",
+        "standard": true
+      },
+      {
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "Variant",
+            "def_path": "core[4de9]::option::Option::Some",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 8482939220703820612))",
+            "enum": "def:core::option::Option",
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)",
+            "variant": "Some"
+          }
+        },
+        "id": "def:core::option::Option::Some",
+        "kind": "variant",
+        "modifiers": [],
+        "name": "std::prelude::v1::Some",
+        "scope": "library",
+        "stable_identity": "core::option::Option::Some",
+        "standard": true
+      },
+      {
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "Struct",
+            "def_path": "core[4de9]::str::iter::Chars",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 6775233688093956676))",
+            "generics": {
+              "count": 1,
+              "own": [
+                "lifetime"
+              ],
+              "parented": false
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::str::iter::Chars",
+        "kind": "type",
+        "modifiers": [],
+        "name": "std::str::Chars",
+        "scope": "library",
+        "stable_identity": "core::str::iter::Chars",
+        "standard": true
+      },
+      {
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "Impl { of_trait: true }",
+            "def_path": "core[4de9]::str::iter::{impl#0}",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 8800368640665632414))",
+            "generics": {
+              "count": 1,
+              "own": [
+                "lifetime"
+              ],
+              "parented": false
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::str::iter::{impl#0}",
+        "kind": "other",
+        "modifiers": [],
+        "name": "<std::str::Chars<'a> as std::iter::Iterator>",
+        "scope": "library",
+        "stable_identity": "core::str::iter::{impl#0}",
+        "standard": true
+      },
+      {
+        "callable": {
+          "generics": 0,
+          "modifiers": [],
+          "owner_type": "type:std::str::Chars<'a>",
+          "parameters": [],
+          "receiver": "type:&mut std::str::Chars<'a>",
+          "result": "type:std::option::Option<char>"
+        },
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "AssocFn",
+            "def_path": "core[4de9]::str::iter::{impl#0}::next",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 754453462978185816))",
+            "generics": {
+              "count": 1,
+              "own": [],
+              "parented": true
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::str::iter::{impl#0}::next",
+        "implements": "def:core::iter::traits::iterator::Iterator::next",
+        "kind": "method",
+        "modifiers": [],
+        "name": "<std::str::Chars<'a> as std::iter::Iterator>::next",
+        "operation": "rust:core::str::iter::{impl#0}::next",
+        "owner": "def:core::str::iter::{impl#0}",
+        "scope": "library",
+        "stable_identity": "core::str::iter::{impl#0}::next",
+        "standard": true
+      },
+      {
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "Impl { of_trait: false }",
+            "def_path": "core[4de9]::str::{impl#0}",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 12047335833228775584))",
+            "generics": {
+              "count": 0,
+              "own": [],
+              "parented": false
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::str::{impl#0}",
+        "kind": "other",
+        "modifiers": [],
+        "name": "core::str::<impl str>",
+        "scope": "library",
+        "stable_identity": "core::str::{impl#0}",
+        "standard": true
+      },
+      {
+        "callable": {
+          "generics": 0,
+          "modifiers": [],
+          "owner_type": "type:str",
+          "parameters": [],
+          "receiver": "type:&str",
+          "result": "type:std::str::Chars<'_>"
+        },
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "AssocFn",
+            "def_path": "core[4de9]::str::{impl#0}::chars",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 15296602934460072629))",
+            "diagnostic": "str_chars",
+            "generics": {
+              "count": 0,
+              "own": [],
+              "parented": true
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::str::{impl#0}::chars",
+        "kind": "method",
+        "modifiers": [],
+        "name": "core::str::<impl str>::chars",
+        "operation": "rust:str.chars",
+        "owner": "def:core::str::{impl#0}",
+        "scope": "library",
+        "stable_identity": "core::str::{impl#0}::chars",
+        "standard": true
+      },
+      {
+        "callable": {
+          "generics": 1,
+          "modifiers": [],
+          "owner_type": "type:str",
+          "parameters": [
+            "type:P#P=0"
+          ],
+          "receiver": "type:&str",
+          "result": "type:bool"
+        },
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "AssocFn",
+            "def_path": "core[4de9]::str::{impl#0}::contains",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 2071470267014648209))",
+            "generics": {
+              "count": 1,
+              "own": [
+                "type"
+              ],
+              "parented": true
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::str::{impl#0}::contains",
+        "kind": "method",
+        "modifiers": [],
+        "name": "core::str::<impl str>::contains",
+        "operation": "rust:str.contains",
+        "owner": "def:core::str::{impl#0}",
+        "scope": "library",
+        "stable_identity": "core::str::{impl#0}::contains",
+        "standard": true
+      },
+      {
+        "callable": {
+          "generics": 0,
+          "modifiers": [
+            "const"
+          ],
+          "owner_type": "type:str",
+          "parameters": [],
+          "receiver": "type:&str",
+          "result": "type:usize"
+        },
+        "compilation": "4de9bd524a28c661",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_hash": "bdb4eda0487b663ec13960d84fc76cc8",
+            "crate_name": "core",
+            "def_kind": "AssocFn",
+            "def_path": "core[4de9]::str::{impl#0}::len",
+            "def_path_hash": "DefPathHash(Fingerprint(5614226571623188065, 16819204418595550297))",
+            "diagnostic": "str_len",
+            "generics": {
+              "count": 0,
+              "own": [],
+              "parented": true
+            },
+            "rmeta": "/home/dev/.rustup/toolchains/nightly-2026-09-30-aarch64-unknown-linux-gnu/lib/rustlib/aarch64-unknown-linux-gnu/lib/libcore-1c86ff50c1aaa40e.rmeta",
+            "stable_crate_id": "StableCrateId(5614226571623188065)"
+          }
+        },
+        "id": "def:core::str::{impl#0}::len",
+        "kind": "method",
+        "modifiers": [],
+        "name": "core::str::<impl str>::len",
+        "operation": "rust:str.len",
+        "owner": "def:core::str::{impl#0}",
+        "scope": "library",
+        "stable_identity": "core::str::{impl#0}::len",
+        "standard": true
+      },
+      {
+        "callable": {
+          "generics": 0,
+          "modifiers": [],
+          "parameters": [
+            "type:&str"
+          ],
+          "result": "type:std::string::String"
+        },
+        "compilation": "a737b693207a2d6c",
+        "extensions": {
+          "rust:compiler-identity": {
+            "crate_name": "rstyle_core",
+            "def_kind": "Fn",
+            "def_path": "rstyle_core[a737]::merge_risk::markdown::escape",
+            "def_path_hash": "DefPathHash(Fingerprint(12049300071074377068, 2274297828203332691))",
+            "generics": {
+              "count": 0,
+              "own": [],
+              "parented": false
+            },
+            "ident_span": {
+              "end": 21371,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21365
+            },
+            "parent": "rstyle_core[a737]::merge_risk::markdown",
+            "stable_crate_id": "StableCrateId(12049300071074377068)"
+          }
+        },
+        "id": "def:rstyle_core::merge_risk::markdown::escape",
+        "kind": "function",
+        "modifiers": [],
+        "name": "merge_risk::markdown::escape",
+        "scope": "unit",
+        "span": {
+          "end": 21631,
+          "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+          "start": 21362
+        },
+        "stable_identity": "rstyle_core::merge_risk::markdown::escape"
+      }
+    ],
+    "files": [
+      {
+        "content": "//! Pure evaluation of style rules over facts extracted by `rstyle-driver`.\n\npub mod advisory;\npub mod align;\npub mod candidates;\npub mod cli_args;\npub mod clip;\npub mod cluster;\npub mod complexity;\npub mod complexity_report;\npub mod config;\npub mod cpg;\npub mod defects_report;\npub mod dispatch;\npub mod exclusions;\npub mod facts;\npub mod filter;\npub mod graph;\npub mod groups;\npub mod ledger;\npub mod lines;\npub mod locator;\npub mod merge_risk;\npub mod normalize;\npub mod paths;\npub mod patterns_report;\npub mod pdg_builder;\n#[cfg(test)]\nmod pdgtest;\npub mod prep;\npub mod report;\npub mod rules;\npub mod runtime_bounds;\npub mod sarif;\npub mod shape;\npub mod sigmine;\npub mod spacing;\npub mod stacking;\npub mod strict_style;\npub mod suppress;\npub mod unified;\npub mod versioned;\npub mod wl;\npub mod wl_trace;\npub mod wording;\n\nuse config::Config;\nuse facts::FnFacts;\nuse report::{Diagnostic, Report, Summary};\nuse std::borrow::Cow;\nuse std::collections::BTreeMap;\nuse suppress::Suppression;\n\nfn rule_diagnostics(f: &FnFacts, effects: &[rules::Effect], cfg: &Config) -> Vec<Diagnostic> {\n    let source_lines = lines::code_lines(&f.source);\n    [\n        rules::fn_length_with_lines(f, cfg, source_lines),\n        rules::fn_params(f, cfg),\n        strict_style::fn_spacing(f, cfg),\n        rules::complexity(f, cfg),\n        rules::mutation_budget(f, &cfg.mutation_budget),\n        rules::side_effect_density_with_lines(f, effects, cfg, || source_lines),\n        strict_style::guard_clause(f, cfg),\n    ]\n    .concat()\n}\n\nfn invalid_suppression(f: &FnFacts, message: &str) -> Diagnostic {\n    Diagnostic {\n        path: f.path.clone(),\n        line: f.line,\n        column: f.column,\n        rule_id: \"invalid_suppression\".into(),\n        message: format!(\"function `{}`: {message}\", f.name),\n        actual: 1,\n        limit: 0,\n        details: vec![],\n        source: f.whole_lines(),\n    }\n}\n\nfn function_diagnostics(\n    f: &FnFacts,\n    effects: &[rules::Effect],\n    cfg: &Config,\n    across_the_run: Vec<Diagnostic>,\n) -> (Vec<Diagnostic>, Suppression) {\n    let mut out = rule_diagnostics(f, effects, cfg);\n    out.extend(across_the_run);\n\n    let suppression = suppress::parse(&f.preceding_line);\n    match &suppression {\n        Suppression::None => {}\n        Suppression::Allow(rules) => out.retain(|d| !rules.contains(&d.rule_id)),\n        Suppression::Invalid(message) => out.push(invalid_suppression(f, message)),\n    }\n    (out, suppression)\n}\n\nfn effect_counts<'a>(effects: impl Iterator<Item = &'a rules::Effect>) -> BTreeMap<String, usize> {\n    let mut counts = BTreeMap::new();\n    for effect in effects {\n        *counts.entry(effect.kind.name().to_string()).or_default() += 1;\n    }\n    counts\n}\n\nfn summarize(\n    facts: &[FnFacts],\n    effects: &[Vec<rules::Effect>],\n    policies: &[Cow<Config>],\n    violations: usize,\n) -> Summary {\n    let (density_sum, max_density_milli) = facts\n        .iter()\n        .zip(effects)\n        .zip(policies)\n        .map(|((f, e), policy)| rules::density_milli(f, e, policy))\n        .fold((0u128, 0), |(sum, maximum), density| {\n            (sum + density as u128, maximum.max(density))\n        });\n    let measured = facts\n        .iter()\n        .filter(|fact| fact.complexity.is_some())\n        .count();\n    Summary {\n        functions: facts.len(),\n        violations,\n        complexity_measured: measured,\n        complexity_unavailable: facts.len() - measured,\n        mean_density_milli: (density_sum / facts.len().max(1) as u128) as usize,\n        density_sum_milli: usize::try_from(density_sum).ok(),\n        max_density_milli,\n        effect_counts: effect_counts(effects.iter().flatten()),\n    }\n}\n\n/// Observed effects and existing suppression boundaries for a borrowed graph owner.\npub trait EffectSource: graph::EffectInput {\n    fn direct_effects(&self, config: &Config) -> Vec<rules::Effect>;\n    fn effect_boundary(&self) -> bool;\n}\n\nimpl<F: std::borrow::Borrow<FnFacts>> EffectSource for F {\n    fn direct_effects(&self, config: &Config) -> Vec<rules::Effect> {\n        rules::effects_of(self.borrow(), config)\n    }\n    fn effect_boundary(&self) -> bool {\n        graph::is_boundary(self.borrow())\n    }\n}\n\n/// Direct effects of every function plus what it inherits through the call graph.\npub fn all_effects<F: EffectSource>(\n    facts: &[F],\n    graph: &graph::Graph,\n    cfg: &Config,\n) -> Vec<Vec<rules::Effect>> {\n    let mut direct: Vec<_> = facts.iter().map(|f| f.direct_effects(cfg)).collect();\n    graph.add_open_calls(&mut direct);\n\n    let boundary: Vec<_> = facts.iter().map(EffectSource::effect_boundary).collect();\n    let inputs = graph::Inputs {\n        facts,\n        graph,\n        direct: &direct,\n        boundary: &boundary,\n    };\n    graph::propagate(&inputs, cfg.side_effects.transitive_depth)\n}\n\n/// Evaluates all rules. Input order does not matter: facts are merged first.\npub fn evaluate(facts: Vec<FnFacts>, cfg: &Config) -> Result<Report, String> {\n    evaluate_and_retain(facts, cfg).map(|(report, _)| report)\n}\n\n/// Return the merged, path-selected observations for another consumer without copying bodies.\npub fn evaluate_and_retain(\n    facts: Vec<FnFacts>,\n    cfg: &Config,\n) -> Result<(Report, Vec<FnFacts>), String> {\n    evaluate_inputs(facts, cfg, Retention::Report, None)\n        .map(|evaluation| (evaluation.report, evaluation.facts))\n}\n\n/// Completed diagnostic ownership follows report sorting without location-based inference.\npub struct Evaluation {\n    pub report: Report,\n    pub facts: Vec<FnFacts>,\n    /// One index into `facts` for each diagnostic in `report`.\n    pub diagnostic_owners: Vec<usize>,\n    /// Explicit consumers may retain completed suppression scopes and excluded observations.\n    pub scopes: Option<Scopes>,\n    /// Opt-in completed effects, keyed by the original selected owner ID.\n    pub effects: Option<BTreeMap<String, Vec<rules::Effect>>>,\n}\n\n#[derive(Default)]\npub struct Scopes {\n    /// Aligned with the selected facts, from their completed rule evaluation.\n    pub suppressions: Vec<Suppression>,\n    pub excluded: Vec<FnFacts>,\n}\n\n#[derive(Clone, Copy)]\npub enum Retention {\n    Report,\n    Owners,\n    Scopes,\n}\n\npub fn evaluate_with_owners(facts: Vec<FnFacts>, cfg: &Config) -> Result<Evaluation, String> {\n    evaluate_inputs(facts, cfg, Retention::Owners, None)\n}\n\n/// Retain completed numeric scope outcomes without evaluating a rule or parsing a comment again.\npub fn evaluate_with_scopes(facts: Vec<FnFacts>, cfg: &Config) -> Result<Evaluation, String> {\n    evaluate_inputs(facts, cfg, Retention::Scopes, None)\n}\n\n/// Evaluate with only the requested run-local metadata retained.\npub fn evaluate_retained(\n    facts: Vec<FnFacts>,\n    cfg: &Config,\n    retention: Retention,\n) -> Result<Evaluation, String> {\n    evaluate_inputs(facts, cfg, retention, None)\n}\n\n/// Consume completed effects from the same policy and scoped owners; missing results are errors.\n/// The consumer resolves cross-unit targets; core still owns propagation and rule policy.\npub fn evaluate_with_effects(\n    facts: Vec<FnFacts>,\n    cfg: &Config,\n    retention: Retention,\n    effects: BTreeMap<String, Vec<rules::Effect>>,\n) -> Result<Evaluation, String> {\n    evaluate_inputs(facts, cfg, retention, Some(effects))\n}\n\n/// Retain the effects already used for diagnostics, moving their vectors without reevaluation.\n/// Supplied effects must belong to these scoped owners and the same configuration, as in\n/// `evaluate_with_effects`. Retention of effects is independent of diagnostic scope metadata.\npub fn evaluate_retaining_effects(\n    facts: Vec<FnFacts>,\n    cfg: &Config,\n    retention: Retention,\n    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,\n) -> Result<Evaluation, String> {\n    evaluate_observations(\n        EvaluationInputs {\n            facts,\n            retention,\n            completed,\n            retain_effects: true,\n        },\n        cfg,\n    )\n}\n\n/// Selected compiler observations and completed effects for consumers that do not request rules.\npub struct EffectObservations {\n    pub facts: Vec<FnFacts>,\n    pub effects: BTreeMap<String, Vec<rules::Effect>>,\n}\n\n/// Reuse observation ordering, merging and path exclusions without evaluating effects or rules.\npub fn selected_observations(facts: Vec<FnFacts>, cfg: &Config) -> Result<Vec<FnFacts>, String> {\n    select_facts(facts, cfg, &mut None)\n}\n\n/// Reuse the evaluator's merge, exclusion and propagation steps without numeric diagnostics.\n/// Supplied effects have the same owner/configuration contract as `evaluate_with_effects`.\npub fn effect_observations(\n    facts: Vec<FnFacts>,\n    cfg: &Config,\n    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,\n) -> Result<EffectObservations, String> {\n    let facts = selected_observations(facts, cfg)?;\n    let effects = match completed {\n        Some(completed) => take_completed_effects(&facts, completed)?,\n        None => all_effects(&facts, &graph::build(&facts), cfg),\n    };\n    Ok(EffectObservations {\n        effects: own_effects(&facts, effects),\n        facts,\n    })\n}\n\nfn own_effects(\n    facts: &[FnFacts],\n    effects: Vec<Vec<rules::Effect>>,\n) -> BTreeMap<String, Vec<rules::Effect>> {\n    facts\n        .iter()\n        .zip(effects)\n        .map(|(fact, effects)| (fact.id.clone(), effects))\n        .collect()\n}\n\nstruct EvaluationInputs {\n    facts: Vec<FnFacts>,\n    retention: Retention,\n    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,\n    retain_effects: bool,\n}\n\nstruct RuleInputs<'a> {\n    facts: &'a [FnFacts],\n    effects: &'a [Vec<rules::Effect>],\n    /// Read for rules across the whole run.\n    cfg: &'a Config,\n    /// One per fact: the run's config with its path's overrides merged in.\n    policies: &'a [Cow<'a, Config>],\n}\n\nfn evaluated_diagnostics(\n    inputs: RuleInputs<'_>,\n    retention: Retention,\n    scopes: &mut Option<Scopes>,\n) -> (Vec<usize>, Vec<Diagnostic>) {\n    if matches!(retention, Retention::Report) {\n        let mut diagnostics = collect_diagnostics(inputs, |_, diagnostic| diagnostic, None);\n        report::sort(&mut diagnostics);\n        return (Vec::new(), diagnostics);\n    }\n    let mut owned = collect_diagnostics(\n        inputs,\n        |owner, diagnostic| (owner, diagnostic),\n        scopes.as_mut().map(|scopes| &mut scopes.suppressions),\n    );\n    owned.sort_by(|(_, a), (_, b)| report::ordering(a, b));\n    owned.into_iter().unzip()\n}\n\nfn collect_diagnostics<T>(\n    inputs: RuleInputs<'_>,\n    emit: impl Fn(usize, Diagnostic) -> T,\n    mut scopes: Option<&mut Vec<Suppression>>,\n) -> Vec<T> {\n    let across_the_run = strict_style::across_the_run(inputs.facts, inputs.cfg);\n    inputs\n        .facts\n        .iter()\n        .zip(inputs.effects)\n        .zip(inputs.policies)\n        .zip(across_the_run)\n        .enumerate()\n        .flat_map(|(owner, (((f, e), policy), across_the_run))| {\n            let emit = &emit;\n            let (diagnostics, suppression) = function_diagnostics(f, e, policy, across_the_run);\n            if let Some(scopes) = scopes.as_mut() {\n                scopes.push(suppression);\n            }\n            diagnostics\n                .into_iter()\n                .map(move |diagnostic| emit(owner, diagnostic))\n        })\n        .collect()\n}\n\nfn evaluate_inputs(\n    facts: Vec<FnFacts>,\n    cfg: &Config,\n    retention: Retention,\n    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,\n) -> Result<Evaluation, String> {\n    evaluate_observations(\n        EvaluationInputs {\n            facts,\n            retention,\n            completed,\n            retain_effects: false,\n        },\n        cfg,\n    )\n}\n\nfn evaluate_observations(inputs: EvaluationInputs, cfg: &Config) -> Result<Evaluation, String> {\n    let EvaluationInputs {\n        facts,\n        retention,\n        completed,\n        retain_effects,\n    } = inputs;\n    let mut scopes = matches!(retention, Retention::Scopes).then(Scopes::default);\n    let facts = select_facts(facts, cfg, &mut scopes)?;\n    let graph = graph::build(&facts);\n    let effects = completed_effects(&facts, &graph, cfg, completed)?;\n    let policies: Vec<_> = facts.iter().map(|f| cfg.for_path(&f.path)).collect();\n\n    let (diagnostic_owners, diagnostics) = evaluated_diagnostics(\n        RuleInputs {\n            facts: &facts,\n            effects: &effects,\n            cfg,\n            policies: &policies,\n        },\n        retention,\n        &mut scopes,\n    );\n    let summary = summarize(&facts, &effects, &policies, diagnostics.len());\n    let fix_groups = groups::build(&facts, &graph, &diagnostics, cfg);\n    let functions = complexity_report::findings(&facts, &diagnostics);\n    let effects = retain_effects.then(|| own_effects(&facts, effects));\n    Ok(Evaluation {\n        report: Report {\n            diagnostics,\n            summary,\n            fix_groups,\n            functions,\n        },\n        facts,\n        diagnostic_owners,\n        scopes,\n        effects,\n    })\n}\n\nfn select_facts(\n    facts: Vec<FnFacts>,\n    cfg: &Config,\n    scopes: &mut Option<Scopes>,\n) -> Result<Vec<FnFacts>, String> {\n    let excluded = exclusions::Matcher::compile(&cfg.exclude.0)?;\n    Ok(facts::merge(facts)\n        .into_iter()\n        .filter_map(|fact| {\n            if excluded.is_excluded(std::path::Path::new(&fact.path)) {\n                if let Some(scopes) = scopes.as_mut() {\n                    scopes.excluded.push(fact);\n                }\n                None\n            } else {\n                Some(fact)\n            }\n        })\n        .collect())\n}\n\nfn completed_effects(\n    facts: &[FnFacts],\n    graph: &graph::Graph,\n    cfg: &Config,\n    completed: Option<BTreeMap<String, Vec<rules::Effect>>>,\n) -> Result<Vec<Vec<rules::Effect>>, String> {\n    match completed {\n        None => Ok(all_effects(facts, graph, cfg)),\n        Some(completed) => take_completed_effects(facts, completed),\n    }\n}\n\nfn take_completed_effects(\n    facts: &[FnFacts],\n    mut completed: BTreeMap<String, Vec<rules::Effect>>,\n) -> Result<Vec<Vec<rules::Effect>>, String> {\n    facts\n        .iter()\n        .map(|fact| {\n            completed\n                .remove(&fact.id)\n                .ok_or_else(|| \"Missing completed compiler effects\".to_string())\n        })\n        .collect()\n}\n\n#[cfg(test)]\nmod tests {\n    mod completed_effects;\n    use super::*;\n    use facts::{MutationEvent, sample};\n\n    fn four_params(name: &str) -> FnFacts {\n        FnFacts {\n            params: 5,\n            ..sample(name)\n        }\n    }\n\n    #[test]\n    fn source_rules_preserve_independent_line_limits_across_nested_comments() {\n        let mut facts = sample(\"source\");\n        facts.source = \"fn source() {\\n/* outer\\n/* nested */\\n*/\\nvalue();\\n}\\n\".into();\n        facts.statements = 3;\n        let effects = [rules::Effect {\n            kind: facts::EffectKind::Io,\n            label: \"write\".into(),\n            line: 5,\n            via: None,\n        }];\n        let mut config = Config::default();\n        config.fn_length.max_lines = 2;\n        config.side_effects.min_lines = 3;\n\n        let (diagnostics, _) = function_diagnostics(&facts, &effects, &config, vec![]);\n        assert_eq!(diagnostics.len(), 2);\n        assert_eq!(diagnostics[0].rule_id, \"fn_length\");\n        assert_eq!(diagnostics[0].actual, 3);\n        assert_eq!(diagnostics[1].rule_id, \"side_effect_density\");\n        assert_eq!(diagnostics[1].actual, 1000);\n        config.side_effects.min_lines = 4;\n        let (diagnostics, _) = function_diagnostics(&facts, &effects, &config, vec![]);\n        assert_eq!(diagnostics.len(), 1);\n        assert_eq!(diagnostics[0].rule_id, \"fn_length\");\n    }\n\n    #[test]\n    fn default_evaluation_keeps_no_owner_roster_and_preserves_the_report() {\n        let plain = evaluate_inputs(\n            vec![four_params(\"original\")],\n            &Config::default(),\n            Retention::Report,\n            None,\n        )\n        .unwrap();\n        let owned =\n            evaluate_with_owners(vec![four_params(\"original\")], &Config::default()).unwrap();\n        assert!(plain.scopes.is_none());\n        assert_eq!(\n            plain.report.summary.density_sum_milli,\n            Some(plain.report.summary.mean_density_milli)\n        );\n        assert!(owned.scopes.is_none());\n        assert_eq!(plain.diagnostic_owners.capacity(), 0);\n        assert_eq!(plain.report, owned.report);\n        assert_eq!(owned.diagnostic_owners, vec![0]);\n    }\n\n    #[test]\n    fn borrowed_completed_effects_preserve_reports_and_require_every_selected_owner() {\n        let facts = four_params(\"owner\");\n        let buffer = facts.source.as_ptr();\n        let config = Config::default();\n        let borrowed = vec![&facts];\n        let graph = graph::build_resolved(&borrowed, |_, _| Vec::new());\n        let effects = all_effects(&borrowed, &graph, &config);\n        let completed = BTreeMap::from([(facts.id.clone(), effects.into_iter().next().unwrap())]);\n        let expected = evaluate(vec![facts.clone()], &config).unwrap();\n        let evaluated =\n            evaluate_with_effects(vec![facts], &config, Retention::Scopes, completed).unwrap();\n        assert_eq!(evaluated.report, expected);\n        assert_eq!(evaluated.facts[0].source.as_ptr(), buffer);\n        assert!(\n            evaluate_with_effects(\n                vec![four_params(\"missing\")],\n                &config,\n                Retention::Report,\n                BTreeMap::new()\n            )\n            .is_err()\n        );\n    }\n\n    #[test]\n    fn completed_scopes_retain_suppressions_and_move_excluded_source_buffers() {\n        let mut excluded = four_params(\"excluded\");\n        excluded.path = \"generated/file.rs\".into();\n        let buffer = excluded.source.as_ptr();\n        let mut allowed = four_params(\"allowed\");\n        allowed.preceding_line = \"// rstyle-allow(fn_params): fixture\".into();\n        let config: Config = toml::from_str(\"exclude=['generated/**']\").unwrap();\n        let original = vec![excluded, allowed, four_params(\"reported\")];\n        let expected = evaluate(original.clone(), &config).unwrap();\n        let evaluated = evaluate_with_scopes(original, &config).unwrap();\n        assert_eq!(evaluated.report, expected);\n        let scopes = evaluated.scopes.unwrap();\n        assert_eq!(scopes.excluded.len(), 1);\n        assert_eq!(scopes.excluded[0].source.as_ptr(), buffer);\n        assert_eq!(scopes.suppressions.len(), evaluated.facts.len());\n        for (fact, suppression) in evaluated.facts.iter().zip(&scopes.suppressions) {\n            match fact.name.as_str() {\n                \"allowed\" => assert_eq!(suppression, &Suppression::Allow(vec![\"fn_params\".into()])),\n                \"reported\" => assert_eq!(suppression, &Suppression::None),\n                other => panic!(\"unexpected selected owner: {other}\"),\n            }\n        }\n        assert_eq!(evaluated.report.diagnostics.len(), 1);\n        assert_eq!(\n            evaluated.facts[evaluated.diagnostic_owners[0]].name,\n            \"reported\"\n        );\n    }\n\n    #[test]\n    fn completed_diagnostic_owners_survive_sorting_and_shared_source_positions() {\n        let mut first = four_params(\"zeta\");\n        first.path = \"same.rs\".into();\n        first.line = 3;\n        first.column = 8;\n        let mut second = four_params(\"alpha\");\n        second.path = \"same.rs\".into();\n        second.line = 3;\n        second.column = 2;\n        let buffers = [first.source.as_ptr(), second.source.as_ptr()];\n        let evaluated = evaluate_with_owners(vec![first, second], &Config::default()).unwrap();\n        let associations: Vec<_> = evaluated\n            .report\n            .diagnostics\n            .iter()\n            .zip(&evaluated.diagnostic_owners)\n            .map(|(diagnostic, owner)| {\n                (\n                    diagnostic.column,\n                    diagnostic.rule_id.as_str(),\n                    evaluated.facts[*owner].name.as_str(),\n                )\n            })\n            .collect();\n        assert_eq!(\n            associations,\n            vec![(2, \"fn_params\", \"alpha\"), (8, \"fn_params\", \"zeta\")]\n        );\n        assert!(\n            evaluated\n                .facts\n                .iter()\n                .all(|fact| buffers.contains(&fact.source.as_ptr()))\n        );\n    }\n\n    #[test]\n    fn suppression_removes_only_named_rule() {\n        let mut f = four_params(\"f\");\n        f.preceding_line = \"// rstyle-allow(fn_params): ffi shim\".into();\n        f.mutations = (1..=4)\n            .map(|line| MutationEvent {\n                origin: crate::facts::MutationOrigin::Source,\n                root: \"v\".into(),\n                field_path: String::new(),\n                line,\n                escapes: true,\n                delegated: false,\n            })\n            .collect();\n        let report = evaluate(vec![f], &Config::default()).unwrap();\n        let ids: Vec<_> = report\n            .diagnostics\n            .iter()\n            .map(|d| d.rule_id.as_str())\n            .collect();\n        assert_eq!(ids, [\"mutation_per_target\"]);\n    }\n\n    #[test]\n    fn suppression_without_reason_is_reported() {\n        let mut f = four_params(\"f\");\n        f.preceding_line = \"// rstyle-allow(fn_params)\".into();\n        let report = evaluate(vec![f], &Config::default()).unwrap();\n        let ids: Vec<_> = report\n            .diagnostics\n            .iter()\n            .map(|d| d.rule_id.as_str())\n            .collect();\n        assert_eq!(ids, [\"fn_params\", \"invalid_suppression\"]);\n    }\n\n    #[test]\n    fn output_is_independent_of_input_order() {\n        let mut b = four_params(\"b\");\n        b.path = \"src/b.rs\".into();\n        let one = evaluate(vec![four_params(\"a\"), b.clone()], &Config::default()).unwrap();\n        let two = evaluate(vec![b, four_params(\"a\")], &Config::default()).unwrap();\n        assert_eq!(one, two);\n    }\n\n    #[test]\n    fn excluded_paths_are_dropped() {\n        let mut f = four_params(\"f\");\n        f.path = \"target/gen/x.rs\".into();\n        let report = evaluate(vec![f], &Config::default()).unwrap();\n        assert_eq!(report.summary.functions, 0);\n        assert!(report.diagnostics.is_empty());\n    }\n\n    #[test]\n    fn retained_inputs_follow_policy_exclusions_without_copying_body_buffers() {\n        let mut kept = four_params(\"kept\");\n        kept.pdg = Some(crate::pdgtest::emit_loop(\"Cow\", \"value\"));\n        let source = kept.source.as_ptr();\n        let nodes = kept.pdg.as_ref().unwrap().nodes.as_ptr();\n        let mut excluded = sample(\"excluded\");\n        excluded.path = \"target/generated.rs\".into();\n        let (report, retained) =\n            evaluate_and_retain(vec![excluded, kept], &Config::default()).unwrap();\n        assert_eq!(report.summary.functions, 1);\n        assert!(\n            report\n                .diagnostics\n                .iter()\n                .any(|row| row.rule_id == \"fn_params\")\n        );\n        assert_eq!(retained.len(), 1);\n        assert_eq!(retained[0].source.as_ptr(), source);\n        assert_eq!(retained[0].pdg.as_ref().unwrap().nodes.as_ptr(), nodes);\n    }\n\n    #[test]\n    fn summary_math() {\n        let mut heavy = sample(\"heavy\");\n        heavy.line = 5;\n        heavy.statements = 4;\n        heavy.calls = vec![facts::CallEvent {\n            callee: \"std::fs::write\".into(),\n            line: 6,\n            dynamic: false,\n            library: None,\n            library_callee: None,\n        }];\n        let report = evaluate(vec![sample(\"pure\"), heavy], &Config::default()).unwrap();\n        assert_eq!(report.summary.functions, 2);\n        assert_eq!(report.summary.max_density_milli, 750);\n        assert_eq!(report.summary.mean_density_milli, 375);\n        assert_eq!(report.summary.effect_counts[\"io\"], 1);\n    }\n\n    #[test]\n    fn overrides_apply_per_function_path() {\n        let cfg = Config::parse(\n            r#\"\n[[overrides]]\npaths = [\"**/adapters/**\"]\nfn_params = { max_params = 5 }\nside_effects.weights = { io = 1 }\n\"#,\n        )\n        .unwrap();\n        let writer = |path: &str| FnFacts {\n            path: path.into(),\n            source: format!(\"fn w() {{\\n{}}}\", \"w();\\n\".repeat(10)),\n            statements: 4,\n            calls: vec![facts::CallEvent {\n                callee: \"std::fs::write\".into(),\n                line: 2,\n                dynamic: false,\n                library: None,\n                library_callee: None,\n            }],\n            ..four_params(&path.replace('/', \"_\"))\n        };\n        let report = evaluate(\n            vec![\n                writer(\"src/adapters/store.rs\"),\n                writer(\"src/domain/rules.rs\"),\n            ],\n            &cfg,\n        )\n        .unwrap();\n        let rules: Vec<_> = report\n            .diagnostics\n            .iter()\n            .map(|d| (d.path.as_str(), d.rule_id.as_str()))\n            .collect();\n        assert_eq!(\n            rules,\n            [\n                (\"src/domain/rules.rs\", \"fn_params\"),\n                (\"src/domain/rules.rs\", \"side_effect_density\"),\n            ]\n        );\n    }\n}\n",
+        "digest": "sha256:eee14f7d38c14823aafbc8844a0841f3da605c61d683e11fecf143431acc585b",
+        "id": "file:crates/rstyle-core/src/lib.rs",
+        "origin": "source",
+        "path": "crates/rstyle-core/src/lib.rs"
+      },
+      {
+        "content": "//! The report as Markdown, for a pull request's description. The rating comes first, with each\n//! check that holds it above low and why. Two folds follow: a table of what changed at a glance,\n//! and every changed function in a table per file. A check is one of the rules the rating is the\n//! strongest reason of, so the headline is the worst check by construction.\n\nuse super::rating::{\n    ADDED_CALL, ANALYSIS_UNAVAILABLE, Level, PDG_CHANGE, Reason, UNCLASSIFIED_CALL,\n    UNRESOLVED_CALLS,\n};\nuse super::{ChangeKind, ChangeReport, EffectChange, FunctionChange};\nuse sha2::{Digest, Sha256};\nuse std::collections::{BTreeMap, BTreeSet};\n\n/// The rating's rules, in the order a reader should meet them, with the name each check goes by.\nconst CHECKS: [(&str, &str); 5] = [\n    (PDG_CHANGE, \"Changed code\"),\n    (ADDED_CALL, \"Calls a rule names\"),\n    (UNCLASSIFIED_CALL, \"Unclassified library calls\"),\n    (UNRESOLVED_CALLS, \"Calls to unknown targets\"),\n    (ANALYSIS_UNAVAILABLE, \"Changes outside functions\"),\n];\n\n/// How many callees a check's line names, and how many unclassified calls the table lists.\nconst CALLEES_SHOWN: usize = 3;\nconst CALLS_SHOWN: usize = 10;\n\nconst KINDS: [ChangeKind; 5] = [\n    ChangeKind::Changed,\n    ChangeKind::Added,\n    ChangeKind::Removed,\n    ChangeKind::TextOnly,\n    ChangeKind::Unknown,\n];\n\nimpl ChangeReport {\n    /// `pull_request_url` names the GitHub PR whose diff the report links to, such as\n    /// `https://github.com/OWNER/REPO/pull/123`. Removed functions link to the base side;\n    /// other functions link to the head side. Without a URL, paths and names stay plain text.\n    pub fn markdown(&self, pull_request_url: Option<&str>) -> String {\n        let links =\n            Links(pull_request_url.map(|url| url.trim_end_matches('/').trim_end_matches(\"/files\")));\n        let risk = self.rating.risk;\n        let headline = format!(\"### {} Merge risk: {}\", icon(risk), risk.name());\n\n        [\n            Some(headline),\n            Some(self.why()),\n            Some(self.glance()),\n            self.functions(&links),\n        ]\n        .into_iter()\n        .flatten()\n        .collect::<Vec<_>>()\n        .join(\"\\n\\n\")\n    }\n\n    /// Each check above low, with what it found. An unrated report says why nothing is rated.\n    fn why(&self) -> String {\n        if !self.rating.policy_configured {\n            return \"Not rated: the base's `rstyle.toml` has no `[risk]` rules.\".to_owned();\n        }\n        let held: Vec<String> = CHECKS\n            .into_iter()\n            .filter_map(|(rule, title)| held(&self.rating.reasons, rule, title))\n            .collect();\n\n        match held.is_empty() {\n            true => \"Nothing holds it above low.\".to_owned(),\n            false => held.join(\"\\n\"),\n        }\n    }\n\n    fn glance(&self) -> String {\n        let rows = [\n            (\"Impact\", self.impact()),\n            (\"Signatures\", self.signatures()),\n            (\"Calls\", self.calls()),\n            (\"Effects\", self.effects()),\n            (\"Coverage\", self.coverage()),\n        ];\n        let rows = rows.map(|(check, result)| format!(\"| **{check}** | {} |\", cell(&result)));\n\n        format!(\n            \"<details><summary><strong>At a glance</strong></summary>\\n\\n\\\n             | Check | Result |\\n|---|---|\\n{}\\n\\n</details>\",\n            rows.join(\"\\n\")\n        )\n    }\n\n    fn files(&self) -> BTreeSet<&str> {\n        self.changes\n            .iter()\n            .map(|change| change.path.as_str())\n            .collect()\n    }\n\n    fn impact(&self) -> String {\n        if self.changes.is_empty() {\n            return \"no function changed\".to_owned();\n        }\n        let files = plural(self.files().len(), \"file\", \"files\");\n        let functions = plural(self.changes.len(), \"function\", \"functions\");\n        format!(\"{functions} in {files}: {}\", tally(&self.changes))\n    }\n\n    /// Every changed function's signature is compared, a text-only or unknown one's too, so none\n    /// changing is unchanged. What the comparison can't see is the coverage row's to say.\n    fn signatures(&self) -> String {\n        let changed = self\n            .changes\n            .iter()\n            .filter(|change| change.signature_changed)\n            .count();\n        match changed {\n            0 => \"✅ unchanged\".to_owned(),\n            count => format!(\"👀 {count} changed\"),\n        }\n    }\n\n    /// What the calls show, with no level of its own: the checks above say how they rate.\n    fn calls(&self) -> String {\n        let matched = self\n            .rating\n            .reasons\n            .iter()\n            .filter(|reason| reason.rule == ADDED_CALL)\n            .count();\n        let unclassified: usize = self\n            .changes\n            .iter()\n            .map(|change| change.calls_unclassified.len())\n            .sum();\n        let unresolved = self\n            .changes\n            .iter()\n            .filter(|change| change.unresolved_calls)\n            .count();\n        if matched > 0 {\n            return format!(\"👀 {} a rule names\", plural(matched, \"call\", \"calls\"));\n        }\n\n        let unknown = nonzero(unresolved, \"unknown target\", \"unknown targets\")\n            .map(|count| format!(\", {count}\"));\n        match unclassified + unresolved {\n            0 => \"✅ nothing new to flag\".to_owned(),\n            _ => format!(\n                \"👀 {} nothing classifies{}\",\n                plural(unclassified, \"new call\", \"new calls\"),\n                unknown.unwrap_or_default()\n            ),\n        }\n    }\n\n    fn effects(&self) -> String {\n        let gained = effect_kinds(&self.changes, |change| &change.effects_gained);\n        let lost = effect_kinds(&self.changes, |change| &change.effects_lost);\n        let said: Vec<String> = [(\"gains\", gained), (\"loses\", lost)]\n            .into_iter()\n            .filter(|(_, kinds)| !kinds.is_empty())\n            .map(|(verb, kinds)| format!(\"{verb} {}\", kinds.join(\", \")))\n            .collect();\n\n        match said.is_empty() {\n            true => \"✅ unchanged\".to_owned(),\n            false => format!(\"👀 {}\", said.join(\"; \")),\n        }\n    }\n\n    fn coverage(&self) -> String {\n        let count = |kind| {\n            self.changes\n                .iter()\n                .filter(|change| change.kind == kind)\n                .count()\n        };\n        let outside = nonzero(self.changed_outside_functions.len(), \"file\", \"files\")\n            .map(|count| count + \" changed outside a function\");\n        let gaps = [\n            outside,\n            nonzero(\n                count(ChangeKind::TextOnly),\n                \"text-only function\",\n                \"text-only functions\",\n            ),\n            nonzero(\n                count(ChangeKind::Unknown),\n                \"unknown function\",\n                \"unknown functions\",\n            ),\n            nonzero(self.tests_changed, \"test function\", \"test functions\")\n                .map(|count| count + \" not rated\"),\n            nonzero(\n                self.not_compared,\n                \"generated function\",\n                \"generated functions\",\n            )\n            .map(|count| count + \" not compared\"),\n        ];\n\n        let gaps: Vec<String> = gaps.into_iter().flatten().collect();\n        match gaps.is_empty() {\n            true => \"✅ no gaps\".to_owned(),\n            false => format!(\"👀 {}\", gaps.join(\"; \")),\n        }\n    }\n\n    /// Every changed function, in a table per file, then what no single function says.\n    fn functions(&self, links: &Links) -> Option<String> {\n        if self.changes.is_empty() {\n            return None;\n        }\n        let tables = self\n            .files()\n            .into_iter()\n            .map(|path| self.file_table(path, links));\n        let rest = [self.unclassified_table(), self.outside(links)];\n\n        let body: Vec<String> = tables.chain(rest.into_iter().flatten()).collect();\n        let summary = format!(\n            \"<strong>{}</strong> in {}\",\n            plural(self.changes.len(), \"function\", \"functions\"),\n            plural(self.files().len(), \"file\", \"files\")\n        );\n        Some(format!(\n            \"<details><summary>{summary}</summary>\\n\\n{}\\n\\n</details>\",\n            body.join(\"\\n\\n\")\n        ))\n    }\n\n    fn file_table(&self, path: &str, links: &Links) -> String {\n        let mut changes: Vec<&FunctionChange> = self\n            .changes\n            .iter()\n            .filter(|change| change.path == path)\n            .collect();\n        changes.sort_by_key(|change| change.line);\n        let rows = changes.into_iter().map(|change| {\n            let used = format!(\"{} ({} direct)\", change.reached_by, change.callers);\n            format!(\n                \"| {} | {} | {used} |\",\n                place(change, links),\n                cell(&what_changed(change))\n            )\n        });\n\n        let header = \"| Function | What changed | Used by |\\n|---|---|--:|\";\n        format!(\n            \"**{}**\\n\\n{header}\\n{}\",\n            links.file(path),\n            rows.collect::<Vec<_>>().join(\"\\n\")\n        )\n    }\n\n    /// The library calls nothing classifies, by how often the change makes them.\n    fn unclassified_table(&self) -> Option<String> {\n        let calls = self\n            .changes\n            .iter()\n            .flat_map(|change| change.calls_unclassified.iter());\n        let counted = calls.fold(BTreeMap::<String, usize>::new(), |mut counts, callee| {\n            *counts.entry(name(callee)).or_default() += 1;\n            counts\n        });\n        let mut ranked: Vec<(String, usize)> = counted.into_iter().collect();\n        ranked.sort_by(|(a, a_count), (b, b_count)| b_count.cmp(a_count).then(a.cmp(b)));\n        if ranked.is_empty() {\n            return None;\n        }\n\n        let rest = ranked.split_off(ranked.len().min(CALLS_SHOWN));\n        let rows = ranked\n            .into_iter()\n            .map(|(callee, count)| format!(\"| {} | {count} |\", cell(&code(&callee))));\n        let more = (!rest.is_empty()).then(|| {\n            let times: usize = rest.iter().map(|(_, count)| count).sum();\n            format!(\"| …{} more | {times} |\", rest.len())\n        });\n        let rows: Vec<String> = rows.chain(more).collect();\n        Some(format!(\n            \"**Unclassified library calls**\\n\\n| Call | Times |\\n|---|--:|\\n{}\",\n            rows.join(\"\\n\")\n        ))\n    }\n\n    fn outside(&self, links: &Links) -> Option<String> {\n        if self.changed_outside_functions.is_empty() {\n            return None;\n        }\n        let files: Vec<String> = self\n            .changed_outside_functions\n            .iter()\n            .map(|path| links.file(path))\n            .collect();\n        Some(format!(\n            \"**Changed outside any function:** {}\",\n            files.join(\", \")\n        ))\n    }\n}\n\n/// A check's line under the headline when it's above low: its strongest level and what it found\n/// there, with the callees it names.\nfn held(reasons: &[Reason], rule: &str, title: &str) -> Option<String> {\n    let found: Vec<&Reason> = reasons\n        .iter()\n        .filter(|reason| reason.rule == rule)\n        .collect();\n    let level = found\n        .iter()\n        .map(|reason| reason.level)\n        .reduce(Level::strongest)?;\n    if level.weight() <= Level::Low.weight() {\n        return None;\n    }\n\n    let at_level: Vec<&Reason> = found\n        .into_iter()\n        .filter(|reason| reason.level == level)\n        .collect();\n    let messages: BTreeSet<String> = at_level\n        .iter()\n        .map(|reason| without_callee(reason))\n        .collect();\n    let said = messages\n        .into_iter()\n        .map(|message| escape(&message))\n        .collect::<Vec<_>>()\n        .join(\"; \");\n    let callees = named_callees(&at_level);\n    Some(format!(\"- {} **{title}**: {said}{callees}.\", icon(level)))\n}\n\n/// A reason's message without the callee it names, so reasons that differ only by callee read as\n/// one.\nfn without_callee(reason: &Reason) -> String {\n    match reason.callee.as_deref() {\n        Some(callee) => reason\n            .message\n            .replace(callee, \"\")\n            .trim_end_matches([':', ' '])\n            .to_owned(),\n        None => reason.message.trim_end_matches('.').to_owned(),\n    }\n}\n\n/// The callees a check's reasons name, the first few of them.\nfn named_callees(reasons: &[&Reason]) -> String {\n    let callees: BTreeSet<String> = reasons\n        .iter()\n        .filter_map(|reason| reason.callee.as_deref())\n        .map(name)\n        .collect();\n    if callees.is_empty() {\n        return String::new();\n    }\n\n    let shown: Vec<String> = callees\n        .iter()\n        .take(CALLEES_SHOWN)\n        .map(|callee| code(callee))\n        .collect();\n    let more = callees.len().saturating_sub(CALLEES_SHOWN);\n    let rest = (more > 0).then(|| format!(\" and {more} more\"));\n    format!(\": {}{}\", shown.join(\", \"), rest.unwrap_or_default())\n}\n\n/// What changed in a function, in the order a reviewer weighs it.\nfn what_changed(change: &FunctionChange) -> String {\n    let flags = [\n        change\n            .signature_changed\n            .then(|| \"signature changed\".to_owned()),\n        change\n            .values_changed\n            .then(|| \"a known value changed\".to_owned()),\n        change\n            .unresolved_calls\n            .then(|| \"calls an unknown target\".to_owned()),\n        nonzero(\n            change.calls_unclassified.len(),\n            \"unclassified call\",\n            \"unclassified calls\",\n        ),\n        effect_change(\"gains\", &change.effects_gained),\n        effect_change(\"loses\", &change.effects_lost),\n    ];\n    // All of a new or removed function's calls are what it is, not what changed.\n    let moved = !matches!(change.kind, ChangeKind::Added | ChangeKind::Removed);\n    let new: Vec<&String> = change\n        .calls_added\n        .iter()\n        .filter(|callee| !change.calls_unclassified.contains(callee))\n        .collect();\n    let calls = [\n        moved.then(|| callees(\"now calls\", new)).flatten(),\n        moved\n            .then(|| callees(\"no longer calls\", change.calls_removed.iter().collect()))\n            .flatten(),\n    ];\n\n    std::iter::once(change.kind.name().to_owned())\n        .chain(flags.into_iter().flatten())\n        .chain(calls.into_iter().flatten())\n        .collect::<Vec<_>>()\n        .join(\"; \")\n}\n\nfn effect_change(verb: &str, effects: &[EffectChange]) -> Option<String> {\n    let kinds: BTreeSet<&str> = effects.iter().map(|effect| effect.kind).collect();\n    let kinds: Vec<&str> = kinds.into_iter().collect();\n    (!kinds.is_empty()).then(|| format!(\"{verb} {}\", kinds.join(\", \")))\n}\n\nfn callees(label: &str, callees: Vec<&String>) -> Option<String> {\n    if callees.is_empty() {\n        return None;\n    }\n    let names: Vec<String> = callees\n        .into_iter()\n        .map(|callee| code(&name(callee)))\n        .collect();\n    Some(format!(\"{label} {}\", names.join(\", \")))\n}\n\n/// The kinds of effect the changes gained, or lost, in order.\nfn effect_kinds(\n    changes: &[FunctionChange],\n    pick: fn(&FunctionChange) -> &[EffectChange],\n) -> Vec<&'static str> {\n    let kinds: BTreeSet<&'static str> = changes\n        .iter()\n        .flat_map(|change| pick(change).iter().map(|effect| effect.kind))\n        .collect();\n    kinds.into_iter().collect()\n}\n\n/// A function's name, linked to its line on the appropriate side of the PR diff.\nfn place(change: &FunctionChange, links: &Links) -> String {\n    let named = cell(&code(&name(&change.name)));\n    let side = match change.kind {\n        ChangeKind::Removed => 'L',\n        _ => 'R',\n    };\n    let line = (change.line > 0).then_some((side, change.line));\n    links.to(named, &change.path, line)\n}\n\n/// How many functions of each kind, kinds with none left out.\nfn tally(changes: &[FunctionChange]) -> String {\n    let count = |kind| changes.iter().filter(|change| change.kind == kind).count();\n    let said = KINDS\n        .into_iter()\n        .filter_map(|kind| nonzero(count(kind), kind.name(), kind.name()));\n    said.collect::<Vec<_>>().join(\", \")\n}\n\n/// The headline's mark: a color for a measured level, eyes for what needs a person.\nfn icon(level: Level) -> &'static str {\n    match level {\n        Level::Low => \"🟢\",\n        Level::Medium => \"🟡\",\n        Level::High => \"🔴\",\n        Level::Unknown => \"👀\",\n        Level::Unrated => \"⚪\",\n    }\n}\n\nfn plural(count: usize, one: &str, many: &str) -> String {\n    let noun = if count == 1 { one } else { many };\n    format!(\"{count} {noun}\")\n}\n\nfn nonzero(count: usize, one: &str, many: &str) -> Option<String> {\n    (count > 0).then(|| plural(count, one, many))\n}\n\n/// A function or callee without the module path or language prefix around it: a Rust method keeps\n/// its type, as `Links::to` for `markdown::Links::<'_>::to`, `ChangeReport::markdown` for\n/// `markdown::<impl merge_risk::ChangeReport>::markdown` and `slice::join` for\n/// `alloc::slice::{impl#0}::join`. A Go identity drops its import path's directories, as\n/// `native.load` for `go::github.com/o/r/native.load`. A C++ identity is read by [`cxx_name`].\nfn name(identity: &str) -> String {\n    if let Some(path) = cxx_path(identity) {\n        return cxx_name(&path);\n    }\n    if let Some((owner, item)) = impl_item(identity) {\n        return format!(\"{owner}::{item}\");\n    }\n    let raw: Vec<&str> = identity.split(\"::\").collect();\n    if let [.., owner, block, item] = raw.as_slice()\n        && block.starts_with(\"{impl\")\n    {\n        return format!(\"{owner}::{item}\");\n    }\n\n    let parts: Vec<&str> = raw\n        .into_iter()\n        .filter(|part| !part.starts_with(['<', '{']))\n        .collect();\n    match parts.as_slice() {\n        [.., owner, item] if owner.starts_with(char::is_uppercase) => format!(\"{owner}::{item}\"),\n        _ => short(parts.last().copied().unwrap_or(identity)),\n    }\n}\n\n/// A C++ callee's scopes and name, without what its signature adds: its template arguments,\n/// parameters, qualifiers and return type, any of which can hold a `::` of its own.\n/// `cxx::std::get_if<typename>(variant<…> *) -> typename add_pointer<…>::type` is `std::get_if`.\nfn cxx_path(identity: &str) -> Option<String> {\n    let signature = identity.strip_prefix(\"cxx::\")?;\n    let mut angles = 0_usize;\n    let mut path = String::with_capacity(signature.len());\n    for character in signature.chars() {\n        match character {\n            '<' => angles += 1,\n            '>' => angles = angles.saturating_sub(1),\n            // A scope such as `(anonymous namespace)` starts with one, and parameters follow a name.\n            '(' if angles == 0 && !path.is_empty() && !path.ends_with(\"::\") => break,\n            _ if angles == 0 => path.push(character),\n            _ => {}\n        }\n    }\n    Some(path)\n}\n\n/// A C++ name with the scope it's in, since a type in C++ is as often lowercase as not and a\n/// namespace tells `fs::remove` from `filesystem::remove`. A file or an anonymous namespace says\n/// nothing a reader can use, so a name in one stands alone.\nfn cxx_name(path: &str) -> String {\n    let mut parts = path.rsplit(\"::\");\n    let item = parts.next().unwrap_or(path);\n    match parts.next() {\n        Some(scope) if !scope.starts_with('(') && !scope.contains(['/', '.']) => {\n            format!(\"{scope}::{item}\")\n        }\n        _ => item.to_owned(),\n    }\n}\n\n/// The type and item of `…<impl path::Type>::item`.\nfn impl_item(name: &str) -> Option<(&str, &str)> {\n    let (_, rest) = name.rsplit_once(\"<impl \")?;\n    let (owner, item) = rest.split_once(\">::\")?;\n    Some((owner.rsplit(\"::\").next().unwrap_or(owner), item))\n}\n\n/// A name without the directories of its import path: `github.com/o/r/native.f` reads as\n/// `native.f`, and `(io/fs.FileInfo).Size` as `(fs.FileInfo).Size`.\nfn short(identity: &str) -> String {\n    let mut shortened = String::with_capacity(identity.len());\n    let mut segment = String::new();\n    for character in identity.chars() {\n        match character {\n            '/' => segment.clear(),\n            'A'..='Z' | 'a'..='z' | '0'..='9' | '.' | '-' | '_' | '~' => segment.push(character),\n            _ => {\n                shortened.push_str(&segment);\n                segment.clear();\n                shortened.push(character);\n            }\n        }\n    }\n\n    shortened.push_str(&segment);\n    shortened\n}\n\n/// Where the report links a file to, if anywhere.\nstruct Links<'a>(Option<&'a str>);\n\nimpl Links<'_> {\n    /// `text` as a link to a line of a file, or as it is.\n    fn to(&self, text: String, path: &str, line: Option<(char, usize)>) -> String {\n        let Some(root) = self.0 else {\n            return text;\n        };\n        // GitHub diff anchors hash the exact repository-relative UTF-8 path, not a URL-encoded path.\n        let digest = Sha256::digest(path.as_bytes());\n        let anchor = line\n            .map(|(side, line)| format!(\"{side}{line}\"))\n            .unwrap_or_default();\n        format!(\"[{text}]({root}/files#diff-{digest:x}{anchor})\")\n    }\n\n    fn file(&self, path: &str) -> String {\n        self.to(code(path), path, None)\n    }\n}\n\n/// A code span. It only holds identifiers and paths, which hold no backtick.\nfn code(text: &str) -> String {\n    format!(\"`{text}`\")\n}\n\n/// Text for a table cell, where a bare `|` would end the cell.\nfn cell(text: &str) -> String {\n    text.replace('|', \"\\\\|\")\n}\n\n/// Text with what Markdown would read as syntax escaped.\nfn escape(text: &str) -> String {\n    let mut escaped = String::with_capacity(text.len());\n    for character in text.chars() {\n        if \"\\\\`*_[]<>#|~\".contains(character) {\n            escaped.push('\\\\');\n        }\n        escaped.push(character);\n    }\n    escaped\n}\n\n#[cfg(test)]\nmod tests;\n",
+        "digest": "sha256:6523686c57f6ea88a189ce7f5f52623811904f7ff7455f4394f5f35abae2555c",
+        "id": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+        "origin": "source",
+        "path": "crates/rstyle-core/src/merge_risk/markdown.rs"
+      }
+    ],
+    "functions": [
+      {
+        "accesses": [
+          {
+            "mode": "read",
+            "node": "f47d5f267.12",
+            "symbol": "sf47d5f267.2"
+          },
+          {
+            "mode": "write",
+            "node": "f47d5f267.15",
+            "symbol": "sf47d5f267.15"
+          },
+          {
+            "mode": "read",
+            "node": "f47d5f267.18",
+            "symbol": "sf47d5f267.2"
+          },
+          {
+            "mode": "write",
+            "node": "f47d5f267.20",
+            "symbol": "sf47d5f267.20"
+          },
+          {
+            "mode": "read",
+            "node": "f47d5f267.34",
+            "symbol": "sf47d5f267.20"
+          },
+          {
+            "mode": "read_write",
+            "node": "f47d5f267.39",
+            "symbol": "sf47d5f267.15"
+          },
+          {
+            "mode": "read_write",
+            "node": "f47d5f267.47",
+            "symbol": "sf47d5f267.15"
+          },
+          {
+            "mode": "read",
+            "node": "f47d5f267.49",
+            "symbol": "sf47d5f267.20"
+          },
+          {
+            "mode": "write",
+            "node": "f47d5f267.54",
+            "symbol": "sf47d5f267.54"
+          },
+          {
+            "mode": "read_write",
+            "node": "f47d5f267.56",
+            "symbol": "sf47d5f267.54"
+          },
+          {
+            "mode": "read",
+            "node": "f47d5f267.71",
+            "symbol": "sf47d5f267.15"
+          }
+        ],
+        "cfg": {
+          "edges": [
+            {
+              "id": "e0",
+              "kind": "normal",
+              "source": "entry",
+              "target": "f47d5f267.6"
+            },
+            {
+              "id": "e1",
+              "kind": "normal",
+              "source": "f47d5f267.6",
+              "target": "f47d5f267.12"
+            },
+            {
+              "id": "e2",
+              "kind": "normal",
+              "source": "f47d5f267.12",
+              "target": "f47d5f267.10"
+            },
+            {
+              "id": "e3",
+              "kind": "normal",
+              "source": "f47d5f267.10",
+              "target": "f47d5f267.5"
+            },
+            {
+              "id": "e4",
+              "kind": "normal",
+              "source": "f47d5f267.5",
+              "target": "f47d5f267.14"
+            },
+            {
+              "id": "e5",
+              "kind": "normal",
+              "source": "f47d5f267.14",
+              "target": "f47d5f267.15"
+            },
+            {
+              "id": "e6",
+              "kind": "normal",
+              "source": "f47d5f267.15",
+              "target": "f47d5f267.66"
+            },
+            {
+              "id": "e7",
+              "kind": "normal",
+              "source": "f47d5f267.66",
+              "target": "f47d5f267.18"
+            },
+            {
+              "id": "e8",
+              "kind": "normal",
+              "source": "f47d5f267.18",
+              "target": "f47d5f267.16"
+            },
+            {
+              "id": "e9",
+              "kind": "normal",
+              "source": "f47d5f267.16",
+              "target": "f47d5f267.67"
+            },
+            {
+              "id": "e10",
+              "kind": "normal",
+              "source": "f47d5f267.67",
+              "target": "f47d5f267.68"
+            },
+            {
+              "id": "e11",
+              "kind": "true",
+              "source": "f47d5f267.68",
+              "target": "f47d5f267.20"
+            },
+            {
+              "id": "e12",
+              "kind": "normal",
+              "source": "f47d5f267.20",
+              "target": "f47d5f267.33"
+            },
+            {
+              "id": "e13",
+              "kind": "normal",
+              "source": "f47d5f267.33",
+              "target": "f47d5f267.34"
+            },
+            {
+              "id": "e14",
+              "kind": "normal",
+              "source": "f47d5f267.34",
+              "target": "f47d5f267.31"
+            },
+            {
+              "id": "e15",
+              "kind": "true",
+              "source": "f47d5f267.31",
+              "target": "f47d5f267.39"
+            },
+            {
+              "id": "e16",
+              "kind": "normal",
+              "source": "f47d5f267.39",
+              "target": "f47d5f267.41"
+            },
+            {
+              "id": "e17",
+              "kind": "normal",
+              "source": "f47d5f267.41",
+              "target": "f47d5f267.37"
+            },
+            {
+              "id": "e18",
+              "kind": "normal",
+              "source": "f47d5f267.37",
+              "target": "f47d5f267.42"
+            },
+            {
+              "id": "e19",
+              "kind": "normal",
+              "source": "f47d5f267.42",
+              "target": "f47d5f267.43"
+            },
+            {
+              "id": "e20",
+              "kind": "normal",
+              "source": "f47d5f267.43",
+              "target": "f47d5f267.30"
+            },
+            {
+              "id": "e21",
+              "kind": "false",
+              "source": "f47d5f267.31",
+              "target": "f47d5f267.30"
+            },
+            {
+              "id": "e22",
+              "kind": "normal",
+              "source": "f47d5f267.30",
+              "target": "f47d5f267.44"
+            },
+            {
+              "id": "e23",
+              "kind": "normal",
+              "source": "f47d5f267.44",
+              "target": "f47d5f267.47"
+            },
+            {
+              "id": "e24",
+              "kind": "normal",
+              "source": "f47d5f267.47",
+              "target": "f47d5f267.49"
+            },
+            {
+              "id": "e25",
+              "kind": "normal",
+              "source": "f47d5f267.49",
+              "target": "f47d5f267.45"
+            },
+            {
+              "id": "e26",
+              "kind": "normal",
+              "source": "f47d5f267.45",
+              "target": "f47d5f267.51"
+            },
+            {
+              "id": "e27",
+              "kind": "normal",
+              "source": "f47d5f267.51",
+              "target": "f47d5f267.52"
+            },
+            {
+              "id": "e28",
+              "kind": "normal",
+              "loop_role": "back_edge",
+              "source": "f47d5f267.52",
+              "target": "f47d5f267.68"
+            },
+            {
+              "id": "e29",
+              "kind": "false",
+              "loop_role": "loop_exit",
+              "source": "f47d5f267.68",
+              "target": "f47d5f267.70"
+            },
+            {
+              "id": "e30",
+              "kind": "normal",
+              "source": "f47d5f267.70",
+              "target": "f47d5f267.71"
+            },
+            {
+              "id": "e31",
+              "kind": "normal",
+              "source": "f47d5f267.71",
+              "target": "f47d5f267.73"
+            },
+            {
+              "id": "e32",
+              "kind": "normal",
+              "source": "f47d5f267.73",
+              "target": "exit"
+            }
+          ],
+          "entry": "entry",
+          "exits": [
+            {
+              "id": "exit",
+              "kind": "normal"
+            }
+          ]
+        },
+        "definition": "def:rstyle_core::merge_risk::markdown::escape",
+        "id": "fn:rstyle_core::merge_risk::markdown::escape",
+        "name": "merge_risk::markdown::escape",
+        "nodes": [
+          {
+            "binding_mode": "value",
+            "children": [],
+            "id": "f47d5f267.15",
+            "kind": "pattern_binding",
+            "original_kind": "pat_binding",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21415,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21404
+            },
+            "type": "type:std::string::String"
+          },
+          {
+            "children": [],
+            "id": "f47d5f267.6",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21439,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21418
+            },
+            "type": "type:fn(usize) -> std::string::String {std::string::String::with_capacity}"
+          },
+          {
+            "adjustments": [
+              {
+                "kind": "auto_deref",
+                "target": "type:str"
+              },
+              {
+                "kind": "auto_ref",
+                "mode": "shared",
+                "target": "type:&str"
+              }
+            ],
+            "children": [],
+            "id": "f47d5f267.12",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21444,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21440
+            },
+            "type": "type:&str"
+          },
+          {
+            "children": [
+              "f47d5f267.12"
+            ],
+            "id": "f47d5f267.10",
+            "kind": "call",
+            "original_kind": "expr_method_call",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21450,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21440
+            },
+            "type": "type:usize"
+          },
+          {
+            "children": [
+              "f47d5f267.6",
+              "f47d5f267.10"
+            ],
+            "id": "f47d5f267.5",
+            "kind": "call",
+            "original_kind": "expr_call",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21451,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21418
+            },
+            "type": "type:std::string::String"
+          },
+          {
+            "children": [
+              "f47d5f267.15",
+              "f47d5f267.5"
+            ],
+            "id": "f47d5f267.14",
+            "kind": "local_declaration",
+            "original_kind": "stmt_let",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21452,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21400
+            },
+            "type": "type:std::string::String"
+          },
+          {
+            "binding_mode": "value",
+            "children": [],
+            "id": "f47d5f267.20",
+            "kind": "pattern_binding",
+            "original_kind": "pat_binding",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21470,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21461
+            },
+            "type": "type:char"
+          },
+          {
+            "adjustments": [
+              {
+                "kind": "auto_deref",
+                "target": "type:str"
+              },
+              {
+                "kind": "auto_ref",
+                "mode": "shared",
+                "target": "type:&str"
+              }
+            ],
+            "children": [],
+            "id": "f47d5f267.18",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21478,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21474
+            },
+            "type": "type:&str"
+          },
+          {
+            "children": [
+              "f47d5f267.18"
+            ],
+            "id": "f47d5f267.16",
+            "kind": "call",
+            "original_kind": "expr_method_call",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21486,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21474
+            },
+            "type": "type:std::str::Chars<'_>"
+          },
+          {
+            "children": [],
+            "id": "f47d5f267.66",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "provenance": {
+              "call_site": {
+                "end": 21617,
+                "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+                "start": 21457
+              },
+              "construct": "for",
+              "origin": "desugaring"
+            },
+            "span": {
+              "end": 21486,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21474
+            },
+            "synthetic": true,
+            "type": "type:fn(std::str::Chars<'_>) -> <std::str::Chars<'_> as std::iter::IntoIterator>::IntoIter {<std::str::Chars<'_> as std::iter::IntoIterator>::into_iter}"
+          },
+          {
+            "children": [
+              "f47d5f267.66",
+              "f47d5f267.16"
+            ],
+            "id": "f47d5f267.67",
+            "kind": "call",
+            "original_kind": "expr_call",
+            "provenance": {
+              "call_site": {
+                "end": 21617,
+                "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+                "start": 21457
+              },
+              "construct": "for",
+              "origin": "desugaring"
+            },
+            "span": {
+              "end": 21486,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21474
+            },
+            "synthetic": true,
+            "type": "type:std::str::Chars<'_>"
+          },
+          {
+            "adjustments": [
+              {
+                "kind": "auto_deref",
+                "target": "type:str"
+              },
+              {
+                "kind": "auto_ref",
+                "mode": "shared",
+                "target": "type:&str"
+              }
+            ],
+            "children": [],
+            "id": "f47d5f267.33",
+            "kind": "literal",
+            "original_kind": "expr_lit",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21514,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21500
+            },
+            "type": "type:&str",
+            "value": {
+              "kind": "string",
+              "value": "\\`*_[]<>#|~"
+            }
+          },
+          {
+            "children": [],
+            "id": "f47d5f267.34",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21533,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21524
+            },
+            "type": "type:char"
+          },
+          {
+            "children": [
+              "f47d5f267.33",
+              "f47d5f267.34"
+            ],
+            "id": "f47d5f267.31",
+            "kind": "call",
+            "original_kind": "expr_method_call",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21534,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21500
+            },
+            "type": "type:bool"
+          },
+          {
+            "adjustments": [
+              {
+                "kind": "auto_ref",
+                "mode": "exclusive",
+                "target": "type:&mut std::string::String"
+              }
+            ],
+            "children": [],
+            "id": "f47d5f267.39",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21556,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21549
+            },
+            "type": "type:std::string::String"
+          },
+          {
+            "children": [],
+            "id": "f47d5f267.41",
+            "kind": "literal",
+            "original_kind": "expr_lit",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21566,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21562
+            },
+            "type": "type:char",
+            "value": {
+              "kind": "char",
+              "value": "\\"
+            }
+          },
+          {
+            "children": [
+              "f47d5f267.39",
+              "f47d5f267.41"
+            ],
+            "id": "f47d5f267.37",
+            "kind": "call",
+            "original_kind": "expr_method_call",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21567,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21549
+            },
+            "type": "type:()"
+          },
+          {
+            "children": [
+              "f47d5f267.37"
+            ],
+            "id": "f47d5f267.42",
+            "kind": "expression_statement",
+            "original_kind": "stmt_semi",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21568,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21549
+            }
+          },
+          {
+            "children": [
+              "f47d5f267.42"
+            ],
+            "id": "f47d5f267.43",
+            "kind": "block",
+            "original_kind": "expr_block",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21578,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21535
+            },
+            "type": "type:()"
+          },
+          {
+            "children": [
+              "f47d5f267.31",
+              "f47d5f267.43"
+            ],
+            "id": "f47d5f267.30",
+            "kind": "if",
+            "original_kind": "expr_if",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21578,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21497
+            },
+            "type": "type:()"
+          },
+          {
+            "children": [
+              "f47d5f267.30"
+            ],
+            "id": "f47d5f267.44",
+            "kind": "expression_statement",
+            "original_kind": "stmt_expr",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21578,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21497
+            }
+          },
+          {
+            "adjustments": [
+              {
+                "kind": "auto_ref",
+                "mode": "exclusive",
+                "target": "type:&mut std::string::String"
+              }
+            ],
+            "children": [],
+            "id": "f47d5f267.47",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21594,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21587
+            },
+            "type": "type:std::string::String"
+          },
+          {
+            "children": [],
+            "id": "f47d5f267.49",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21609,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21600
+            },
+            "type": "type:char"
+          },
+          {
+            "children": [
+              "f47d5f267.47",
+              "f47d5f267.49"
+            ],
+            "id": "f47d5f267.45",
+            "kind": "call",
+            "original_kind": "expr_method_call",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21610,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21587
+            },
+            "type": "type:()"
+          },
+          {
+            "children": [
+              "f47d5f267.45"
+            ],
+            "id": "f47d5f267.51",
+            "kind": "expression_statement",
+            "original_kind": "stmt_semi",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21611,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21587
+            }
+          },
+          {
+            "children": [
+              "f47d5f267.44",
+              "f47d5f267.51"
+            ],
+            "id": "f47d5f267.52",
+            "kind": "block",
+            "original_kind": "expr_block",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21617,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21487
+            },
+            "type": "type:()"
+          },
+          {
+            "binding_mode": "value",
+            "children": [],
+            "id": "f47d5f267.54",
+            "kind": "pattern_binding",
+            "original_kind": "pat_binding",
+            "provenance": {
+              "call_site": {
+                "end": 21617,
+                "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+                "start": 21457
+              },
+              "construct": "for",
+              "origin": "desugaring"
+            },
+            "span": {
+              "end": 21486,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21474
+            },
+            "synthetic": true,
+            "type": "type:std::str::Chars<'_>"
+          },
+          {
+            "children": [],
+            "id": "f47d5f267.59",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "provenance": {
+              "call_site": {
+                "end": 21617,
+                "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+                "start": 21457
+              },
+              "construct": "for",
+              "origin": "desugaring"
+            },
+            "span": {
+              "end": 21486,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21474
+            },
+            "synthetic": true,
+            "type": "type:for<'a> fn(&'a mut std::str::Chars<'_>) -> std::option::Option<<std::str::Chars<'_> as std::iter::Iterator>::Item> {<std::str::Chars<'_> as std::iter::Iterator>::next}"
+          },
+          {
+            "children": [],
+            "id": "f47d5f267.56",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "provenance": {
+              "call_site": {
+                "end": 21617,
+                "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+                "start": 21457
+              },
+              "construct": "for",
+              "origin": "desugaring"
+            },
+            "span": {
+              "end": 21486,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21474
+            },
+            "synthetic": true,
+            "type": "type:std::str::Chars<'_>"
+          },
+          {
+            "adjustments": [
+              {
+                "kind": "auto_deref",
+                "target": "type:std::str::Chars<'_>"
+              },
+              {
+                "kind": "auto_ref",
+                "mode": "exclusive",
+                "target": "type:&mut std::str::Chars<'_>"
+              }
+            ],
+            "children": [
+              "f47d5f267.56"
+            ],
+            "id": "f47d5f267.57",
+            "kind": "reference",
+            "modifiers": [
+              "mutable"
+            ],
+            "original_kind": "expr_addr_of",
+            "provenance": {
+              "call_site": {
+                "end": 21617,
+                "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+                "start": 21457
+              },
+              "construct": "for",
+              "origin": "desugaring"
+            },
+            "span": {
+              "end": 21486,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21474
+            },
+            "synthetic": true,
+            "type": "type:&mut std::str::Chars<'_>"
+          },
+          {
+            "children": [
+              "f47d5f267.59",
+              "f47d5f267.57"
+            ],
+            "id": "f47d5f267.60",
+            "kind": "call",
+            "original_kind": "expr_call",
+            "provenance": {
+              "call_site": {
+                "end": 21617,
+                "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+                "start": 21457
+              },
+              "construct": "for",
+              "origin": "desugaring"
+            },
+            "span": {
+              "end": 21486,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21474
+            },
+            "synthetic": true,
+            "type": "type:std::option::Option<char>"
+          },
+          {
+            "children": [],
+            "id": "f47d5f267.24",
+            "kind": "pattern_constructor",
+            "original_kind": "pat_struct",
+            "provenance": {
+              "call_site": {
+                "end": 21617,
+                "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+                "start": 21457
+              },
+              "construct": "for",
+              "origin": "desugaring"
+            },
+            "span": {
+              "end": 21617,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21457
+            },
+            "synthetic": true,
+            "type": "type:std::option::Option<char>"
+          },
+          {
+            "adjustments": [
+              {
+                "kind": "rust:never-to-any",
+                "target": "type:()"
+              }
+            ],
+            "children": [],
+            "id": "f47d5f267.22",
+            "kind": "break",
+            "original_kind": "expr_break",
+            "provenance": {
+              "call_site": {
+                "end": 21617,
+                "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+                "start": 21457
+              },
+              "construct": "for",
+              "origin": "desugaring"
+            },
+            "span": {
+              "end": 21617,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21457
+            },
+            "synthetic": true,
+            "type": "type:!"
+          },
+          {
+            "children": [
+              "f47d5f267.24",
+              "f47d5f267.22"
+            ],
+            "id": "f47d5f267.25",
+            "kind": "match_arm",
+            "original_kind": "match_arm",
+            "provenance": {
+              "call_site": {
+                "end": 21617,
+                "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+                "start": 21457
+              },
+              "construct": "for",
+              "origin": "desugaring"
+            },
+            "span": {
+              "end": 21617,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21457
+            },
+            "synthetic": true
+          },
+          {
+            "children": [],
+            "id": "f47d5f267.28",
+            "kind": "pattern_constructor",
+            "original_kind": "pat_struct",
+            "provenance": {
+              "call_site": {
+                "end": 21617,
+                "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+                "start": 21457
+              },
+              "construct": "for",
+              "origin": "desugaring"
+            },
+            "span": {
+              "end": 21470,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21461
+            },
+            "synthetic": true,
+            "type": "type:std::option::Option<char>"
+          },
+          {
+            "children": [
+              "f47d5f267.28"
+            ],
+            "id": "f47d5f267.53",
+            "kind": "match_arm",
+            "original_kind": "match_arm",
+            "provenance": {
+              "call_site": {
+                "end": 21617,
+                "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+                "start": 21457
+              },
+              "construct": "for",
+              "origin": "desugaring"
+            },
+            "span": {
+              "end": 21617,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21457
+            },
+            "synthetic": true
+          },
+          {
+            "children": [
+              "f47d5f267.60",
+              "f47d5f267.25",
+              "f47d5f267.53"
+            ],
+            "id": "f47d5f267.61",
+            "kind": "match",
+            "original_kind": "expr_match",
+            "provenance": {
+              "call_site": {
+                "end": 21617,
+                "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+                "start": 21457
+              },
+              "construct": "for",
+              "origin": "desugaring"
+            },
+            "span": {
+              "end": 21486,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21474
+            },
+            "synthetic": true,
+            "type": "type:()"
+          },
+          {
+            "children": [
+              "f47d5f267.61"
+            ],
+            "id": "f47d5f267.62",
+            "kind": "expression_statement",
+            "original_kind": "stmt_expr",
+            "provenance": {
+              "call_site": {
+                "end": 21617,
+                "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+                "start": 21457
+              },
+              "construct": "for",
+              "origin": "desugaring"
+            },
+            "span": {
+              "end": 21617,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21457
+            },
+            "synthetic": true
+          },
+          {
+            "children": [
+              "f47d5f267.62"
+            ],
+            "id": "f47d5f267.63",
+            "kind": "block",
+            "original_kind": "expr_block",
+            "provenance": {
+              "call_site": {
+                "end": 21617,
+                "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+                "start": 21457
+              },
+              "construct": "for",
+              "origin": "desugaring"
+            },
+            "span": {
+              "end": 21617,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21457
+            },
+            "synthetic": true,
+            "type": "type:()"
+          },
+          {
+            "children": [
+              "f47d5f267.63"
+            ],
+            "id": "f47d5f267.21",
+            "kind": "loop",
+            "original_kind": "expr_for",
+            "provenance": {
+              "call_site": {
+                "end": 21617,
+                "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+                "start": 21457
+              },
+              "construct": "for",
+              "origin": "desugaring"
+            },
+            "span": {
+              "end": 21617,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21457
+            },
+            "synthetic": true,
+            "type": "type:()"
+          },
+          {
+            "children": [
+              "f47d5f267.20",
+              "f47d5f267.67",
+              "f47d5f267.52",
+              "f47d5f267.54",
+              "f47d5f267.21"
+            ],
+            "id": "f47d5f267.68",
+            "kind": "for",
+            "original_kind": "expr_match",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21617,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21457
+            },
+            "type": "type:()"
+          },
+          {
+            "children": [
+              "f47d5f267.68"
+            ],
+            "id": "f47d5f267.70",
+            "kind": "expression_statement",
+            "original_kind": "stmt_expr",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21617,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21457
+            }
+          },
+          {
+            "children": [],
+            "id": "f47d5f267.71",
+            "kind": "identifier",
+            "original_kind": "expr_path",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21629,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21622
+            },
+            "type": "type:std::string::String"
+          },
+          {
+            "children": [
+              "f47d5f267.14",
+              "f47d5f267.70",
+              "f47d5f267.71"
+            ],
+            "id": "f47d5f267.73",
+            "kind": "block",
+            "original_kind": "expr_block",
+            "provenance": {
+              "origin": "source"
+            },
+            "span": {
+              "end": 21631,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21394
+            },
+            "type": "type:std::string::String"
+          }
+        ],
+        "places": [
+          {
+            "access": "read",
+            "escapes": false,
+            "id": "f47d5f267.56.place0",
+            "mode": "exclusive",
+            "node": "f47d5f267.56",
+            "path": [],
+            "root": {
+              "symbol": "sf47d5f267.54"
+            },
+            "type": "type:std::str::Chars<'_>"
+          },
+          {
+            "access": "read",
+            "escapes": false,
+            "id": "f47d5f267.39.place1",
+            "mode": "exclusive",
+            "node": "f47d5f267.39",
+            "path": [],
+            "root": {
+              "symbol": "sf47d5f267.15"
+            },
+            "type": "type:std::string::String"
+          },
+          {
+            "access": "read",
+            "escapes": false,
+            "id": "f47d5f267.47.place2",
+            "mode": "exclusive",
+            "node": "f47d5f267.47",
+            "path": [],
+            "root": {
+              "symbol": "sf47d5f267.15"
+            },
+            "type": "type:std::string::String"
+          }
+        ],
+        "refs": [
+          {
+            "node": "f47d5f267.6",
+            "status": "resolved",
+            "target": {
+              "id": "def:alloc::string::{impl#0}::with_capacity",
+              "kind": "definition"
+            }
+          },
+          {
+            "node": "f47d5f267.12",
+            "status": "resolved",
+            "target": {
+              "id": "sf47d5f267.2",
+              "kind": "symbol"
+            }
+          },
+          {
+            "calls_back": {
+              "reason": "callable arguments, or bounds on types outside the standard library",
+              "value": false
+            },
+            "dispatch": "method",
+            "node": "f47d5f267.10",
+            "signature": {
+              "parameters": [
+                "type:&str"
+              ],
+              "result": "type:usize"
+            },
+            "status": "resolved",
+            "target": {
+              "id": "def:core::str::{impl#0}::len",
+              "kind": "definition"
+            }
+          },
+          {
+            "calls_back": {
+              "reason": "callable arguments, or bounds on types outside the standard library",
+              "value": false
+            },
+            "dispatch": "static",
+            "node": "f47d5f267.5",
+            "status": "resolved",
+            "target": {
+              "id": "def:alloc::string::{impl#0}::with_capacity",
+              "kind": "definition"
+            }
+          },
+          {
+            "node": "f47d5f267.18",
+            "status": "resolved",
+            "target": {
+              "id": "sf47d5f267.2",
+              "kind": "symbol"
+            }
+          },
+          {
+            "calls_back": {
+              "reason": "callable arguments, or bounds on types outside the standard library",
+              "value": false
+            },
+            "dispatch": "method",
+            "node": "f47d5f267.16",
+            "signature": {
+              "parameters": [
+                "type:&str"
+              ],
+              "result": "type:std::str::Chars<'_>"
+            },
+            "status": "resolved",
+            "target": {
+              "id": "def:core::str::{impl#0}::chars",
+              "kind": "definition"
+            }
+          },
+          {
+            "node": "f47d5f267.66",
+            "status": "resolved",
+            "target": {
+              "id": "def:core::iter::traits::collect::IntoIterator::into_iter",
+              "kind": "definition"
+            }
+          },
+          {
+            "calls_back": {
+              "reason": "callable arguments, or bounds on types outside the standard library",
+              "value": false
+            },
+            "dispatch": "static",
+            "instance_arguments": [
+              "type:std::str::Chars<'_>"
+            ],
+            "node": "f47d5f267.67",
+            "selected": {
+              "id": "def:core::iter::traits::collect::{impl#0}::into_iter",
+              "kind": "definition"
+            },
+            "selected_arguments": [
+              "type:std::str::Chars<'_>"
+            ],
+            "status": "resolved",
+            "target": {
+              "id": "def:core::iter::traits::collect::IntoIterator::into_iter",
+              "kind": "definition"
+            }
+          },
+          {
+            "node": "f47d5f267.34",
+            "status": "resolved",
+            "target": {
+              "id": "sf47d5f267.20",
+              "kind": "symbol"
+            }
+          },
+          {
+            "calls_back": {
+              "reason": "callable arguments, or bounds on types outside the standard library",
+              "value": false
+            },
+            "dispatch": "method",
+            "instance_arguments": [
+              "type:char"
+            ],
+            "node": "f47d5f267.31",
+            "signature": {
+              "parameters": [
+                "type:&str",
+                "type:char"
+              ],
+              "result": "type:bool"
+            },
+            "status": "resolved",
+            "target": {
+              "id": "def:core::str::{impl#0}::contains",
+              "kind": "definition"
+            }
+          },
+          {
+            "node": "f47d5f267.39",
+            "status": "resolved",
+            "target": {
+              "id": "sf47d5f267.15",
+              "kind": "symbol"
+            }
+          },
+          {
+            "calls_back": {
+              "reason": "callable arguments, or bounds on types outside the standard library",
+              "value": false
+            },
+            "dispatch": "method",
+            "node": "f47d5f267.37",
+            "signature": {
+              "parameters": [
+                "type:&mut std::string::String",
+                "type:char"
+              ],
+              "result": "type:()"
+            },
+            "status": "resolved",
+            "target": {
+              "id": "def:alloc::string::{impl#0}::push",
+              "kind": "definition"
+            }
+          },
+          {
+            "node": "f47d5f267.47",
+            "status": "resolved",
+            "target": {
+              "id": "sf47d5f267.15",
+              "kind": "symbol"
+            }
+          },
+          {
+            "node": "f47d5f267.49",
+            "status": "resolved",
+            "target": {
+              "id": "sf47d5f267.20",
+              "kind": "symbol"
+            }
+          },
+          {
+            "calls_back": {
+              "reason": "callable arguments, or bounds on types outside the standard library",
+              "value": false
+            },
+            "dispatch": "method",
+            "node": "f47d5f267.45",
+            "signature": {
+              "parameters": [
+                "type:&mut std::string::String",
+                "type:char"
+              ],
+              "result": "type:()"
+            },
+            "status": "resolved",
+            "target": {
+              "id": "def:alloc::string::{impl#0}::push",
+              "kind": "definition"
+            }
+          },
+          {
+            "node": "f47d5f267.59",
+            "status": "resolved",
+            "target": {
+              "id": "def:core::iter::traits::iterator::Iterator::next",
+              "kind": "definition"
+            }
+          },
+          {
+            "node": "f47d5f267.56",
+            "status": "resolved",
+            "target": {
+              "id": "sf47d5f267.54",
+              "kind": "symbol"
+            }
+          },
+          {
+            "calls_back": {
+              "reason": "callable arguments, or bounds on types outside the standard library",
+              "value": false
+            },
+            "dispatch": "static",
+            "instance_arguments": [
+              "type:std::str::Chars<'_>"
+            ],
+            "node": "f47d5f267.60",
+            "selected": {
+              "id": "def:core::str::iter::{impl#0}::next",
+              "kind": "definition"
+            },
+            "status": "resolved",
+            "target": {
+              "id": "def:core::iter::traits::iterator::Iterator::next",
+              "kind": "definition"
+            }
+          },
+          {
+            "node": "f47d5f267.24",
+            "status": "resolved",
+            "target": {
+              "id": "def:core::option::Option::None",
+              "kind": "variant"
+            }
+          },
+          {
+            "node": "f47d5f267.28",
+            "status": "resolved",
+            "target": {
+              "id": "def:core::option::Option::Some",
+              "kind": "variant"
+            }
+          },
+          {
+            "node": "f47d5f267.71",
+            "status": "resolved",
+            "target": {
+              "id": "sf47d5f267.15",
+              "kind": "symbol"
+            }
+          }
+        ],
+        "root": "f47d5f267.73",
+        "signature": {
+          "constants": [],
+          "generics": [],
+          "lifetimes": [
+            {
+              "elided": true,
+              "id": "lifetime:rstyle_core::merge_risk::markdown::escape::'_",
+              "name": "'_",
+              "position": 0,
+              "span": {
+                "end": 21379,
+                "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+                "start": 21378
+              }
+            }
+          ],
+          "modifiers": [],
+          "outlives": [],
+          "parameters": [
+            {
+              "annotation": {
+                "end": 21382,
+                "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+                "start": 21378
+              },
+              "bindings": [
+                "sf47d5f267.2"
+              ],
+              "original_kind": "pat_binding",
+              "pattern": "f47d5f267.2",
+              "position": 0,
+              "span": {
+                "end": 21376,
+                "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+                "start": 21372
+              },
+              "symbol": "sf47d5f267.2",
+              "type": "type:&str"
+            }
+          ],
+          "result": "type:std::string::String",
+          "result_span": {
+            "end": 21393,
+            "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+            "start": 21387
+          },
+          "span": {
+            "end": 21393,
+            "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+            "start": 21362
+          }
+        },
+        "span": {
+          "end": 21631,
+          "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+          "start": 21362
+        },
+        "symbols": [
+          {
+            "declared": {
+              "end": 21376,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21372
+            },
+            "id": "sf47d5f267.2",
+            "kind": "parameter",
+            "mutable": false,
+            "name": "text",
+            "scope": "f47d5f267",
+            "type": "type:&str"
+          },
+          {
+            "declared": {
+              "end": 21415,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21408
+            },
+            "id": "sf47d5f267.15",
+            "kind": "local",
+            "mutable": true,
+            "name": "escaped",
+            "node": "f47d5f267.15",
+            "scope": "f47d5f267",
+            "type": "type:std::string::String"
+          },
+          {
+            "declared": {
+              "end": 21470,
+              "file": "file:crates/rstyle-core/src/merge_risk/markdown.rs",
+              "start": 21461
+            },
+            "id": "sf47d5f267.20",
+            "kind": "local",
+            "mutable": false,
+            "name": "character",
+            "node": "f47d5f267.20",
+            "scope": "f47d5f267",
+            "type": "type:char"
+          },
+          {
+            "declared": {
+              "end": 0,
+              "file": "file:crates/rstyle-core/src/lib.rs",
+              "start": 0
+            },
+            "id": "sf47d5f267.54",
+            "kind": "local",
+            "mutable": true,
+            "name": "iter",
+            "node": "f47d5f267.54",
+            "scope": "f47d5f267",
+            "type": "type:std::str::Chars<'_>"
+          }
+        ],
+        "values": []
+      }
+    ],
+    "id": "unit:rstyle_core-a737b693207a2d6c",
+    "imports": [],
+    "instances": [],
+    "language": {
+      "name": "rust",
+      "version": "2024"
+    },
+    "namespaces": [],
+    "root_file": "file:crates/rstyle-core/src/lib.rs",
+    "semantics": {
+      "debug_assertions": true,
+      "exceptions": "unwind",
+      "integer_overflow": "checked",
+      "optimization": "No"
+    },
+    "target": {
+      "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128-Fn32",
+      "pointer_width": 64,
+      "triple": "aarch64-unknown-linux-gnu"
+    },
+    "toolchain": {
+      "commit": "5c543b0b8c73c7b72bc8284ced4fb22ead15734d",
+      "name": "rustc",
+      "version": "1.101.0-nightly (5c543b0b8 2026-09-29)"
+    },
+    "types": [
+      {
+        "id": "type:!",
+        "kind": "bottom",
+        "spelling": "!"
+      },
+      {
+        "id": "type:&mut Self#Self=0",
+        "kind": "reference",
+        "mode": "exclusive",
+        "spelling": "&mut Self",
+        "target": "type:Self#Self=0"
+      },
+      {
+        "id": "type:&mut std::str::Chars<'_>",
+        "kind": "reference",
+        "mode": "exclusive",
+        "spelling": "&mut std::str::Chars<'_>",
+        "target": "type:std::str::Chars<'_>"
+      },
+      {
+        "id": "type:&mut std::str::Chars<'a>",
+        "kind": "reference",
+        "mode": "exclusive",
+        "spelling": "&mut std::str::Chars<'a>",
+        "target": "type:std::str::Chars<'a>"
+      },
+      {
+        "id": "type:&mut std::string::String",
+        "kind": "reference",
+        "mode": "exclusive",
+        "spelling": "&mut std::string::String",
+        "target": "type:std::string::String"
+      },
+      {
+        "id": "type:&str",
+        "kind": "reference",
+        "mode": "shared",
+        "spelling": "&str",
+        "target": "type:str"
+      },
+      {
+        "id": "type:()",
+        "kind": "unit",
+        "spelling": "()"
+      },
+      {
+        "id": "type:<Self as std::iter::IntoIterator>::IntoIter#Self=0",
+        "kind": "opaque",
+        "modifiers": [
+          "rust:alias"
+        ],
+        "spelling": "<Self as std::iter::IntoIterator>::IntoIter"
+      },
+      {
+        "id": "type:<Self as std::iter::Iterator>::Item#Self=0",
+        "kind": "opaque",
+        "modifiers": [
+          "rust:alias"
+        ],
+        "spelling": "<Self as std::iter::Iterator>::Item"
+      },
+      {
+        "id": "type:<std::str::Chars<'_> as std::iter::IntoIterator>::IntoIter",
+        "kind": "opaque",
+        "modifiers": [
+          "rust:alias"
+        ],
+        "normalized": "type:std::str::Chars<'_>",
+        "spelling": "<std::str::Chars<'_> as std::iter::IntoIterator>::IntoIter"
+      },
+      {
+        "id": "type:<std::str::Chars<'_> as std::iter::Iterator>::Item",
+        "kind": "opaque",
+        "modifiers": [
+          "rust:alias"
+        ],
+        "normalized": "type:char",
+        "spelling": "<std::str::Chars<'_> as std::iter::Iterator>::Item"
+      },
+      {
+        "id": "type:I#I=0",
+        "index": 0,
+        "kind": "parameter",
+        "spelling": "I"
+      },
+      {
+        "id": "type:P#P=0",
+        "index": 0,
+        "kind": "parameter",
+        "spelling": "P"
+      },
+      {
+        "id": "type:Self#Self=0",
+        "index": 0,
+        "kind": "parameter",
+        "spelling": "Self"
+      },
+      {
+        "id": "type:bool",
+        "key": "rust:bool",
+        "kind": "bool",
+        "spelling": "bool"
+      },
+      {
+        "id": "type:char",
+        "key": "rust:char",
+        "kind": "char",
+        "spelling": "char"
+      },
+      {
+        "definition": "def:core::iter::traits::collect::IntoIterator::into_iter",
+        "id": "type:fn(std::str::Chars<'_>) -> <std::str::Chars<'_> as std::iter::IntoIterator>::IntoIter {<std::str::Chars<'_> as std::iter::IntoIterator>::into_iter}",
+        "kind": "function",
+        "parameters": [
+          "type:std::str::Chars<'_>"
+        ],
+        "result": "type:<std::str::Chars<'_> as std::iter::IntoIterator>::IntoIter",
+        "spelling": "fn(std::str::Chars<'_>) -> <std::str::Chars<'_> as std::iter::IntoIterator>::IntoIter {<std::str::Chars<'_> as std::iter::IntoIterator>::into_iter}"
+      },
+      {
+        "definition": "def:alloc::string::{impl#0}::with_capacity",
+        "id": "type:fn(usize) -> std::string::String {std::string::String::with_capacity}",
+        "kind": "function",
+        "parameters": [
+          "type:usize"
+        ],
+        "result": "type:std::string::String",
+        "spelling": "fn(usize) -> std::string::String {std::string::String::with_capacity}"
+      },
+      {
+        "definition": "def:core::iter::traits::iterator::Iterator::next",
+        "id": "type:for<'a> fn(&'a mut std::str::Chars<'_>) -> std::option::Option<<std::str::Chars<'_> as std::iter::Iterator>::Item> {<std::str::Chars<'_> as std::iter::Iterator>::next}",
+        "kind": "function",
+        "parameters": [
+          "type:&mut std::str::Chars<'_>"
+        ],
+        "result": "type:std::option::Option<<std::str::Chars<'_> as std::iter::Iterator>::Item>",
+        "spelling": "for<'a> fn(&'a mut std::str::Chars<'_>) -> std::option::Option<<std::str::Chars<'_> as std::iter::Iterator>::Item> {<std::str::Chars<'_> as std::iter::Iterator>::next}"
+      },
+      {
+        "arguments": [
+          "type:<Self as std::iter::Iterator>::Item#Self=0"
+        ],
+        "definition": "def:core::option::Option",
+        "id": "type:std::option::Option<<Self as std::iter::Iterator>::Item>#Self=0",
+        "key": "rust:Option",
+        "kind": "sum",
+        "modifiers": [
+          "rust:unit-or-record-variant"
+        ],
+        "spelling": "std::option::Option<<Self as std::iter::Iterator>::Item>"
+      },
+      {
+        "arguments": [
+          "type:<std::str::Chars<'_> as std::iter::Iterator>::Item"
+        ],
+        "definition": "def:core::option::Option",
+        "id": "type:std::option::Option<<std::str::Chars<'_> as std::iter::Iterator>::Item>",
+        "key": "rust:Option",
+        "kind": "sum",
+        "modifiers": [
+          "rust:copy",
+          "rust:unit-or-record-variant"
+        ],
+        "spelling": "std::option::Option<<std::str::Chars<'_> as std::iter::Iterator>::Item>"
+      },
+      {
+        "arguments": [
+          "type:char"
+        ],
+        "definition": "def:core::option::Option",
+        "id": "type:std::option::Option<char>",
+        "key": "rust:Option",
+        "kind": "sum",
+        "modifiers": [
+          "rust:copy",
+          "rust:unit-or-record-variant"
+        ],
+        "spelling": "std::option::Option<char>"
+      },
+      {
+        "arguments": [],
+        "definition": "def:core::str::iter::Chars",
+        "id": "type:std::str::Chars<'_>",
+        "kind": "record",
+        "modifiers": [
+          "rust:lifetime-arguments"
+        ],
+        "spelling": "std::str::Chars<'_>"
+      },
+      {
+        "arguments": [],
+        "definition": "def:core::str::iter::Chars",
+        "id": "type:std::str::Chars<'a>",
+        "kind": "record",
+        "modifiers": [
+          "rust:lifetime-arguments"
+        ],
+        "spelling": "std::str::Chars<'a>"
+      },
+      {
+        "arguments": [],
+        "definition": "def:alloc::string::String",
+        "id": "type:std::string::String",
+        "key": "rust:String",
+        "kind": "record",
+        "modifiers": [
+          "rust:needs-drop"
+        ],
+        "spelling": "std::string::String"
+      },
+      {
+        "id": "type:str",
+        "key": "rust:str",
+        "kind": "string",
+        "spelling": "str"
+      },
+      {
+        "bits": 64,
+        "id": "type:usize",
+        "key": "rust:usize",
+        "kind": "integer",
+        "pointer_sized": true,
+        "signed": false,
+        "spelling": "usize"
+      }
+    ],
+    "values": []
+  }
+}
