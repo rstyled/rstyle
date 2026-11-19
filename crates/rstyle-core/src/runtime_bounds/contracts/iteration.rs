@@ -41,17 +41,26 @@ pub enum ConsumerEffect {
 /// Whether an effect runs a per-item callback.
 pub trait Effect: Copy {
     fn calls_back(self) -> bool;
+    fn can_defer(self) -> bool;
 }
 
 impl Effect for StageEffect {
     fn calls_back(self) -> bool {
         !matches!(self, Self::Pass | Self::Skip | Self::Take)
     }
+
+    fn can_defer(self) -> bool {
+        true
+    }
 }
 
 impl Effect for ConsumerEffect {
     fn calls_back(self) -> bool {
         !matches!(self, Self::Drain)
+    }
+
+    fn can_defer(self) -> bool {
+        false
     }
 }
 
@@ -89,6 +98,11 @@ pub struct Dispatch {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Iteration<E> {
     pub effect: E,
+    /// Construction only moves or stores the evaluated receiver and arguments, without
+    /// invoking callbacks or trait operations. Dropping the wrapper only drops those
+    /// stored operands; a caller must separately account for their evaluation and cleanup.
+    /// This is an explicit stage certificate, independent of its per-item behavior.
+    pub deferred: bool,
     /// Arguments after the receiver.
     pub arity: u32,
     /// Index among those arguments of the per-item callback; every other argument is
@@ -104,6 +118,8 @@ pub struct Iteration<E> {
 pub(super) struct Entry<E> {
     basis: String,
     effect: E,
+    #[serde(default)]
+    deferred: bool,
     #[serde(default)]
     arity: u32,
     #[serde(default)]
@@ -123,8 +139,15 @@ impl<E: Effect + std::fmt::Debug> Entry<E> {
                 self.effect, self.arity, self.callback
             ));
         }
+        if self.deferred && !self.effect.can_defer() {
+            return Err(format!(
+                "Iteration effect {:?} cannot defer construction",
+                self.effect
+            ));
+        }
         Ok(Iteration {
             effect: self.effect,
+            deferred: self.deferred,
             arity: self.arity,
             callback: self.callback,
             dispatch: self.dispatch.clone(),
@@ -225,3 +248,6 @@ impl ExtentEntry {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

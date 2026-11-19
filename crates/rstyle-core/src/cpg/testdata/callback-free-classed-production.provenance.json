@@ -1,0 +1,35 @@
+{
+  "corpus": "rstyle-main frozen production replay",
+  "manifest_file": "documents.manifest.json",
+  "manifest_checksum": "sha256:2fb0b26c09a559ab4421fccaf68217717d92fd96cd2008d67c6e24426c11f9b9",
+  "document": {
+    "file": "document-000039.cpg.json.zst",
+    "checksum": "sha256:b5d8239cdf8f6e02ff3fcfe3fbc8207ea58ebbb696528068f958214995a12d5d",
+    "bytes": 172501,
+    "encoding": "zstd",
+    "decoded_bytes": 2784813,
+    "decoded_checksum": "sha256:270ace296a75fdb570d06dc732356d8ac87695beb649a04cf0dad87341bbe556"
+  },
+  "owner": "rstyle_core::cpg::effects::{impl#0}::classed",
+  "owner_checksum": "sha256:60701760d627e8c1ebb7d9120e9312ec9842ff2316b7f5930e8ee9217a3c6f2e",
+  "owner_checksum_encoding": "UTF-8 JSON with lexicographically sorted object keys, no insignificant whitespace",
+  "fixture_checksum": "sha256:f41de610fd739c745a5dd2565790c2c3ec738ad9b4698af173302700f0fbe00a",
+  "reduction": "Only the named original function is retained. Definitions and types are its transitive ID dependency closure. Function facts, referenced source bytes, compilation semantics and implicit-call capability remain unchanged. Unrelated values and session extensions are omitted.",
+  "source_files": [
+    {
+      "id": "file:crates/rstyle-core/src/cpg/effects.rs",
+      "digest": "sha256:9af68a1474ecd2dbcfaaa979d0ad6021aa61d0d5d902e25070fb141e05486b26",
+      "content_checksum": "sha256:9af68a1474ecd2dbcfaaa979d0ad6021aa61d0d5d902e25070fb141e05486b26"
+    },
+    {
+      "id": "file:crates/rstyle-core/src/facts.rs",
+      "digest": "sha256:fbe753d43746567ab7ed353dff86393b0cba39e2aa6f6f2d6bedf5ffc4cdc8de",
+      "content_checksum": "sha256:fbe753d43746567ab7ed353dff86393b0cba39e2aa6f6f2d6bedf5ffc4cdc8de"
+    },
+    {
+      "id": "file:crates/rstyle-core/src/lib.rs",
+      "digest": "sha256:eee14f7d38c14823aafbc8844a0841f3da605c61d683e11fecf143431acc585b",
+      "content_checksum": "sha256:eee14f7d38c14823aafbc8844a0841f3da605c61d683e11fecf143431acc585b"
+    }
+  ]
+}
