@@ -472,6 +472,24 @@ fn a_sum_said_to_hold_its_type_arguments_is_read_through_them_without_variants()
         json!({"arguments":["type:u32","test:drop"]}),
     );
     assert!(operand_cleanup(document.clone(), "test:result", true));
+    // A shared reference to one runs no cleanup of its referent, with the contract's word or
+    // without it.
+    ty(
+        &mut document,
+        "test:shared_result",
+        "reference",
+        json!({"mode":"shared","target":"test:result"}),
+    );
+    assert!(operand_cleanup(
+        document.clone(),
+        "test:shared_result",
+        true
+    ));
+    assert!(operand_cleanup(
+        document.clone(),
+        "test:shared_result",
+        false
+    ));
     // Without the contract's word its payloads are unknown, and an owned payload with a
     // destructor runs it.
     assert!(!operand_cleanup(document.clone(), "test:result", false));

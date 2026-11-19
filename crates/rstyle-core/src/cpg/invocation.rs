@@ -57,12 +57,16 @@ impl<'a> Invocation<'_, 'a> {
             self.adjusted(operands[guard.argument as usize])
                 .is_some_and(|ty| self.keyed(ty, &guard.keys))
         }) && role.cleanup_free.iter().all(|&index| {
-            let holds = role
-                .types
-                .iter()
-                .any(|guard| guard.argument == index && guard.holds_arguments);
-            self.adjusted(operands[index as usize])
-                .is_some_and(|ty| Cleanup(self.tables).operand(ty, holds).is_some())
+            self.adjusted(operands[index as usize]).is_some_and(|ty| {
+                // A guard's word that its type holds exactly its type arguments is about that
+                // type, not about a reference to it.
+                let key = ty.key.as_ref();
+                let holds = role.types.iter().any(|guard| {
+                    let own = key.is_some_and(|key| guard.keys.contains(key));
+                    guard.argument == index && guard.holds_arguments && own
+                });
+                Cleanup(self.tables).operand(ty, holds).is_some()
+            })
         })
     }
 
@@ -227,15 +231,17 @@ struct Budget {
 struct Cleanup<'b, 'a>(&'b Tables<'a>);
 
 impl Cleanup<'_, '_> {
-    /// What's left of the budget once an operand's cleanup runs no workspace code. A value its
-    /// contract says holds exactly its type arguments is read through them where the frontend
-    /// spells out neither its variants nor its fields, as for a library enum.
+    /// What's left of the budget once an operand's cleanup runs no workspace code. A sum or a
+    /// record its contract says holds exactly its type arguments is read through them where the
+    /// frontend spells out neither its variants nor its fields, as for a library enum; any other
+    /// operand, a reference to one included, is read as it is.
     fn operand(&self, ty: &Type, holds_arguments: bool) -> Option<u16> {
         let budget = Budget {
             depth: 32,
             work: 128,
         };
-        if holds_arguments && ty.variants.is_none() && ty.fields.is_none() {
+        let nominal = matches!(ty.kind, TypeKind::Sum | TypeKind::Record);
+        if holds_arguments && nominal && ty.variants.is_none() && ty.fields.is_none() {
             if !self.0.no_own_destructor(ty) {
                 return None;
             }
