@@ -125,8 +125,16 @@ a fresh native sequence with builtin element writes. An ordinary indexed assignm
 a scan bound when the sequence is held in an immutable local, its value shape is complete, and its
 base and index are effect-free. The allocation and right-hand side still run. Unknown setters,
 overloaded assignments, indirect bases, effectful indexes and possible cleanup retain conservative
-handling. This certifies unrelated storage; it does not infer the output collection's length from
-the allocator's arguments or prove library operation costs.
+handling. This certifies unrelated storage and does not prove library operation costs.
+
+**Exact allocation lengths.** An allocation contract may identify the argument that supplies the
+result's exact length. For a certified fresh native sequence in an immutable direct local, bounds
+can use a nonnegative literal length or the selected length of an immutable direct formal sequence.
+Both headers must pass the existing whole-body privacy checks: rebinding, borrows, captures,
+escaping places, and incomplete facts prevent the relation. This first increment does not follow
+local chains or changing scalar length variables. The relation affects lengths only; it does not
+make allocated elements aliases of the formal's elements. Allocation, length, copy, sort, callback,
+and right-hand-side evaluation remain in the captured program.
 
 **Arguments.** A call evaluates its receiver or callee, then what each argument passes. An argument that
 holds its value under a name, as Python's `print(total, end="")` does, passes that value. One that unpacks
@@ -265,6 +273,10 @@ roles, so frontends carry no method tables:
 - `[[allocation]]` certifies the storage created by a builtin allocator, independently of its cost.
   `FreshNativeSequence` promises native element writes without user setters; a declared static type
   operand is skipped only after matching a childless type annotation at the certified position.
+  An optional `length_argument` certifies exact result cardinality at a distinct original post-callee
+  argument position. Resolved builtin `len` reads native sequence lengths; maps and channels are
+  excluded. These reads are optional extent sources, so an unrelated mutable length read does not
+  reject otherwise known loop limits.
 - `[[extent]]` marks members that read a stable length (`Length`) or traverse each entry once
   (`Traversal`).
 
