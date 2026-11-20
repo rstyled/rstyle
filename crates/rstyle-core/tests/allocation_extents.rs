@@ -220,6 +220,25 @@ fn unresolved_or_nonbuiltin_length_operations_keep_the_local_size_unknown() {
 }
 
 #[test]
+fn a_length_source_naming_a_symbol_the_body_lacks_supplies_no_relation() {
+    // As an incomplete fact would: the relation is declined and the body is still bounded.
+    let mut document = document();
+    let length = length(&mut document);
+    let source = node(&mut document, &length)["children"][1]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let reference = function(&mut document)["refs"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|reference| reference["node"] == source)
+        .unwrap();
+    reference["target"]["id"] = json!("absent");
+    mixed(document);
+}
+
+#[test]
 fn mutable_formal_or_escaped_result_does_not_supply_an_exact_length_relation() {
     let mut mutable = document();
     symbol(&mut mutable, "available")["mutable"] = json!(true);

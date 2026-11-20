@@ -16,6 +16,11 @@ pub enum CallForm {
 pub struct TypeGuard {
     pub argument: u32,
     pub keys: Vec<String>,
+    /// A value of a type with one of these keys holds exactly its type arguments, as a
+    /// standard `Result` holds its `Ok` or its `Err` value, so its cleanup is theirs where the
+    /// frontend doesn't spell out its variants.
+    #[serde(default)]
+    pub holds_arguments: bool,
 }
 
 /// Conditions a caller must establish before excluding workspace callbacks.
@@ -120,7 +125,8 @@ mod tests {
             role.types,
             [TypeGuard {
                 argument: 0,
-                keys: vec!["t:bool".into()]
+                keys: vec!["t:bool".into()],
+                holds_arguments: false,
             }]
         );
         assert!(!role.basis.is_empty());
@@ -211,10 +217,12 @@ mod tests {
     #[test]
     fn embedded_rust_roles_require_the_observed_receiver_types_and_cleanup() {
         let contracts = Contracts::embedded();
-        for (operation, arity, cleanup, key) in [
-            ("rust:bool.then_some", 1, vec![1], "rust:bool"),
-            ("rust:Option.copied", 0, vec![], "rust:Option"),
-            ("rust:Result.ok", 0, vec![0], "rust:Result"),
+        // A frontend spells out no library enum's variants, so a `Result` receiver's cleanup is
+        // its payloads', which are its type arguments.
+        for (operation, arity, cleanup, key, holds_arguments) in [
+            ("rust:bool.then_some", 1, vec![1], "rust:bool", false),
+            ("rust:Option.copied", 0, vec![], "rust:Option", false),
+            ("rust:Result.ok", 0, vec![0], "rust:Result", true),
         ] {
             let role = contracts.callback_free(operation).unwrap();
             assert_eq!((role.form, role.arity), (CallForm::Member, arity));
@@ -223,7 +231,8 @@ mod tests {
                 role.types,
                 [TypeGuard {
                     argument: 0,
-                    keys: vec![key.into()]
+                    keys: vec![key.into()],
+                    holds_arguments,
                 }]
             );
             assert!(contracts.handed(operation).is_none());

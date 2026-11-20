@@ -72,7 +72,10 @@ impl<'a> Collector<'_, '_, 'a> {
         let Some(symbol) = self.facts.local(source) else {
             return Ok(None);
         };
-        let binding = self.facts.body.symbol(symbol)?;
+        // A symbol the body doesn't hold, as an incomplete fact names, supplies no relation.
+        let Ok(binding) = self.facts.body.symbol(symbol) else {
+            return Ok(None);
+        };
         if !self.formals.contains_key(symbol) || binding.mutable || binding.ty != source.ty {
             return Ok(None);
         }

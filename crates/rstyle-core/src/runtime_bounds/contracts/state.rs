@@ -266,11 +266,13 @@ mod tests {
             [
                 TypeGuard {
                     argument: 0,
-                    keys: vec!["rust:str".into()]
+                    keys: vec!["rust:str".into()],
+                    holds_arguments: false,
                 },
                 TypeGuard {
                     argument: 1,
-                    keys: vec!["rust:str".into(), "rust:char".into()]
+                    keys: vec!["rust:str".into(), "rust:char".into()],
+                    holds_arguments: false,
                 },
             ]
         );

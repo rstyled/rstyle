@@ -437,6 +437,77 @@ fn sum_cleanup_checks_each_variant_and_requires_complete_variant_fields() {
     assert!(!cleanup(document, "test:incomplete_sum"));
 }
 
+/// Whether an operand of type `id`, which its contract may say holds exactly its type
+/// arguments, runs no workspace cleanup.
+fn operand_cleanup(document: Value, id: &str, holds_arguments: bool) -> bool {
+    with_invocation(document, |invocation| {
+        Cleanup(invocation.tables)
+            .operand(invocation.tables.ty(id).unwrap(), holds_arguments)
+            .is_some()
+    })
+}
+
+#[test]
+fn a_sum_said_to_hold_its_type_arguments_is_read_through_them_without_variants() {
+    // As the frontend writes a library enum such as `Result<u32, &Guard>`: its arguments and no
+    // variants.
+    let mut document = document();
+    drop_type(&mut document);
+    ty(
+        &mut document,
+        "test:shared_drop",
+        "reference",
+        json!({"mode":"shared","target":"test:drop"}),
+    );
+    nominal(
+        &mut document,
+        "test:result",
+        "sum",
+        json!({"arguments":["type:u32","test:shared_drop"]}),
+    );
+    nominal(
+        &mut document,
+        "test:owned_result",
+        "sum",
+        json!({"arguments":["type:u32","test:drop"]}),
+    );
+    assert!(operand_cleanup(document.clone(), "test:result", true));
+    // A shared reference to one runs no cleanup of its referent, with the contract's word or
+    // without it.
+    ty(
+        &mut document,
+        "test:shared_result",
+        "reference",
+        json!({"mode":"shared","target":"test:result"}),
+    );
+    assert!(operand_cleanup(
+        document.clone(),
+        "test:shared_result",
+        true
+    ));
+    assert!(operand_cleanup(
+        document.clone(),
+        "test:shared_result",
+        false
+    ));
+    // Without the contract's word its payloads are unknown, and an owned payload with a
+    // destructor runs it.
+    assert!(!operand_cleanup(document.clone(), "test:result", false));
+    assert!(!operand_cleanup(
+        document.clone(),
+        "test:owned_result",
+        true
+    ));
+    // A type with a destructor of its own runs it whatever it holds.
+    let definitions = document["unit"]["definitions"].as_array_mut().unwrap();
+    let result = definitions
+        .iter_mut()
+        .find(|definition| definition["id"] == "def:test:result")
+        .unwrap();
+    result["destructor"] = json!(true);
+    assert!(!operand_cleanup(document, "test:result", true));
+}
+
 #[test]
 fn recursive_owned_shapes_and_exhausted_cleanup_budgets_fail_closed() {
     let mut document = document();
