@@ -10,11 +10,17 @@ impl<'a> Collector<'_, '_, 'a> {
     /// A call that runs later than where it's written, when the function exits or on a thread of
     /// its own, with its callee and arguments evaluated here. It's lowered here, so it counts once
     /// each time the node runs. A closure in it reads variables when the call runs, not here, so a
-    /// node that holds one is unsupported.
+    /// node that holds one, written there or named by a local the function binds it to, is
+    /// unsupported.
     pub(super) fn deferred(&mut self, node: &'a Node, calls: &[&'a Node], next: u32) -> Lowered {
         for call in calls {
             for id in self.subtree(call)? {
-                if self.facts.body.node(id)?.kind == NodeKind::Closure {
+                let part = self.facts.body.node(id)?;
+                let named = self
+                    .facts
+                    .local(part)
+                    .is_some_and(|symbol| self.closures.contains_key(symbol));
+                if part.kind == NodeKind::Closure || named {
                     let reason = "A closure that runs later reads values that can change first";
                     return Ok(self.unsupported(node, next, reason));
                 }

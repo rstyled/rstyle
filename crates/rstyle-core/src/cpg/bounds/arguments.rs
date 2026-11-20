@@ -11,7 +11,12 @@ impl<'a> Collector<'_, '_, 'a> {
     /// an omitted default is not the next written argument, nor a zero-valued argument.
     pub(super) fn summary_arguments(&mut self, call: &'a Node) -> Result<Vec<Argument>, String> {
         let passed = self.facts.body.arguments(call)?;
-        let layout = self.argument_layout(call);
+        // An allocator's written operands include a compile-time type its callable doesn't
+        // list, so its call keeps every written slot, as one whose callable isn't known does.
+        let layout = match self.allocation_operands(call)? {
+            Some(_) => None,
+            None => self.argument_layout(call),
+        };
         let count = layout.map_or(passed.len(), |(count, _)| count);
         if count > MAX_VARIABLES || !self.charge(count) {
             return Ok(Vec::new());
@@ -55,6 +60,12 @@ impl<'a> Collector<'_, '_, 'a> {
     fn argument_layout(&self, call: &'a Node) -> Option<(usize, usize)> {
         let callable = self.argument_callable(call)?;
         let reference = self.facts.reference(call)?;
+        // A call read in method form without a recorded dispatch holds its receiver first, where
+        // its written arguments leave it out; whether the frontend numbered them from the
+        // receiver isn't known, so none binds a formal.
+        if reference.dispatch.is_none() && reference.reason.is_some() {
+            return None;
+        }
         let method = matches!(
             reference.dispatch,
             Some(Dispatch::Method | Dispatch::Dynamic)

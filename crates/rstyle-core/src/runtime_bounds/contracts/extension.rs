@@ -60,6 +60,9 @@ pub struct Extension {
     /// The namespaced modifier of a node that runs where what it makes is consumed, rather than
     /// where it's written, as a generator expression does.
     pub lazy: Option<String>,
+    /// The namespaced operations that drain a lazy node handed to them as their first positional
+    /// argument before they return, and keep nothing of it, as `sum` does.
+    pub consumed_by: Vec<String>,
     /// Why the node runs nothing else.
     pub basis: String,
 }
@@ -76,6 +79,9 @@ pub(super) struct ExtensionEntry {
     handlers: Vec<String>,
     /// The modifier, without the namespace, of a node that runs where it's consumed.
     lazy: Option<String>,
+    /// Operations, without the namespace, that drain a lazy node handed to them first.
+    #[serde(default)]
+    consumed_by: Vec<String>,
     /// Registered extension names, without the namespace.
     pub(super) extensions: Vec<String>,
 }
@@ -91,6 +97,12 @@ impl ExtensionEntry {
                 self.implicit, self.control, self.handlers
             ));
         }
+        if self.lazy.is_none() && !self.consumed_by.is_empty() {
+            return Err(format!(
+                "Extension role that isn't lazy is consumed by {:?}",
+                self.consumed_by
+            ));
+        }
         Ok(Extension {
             implicit: self.implicit,
             control: self.control,
@@ -103,6 +115,11 @@ impl ExtensionEntry {
                 .lazy
                 .as_ref()
                 .map(|modifier| format!("{namespace}:{modifier}")),
+            consumed_by: self
+                .consumed_by
+                .iter()
+                .map(|operation| format!("{namespace}:{operation}"))
+                .collect(),
             basis: self.basis.clone(),
         })
     }

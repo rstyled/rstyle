@@ -182,6 +182,16 @@ impl Contracts {
         for text in files {
             contracts.extend(text)?;
         }
+        // Certifying a call callback-free would discard a callable another role says it runs.
+        let handed = contracts
+            .callback_free
+            .keys()
+            .find(|operation| contracts.handed(operation).is_some());
+        if let Some(operation) = handed {
+            return Err(format!(
+                "Operation {operation} is callback-free and runs a callable it's handed"
+            ));
+        }
         Ok(contracts)
     }
 
@@ -539,6 +549,21 @@ mod tests {
     }
 
     #[test]
+    fn a_callback_free_operation_runs_no_callable_it_is_handed() {
+        let callable = "[[callable]]\nbasis = \"b\"\nruns = \"AtMostOnce\"\narity = 1\ncallbacks = [0]\noperations = [\"O.map\"]\n";
+        let free = "[[callback_free]]\nbasis = \"b\"\nform = \"Member\"\narity = 1\ncleanup_free = []\ntypes = [{ argument = 0, keys = [\"t:O\"] }]\noperations = [\"O.map\"]\n";
+        assert!(Contracts::parse_all(&[&file(callable)]).is_ok());
+        assert!(Contracts::parse_all(&[&file(free)]).is_ok());
+        // In one file or in two, the operation would be certified callback-free and its
+        // callable discarded.
+        let expected = "Operation t:O.map is callback-free and runs a callable it's handed";
+        let one = file(&format!("{callable}{free}"));
+        assert_eq!(Contracts::parse_all(&[&one]).unwrap_err(), expected);
+        let two = Contracts::parse_all(&[&file(callable), &file(free)]).unwrap_err();
+        assert_eq!(two, expected);
+    }
+
+    #[test]
     fn callable_roles_are_validated() {
         let callable = "[[callable]]\nbasis = \"b\"\nruns = \"AtMostOnce\"\narity = 2\ncallbacks = [0, 1]\noperations = [\"O.map_or_else\"]\n";
         let one = Contracts::parse_all(&[&file(callable)]).unwrap();
@@ -587,6 +612,7 @@ mod tests {
         );
         let comprehension = contracts.extension("py:comprehension").unwrap();
         assert_eq!(comprehension.lazy.as_deref(), Some("py:lazy"));
+        assert!(comprehension.consumed_by.iter().any(|it| it == "py:sum"));
         assert_eq!(contracts.extension("py:format").unwrap().lazy, None);
         // An assignment to several targets has no role, and roles are keyed by namespace.
         assert_eq!(role("py:assign-chain"), None);
@@ -604,6 +630,18 @@ mod tests {
         assert_eq!(twice, "Library operation t:e has two extension roles");
         let unknown = file(&extension.replace("Always", "Sometimes"));
         assert!(Contracts::parse_all(&[&unknown]).is_err());
+        // Only a lazy node is consumed where it's made, by the operations its role names.
+        let lazy = extension.replace(
+            "extensions",
+            "lazy = \"l\"\nconsumed_by = [\"f\"]\nextensions",
+        );
+        let consumed = Contracts::parse_all(&[&file(&lazy)]).unwrap();
+        assert_eq!(consumed.extension("t:e").unwrap().consumed_by, ["t:f"]);
+        let eager = file(&lazy.replace("lazy = \"l\"\n", ""));
+        assert_eq!(
+            Contracts::parse_all(&[&eager]).unwrap_err(),
+            "Extension role that isn't lazy is consumed by [\"f\"]"
+        );
     }
 
     #[test]

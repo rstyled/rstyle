@@ -123,6 +123,32 @@ fn native_output_stores_recover_two_real_input_sized_scans() {
 }
 
 #[test]
+fn an_allocator_whose_definition_has_a_callable_keeps_its_type_operand() {
+    // A builtin allocator's callable lists only its runtime parameters; the call still holds
+    // the static type in argument zero, as it does without one.
+    let mut document = quote();
+    let definitions = document["unit"]["definitions"].as_array_mut().unwrap();
+    let make = definitions
+        .iter_mut()
+        .find(|definition| definition["id"] == "def:go::make")
+        .unwrap();
+    make["callable"] =
+        json!({"parameters": ["t1"], "result": "t1", "generics": 0, "modifiers": []});
+    let program = program(document);
+    let arguments = program
+        .nodes
+        .iter()
+        .find_map(|node| match &node.action {
+            Action::Call {
+                callee, arguments, ..
+            } if callee == "make" => Some(arguments.len()),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(arguments, 2);
+}
+
+#[test]
 fn allocation_and_length_calls_keep_their_costs_and_argument_positions() {
     let program = program(quote());
     let make = program

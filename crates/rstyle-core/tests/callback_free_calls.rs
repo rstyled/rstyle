@@ -350,6 +350,24 @@ fn result_ok_cannot_hide_destruction_of_its_error() {
 }
 
 #[test]
+fn result_ok_reads_a_result_without_variants_through_its_type_arguments() {
+    // As the Rust frontend writes a library enum: its arguments, and no variants.
+    let mut document = document(Operation::Ok);
+    let result = ty(&mut document, "cb:result").as_object_mut().unwrap();
+    result.remove("variants");
+    let programs = programs(document.clone());
+    let result = composition(&programs, "callback-tests/callback_tests::check");
+    let Composed::Proven(composed) = result else {
+        panic!("{result:?}")
+    };
+    assert_eq!(composed.workspace_invocations, Bound::Const(0));
+    // Its error is still read, so an owned one with a destructor runs it.
+    ty(&mut document, "cb:result")["arguments"][1] = json!("cb:guard");
+    call_reference(&mut document)["instance_arguments"][1] = json!("cb:guard");
+    assert_uncertified(document);
+}
+
+#[test]
 fn copied_does_not_need_structural_cleanup_metadata_for_its_copy_element() {
     let mut document = document(Operation::Copied);
     ty(&mut document, "cb:integer-reference")["target"] = json!("cb:opaque");

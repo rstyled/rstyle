@@ -1,7 +1,7 @@
 //! Nodes of a language's own registered extensions, lowered by the role library contract data
 //! gives each one, so core needs no table of any language's syntax.
 
-use super::super::model::{Node, NodeKind, TargetKind};
+use super::super::model::{Node, NodeKind, RefStatus, Spread, TargetKind};
 use super::Collector;
 use super::frame::is_pattern;
 use crate::runtime_bounds::contracts::{Contracts, Implicit};
@@ -29,7 +29,7 @@ impl<'a> Collector<'_, '_, 'a> {
             .lazy
             .as_ref()
             .is_some_and(|lazy| node.modifiers.contains(lazy))
-            && !self.consumed_where_made(node)?
+            && !self.consumed_where_made(node, &role.consumed_by)?
         {
             let reason = "A lazy value not consumed by the call it's an argument of is unmodeled";
             return Ok(Some(self.unsupported(node, next, reason)));
@@ -52,23 +52,51 @@ impl<'a> Collector<'_, '_, 'a> {
         Ok(Some(entry))
     }
 
-    /// Whether a lazy node is an argument of a call, directly or through an extension that only
-    /// passes it, such as a keyword or a starred argument: the call consumes it, if anything does,
-    /// before anything after the call runs, so it runs no later than it would where it's written.
-    fn consumed_where_made(&self, node: &'a Node) -> Result<bool, String> {
+    /// Whether the call a lazy node is an argument of drains it before returning, so it runs no
+    /// later than it would where it's written: unpacked into the call's arguments, or handed as
+    /// the first positional argument to an operation `consumed_by` names. A call that could keep
+    /// it, by a keyword, a later argument or a callee of the workspace's own, doesn't.
+    fn consumed_where_made(&self, node: &'a Node, consumed_by: &[String]) -> Result<bool, String> {
         let parent = |child: &Node| {
             let nodes = &self.facts.body.function.nodes;
             nodes
                 .iter()
                 .find(|candidate| candidate.children.contains(&child.id))
         };
-        Ok(match parent(node) {
-            Some(call) if call.kind == NodeKind::Call => true,
-            Some(wrapper) if wrapper.kind == NodeKind::Extension => {
-                parent(wrapper).is_some_and(|call| call.kind == NodeKind::Call)
-            }
-            _ => false,
-        })
+        let (call, argument) = match parent(node) {
+            Some(call) if call.kind == NodeKind::Call => (call, node),
+            Some(wrapper) if wrapper.kind == NodeKind::Extension => match parent(wrapper) {
+                Some(call) if call.kind == NodeKind::Call => (call, wrapper),
+                _ => return Ok(false),
+            },
+            _ => return Ok(false),
+        };
+        let Some(reference) = self.facts.reference(call) else {
+            return Ok(false);
+        };
+        let arguments = self.facts.body.arguments(call)?;
+        let Some(at) = arguments
+            .iter()
+            .position(|written| written.node.id == argument.id)
+        else {
+            return Ok(false);
+        };
+        let bindings = reference.arguments.as_ref();
+        let spread = bindings.and_then(|bindings| bindings.get(at)?.spread);
+        if spread == Some(Spread::Sequence) {
+            return Ok(true);
+        }
+        let first = argument.id == node.id
+            && arguments[at].position == Some(0)
+            && arguments[at].parameter.is_none();
+        let operation = (reference.status == RefStatus::Resolved)
+            .then(|| self.facts.declared(reference))
+            .flatten()
+            .and_then(|definition| definition.operation.as_deref());
+        Ok(
+            first
+                && operation.is_some_and(|operation| consumed_by.iter().any(|it| it == operation)),
+        )
     }
 
     // rstyle-allow(mutation_per_target): the collector accumulates the program in self by design
