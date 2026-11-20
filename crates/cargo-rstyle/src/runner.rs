@@ -10,7 +10,7 @@ use crate::cpg::analyze::{self, FrontendResult, Unified};
 use crate::cpg::{self, input};
 use crate::{Cli, Format, MineArgs, PatternDisplayArgs, compiler, ignore, workspace};
 use clap::Args;
-use frontend::{AnalysisPaths, Frontend, Saving};
+use frontend::{AnalysisPaths, Frontend, Input, Saving, Started};
 pub(crate) use risk::{RiskArgs, risk};
 use rstyle_core::config::{Config, Excludes};
 use rstyle_core::cpg::OnRecords;
@@ -329,21 +329,34 @@ fn from_frontend(
     let staged = Staged::new(args.destination(&plan.project, language)?)?;
     let frontend = frontend.excluding(&plan.config.exclude.0);
     let early = Early::new(&plan.filter, &plan.config)?;
-
-    let (records, documents) =
-        match plan.filter.needs_documents() || frontend.reads_documents(&local) {
-            true => frontend_records(&plan, &frontend, &staged, &early)?,
-            false => (Vec::new(), 0),
-        };
-    let mut unified = plan.analyzed(records, Some(early))?;
     if !local.is_empty() {
-        let paths = AnalysisPaths {
-            source: &plan.source,
-            results: &staged.folder(FRONTEND_FOLDER)?,
-            documents: &staged.path().join(DOCUMENTS_FOLDER),
-        };
-        unified.frontend = frontend.run_analyses(&local, &paths);
+        staged.folder(FRONTEND_FOLDER)?;
     }
+    let (results, kept) = (
+        staged.path().join(FRONTEND_FOLDER),
+        staged.path().join(DOCUMENTS_FOLDER),
+    );
+    let paths = AnalysisPaths {
+        source: &plan.source,
+        results: &results,
+        documents: &kept,
+    };
+
+    let (unified, documents) = std::thread::scope(|scope| {
+        // An analysis of the source needs nothing the stream brings, so it runs beside it. A run
+        // that fails waits for what started before it says so, and publishes none of it.
+        let of_source = frontend.start_analyses(scope, (&local, Input::Source), &paths);
+        let (records, documents) =
+            match plan.filter.needs_documents() || frontend.reads_documents(&local) {
+                true => frontend_records(&plan, &frontend, &staged, &early)?,
+                false => (Vec::new(), 0),
+            };
+        // An analysis of the documents starts once the stream has kept them all, beside core's.
+        let of_documents = frontend.start_analyses(scope, (&local, Input::Documents), &paths);
+        let mut unified = plan.analyzed(records, Some(early))?;
+        unified.frontend = Started::together([of_source, of_documents]).finished();
+        Ok::<_, String>((unified, documents))
+    })?;
     let run = plan.save(&unified, staged, documents)?;
     plan.output(&unified, Some(&run))
 }

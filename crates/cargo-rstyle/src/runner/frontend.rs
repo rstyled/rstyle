@@ -15,6 +15,7 @@ use std::io::{BufReader, PipeWriter};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::Mutex;
+use std::thread::{Scope, ScopedJoinHandle};
 
 const SCHEMA: &str = "rstyle.frontend-description/1";
 const GO_PACKAGE: &str = "github.com/rstyled/rstyle-go/cmd/rstyle-go@latest";
@@ -56,11 +57,32 @@ struct Described {
 /// What an analysis works from. A frontend that says nothing of it reads its source.
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-enum Input {
+pub(super) enum Input {
     #[default]
     Source,
     /// The run's documents, on a pipe it inherits, so it needs no second read of the source.
     Documents,
+}
+
+/// Analyses running, each with its place among the names it was started from.
+pub(super) struct Started<'scope>(Vec<(usize, ScopedJoinHandle<'scope, FrontendResult>)>);
+
+impl<'scope> Started<'scope> {
+    /// Analyses started at different points of the run, from the same names.
+    pub(super) fn together(all: impl IntoIterator<Item = Self>) -> Self {
+        Self(all.into_iter().flat_map(|started| started.0).collect())
+    }
+
+    /// Waits for every analysis, and lists them in the order they were named.
+    pub(super) fn finished(self) -> Vec<FrontendResult> {
+        let mut finished: Vec<_> = self
+            .0
+            .into_iter()
+            .map(|(place, running)| (place, running.join().expect("no panic in an analysis")))
+            .collect();
+        finished.sort_by_key(|(place, _)| *place);
+        finished.into_iter().map(|(_, result)| result).collect()
+    }
 }
 
 /// An analysis that finished: its own file, and its runs as the final report holds them.
@@ -181,11 +203,13 @@ impl Frontend {
         (demand, on_records): (Demand, OnRecords<'_>),
         saving: &Saving<'_>,
     ) -> Result<Streamed, String> {
+        let alone = pipe::alone();
         let (reader, writer) =
             std::io::pipe().map_err(|error| format!("Cannot create a pipe: {error}"))?;
         let child = self.spawn_stream(source, &writer)?;
         // The frontend must hold the only write end, or EOF would never arrive.
         drop(writer);
+        drop(alone);
 
         let child = Mutex::new(child);
         let stop = || stop_child(&child);
@@ -235,35 +259,57 @@ impl Frontend {
         }
     }
 
-    /// Runs each analysis in turn. One failing doesn't discard the others or the run.
-    // rstyle-allow(side_effect_density): process boundary: runs the frontend's analyses
+    /// Runs the analyses side by side. One failing doesn't discard the others or the run.
     pub(super) fn run_analyses(
         &self,
         names: &[String],
         paths: &AnalysisPaths<'_>,
     ) -> Vec<FrontendResult> {
-        names
+        std::thread::scope(|scope| {
+            let started = [Input::Source, Input::Documents]
+                .map(|input| self.start_analyses(scope, (names, input), paths));
+            Started::together(started).finished()
+        })
+    }
+
+    /// Starts each of `names` that works from `input`, in a thread of its own, so analyses run
+    /// beside each other and beside whatever the run does next. Each keeps its place among
+    /// `names`, so which finishes first can't change the report.
+    // rstyle-allow(side_effect_density): process boundary: starts the frontend's analyses
+    pub(super) fn start_analyses<'scope, 'env>(
+        &'env self,
+        scope: &'scope Scope<'scope, 'env>,
+        (names, input): (&'env [String], Input),
+        paths: &'env AnalysisPaths<'env>,
+    ) -> Started<'scope> {
+        let running = names
             .iter()
-            .map(|name| {
-                let analysis = format!("{}:{name}", self.language);
-                match self.run_analysis(name, paths) {
-                    Ok(finished) => FrontendResult {
-                        analysis,
-                        status: "complete",
-                        file: Some(finished.file),
-                        runs: finished.runs,
-                        error: None,
-                    },
-                    Err(error) => FrontendResult {
-                        analysis,
-                        status: "failed",
-                        file: None,
-                        runs: Vec::new(),
-                        error: Some(error),
-                    },
-                }
-            })
-            .collect()
+            .enumerate()
+            .filter(|(_, name)| self.input(name) == input)
+            .map(|(place, name)| (place, scope.spawn(move || self.result(name, paths))))
+            .collect();
+        Started(running)
+    }
+
+    /// One analysis run to the end, as the report holds it.
+    fn result(&self, name: &str, paths: &AnalysisPaths<'_>) -> FrontendResult {
+        let analysis = format!("{}:{name}", self.language);
+        match self.run_analysis(name, paths) {
+            Ok(finished) => FrontendResult {
+                analysis,
+                status: "complete",
+                file: Some(finished.file),
+                runs: finished.runs,
+                error: None,
+            },
+            Err(error) => FrontendResult {
+                analysis,
+                status: "failed",
+                file: None,
+                runs: Vec::new(),
+                error: Some(error),
+            },
+        }
     }
 
     /// A file is published only if the analysis succeeded and wrote valid SARIF. The path is
@@ -280,7 +326,7 @@ impl Frontend {
             documents,
         } = *paths;
         let staged = results.join(format!(".{name}.staged"));
-        let mut command = self.command(&[
+        let command = self.command(&[
             "analyze".as_ref(),
             name.as_ref(),
             "--source".as_ref(),
@@ -289,9 +335,7 @@ impl Frontend {
             staged.as_os_str(),
         ]);
         let status = match self.input(name) {
-            Input::Source => command
-                .status()
-                .map_err(|error| format!("Cannot run {}: {error}", self.name()))?,
+            Input::Source => self.run_alone(command)?,
             Input::Documents => self.run_reading(command, documents)?,
         };
 
@@ -304,12 +348,25 @@ impl Frontend {
         })
     }
 
+    /// Runs an analysis that inherits no pipe, spawned when no other child's pipe is open to it.
+    // rstyle-allow(side_effect_density): process boundary: runs one analysis
+    fn run_alone(&self, mut command: Command) -> Result<ExitStatus, String> {
+        let spawned = {
+            let _alone = pipe::alone();
+            command.spawn()
+        };
+        spawned
+            .and_then(|mut child| child.wait())
+            .map_err(|error| format!("Cannot run {}: {error}", self.name()))
+    }
+
     /// Runs an analysis with the run's documents on a pipe it inherits. It must read them to
     /// the end: only the last record says it has them all, so one that exits first can't have
     /// analyzed the run.
     // rstyle-allow(side_effect_density): process boundary: runs an analysis and feeds it
     fn run_reading(&self, mut command: Command, documents: &Path) -> Result<ExitStatus, String> {
         let manifest = DocumentManifest::read(&transport::read_manifest_bytes(documents)?)?;
+        let alone = pipe::alone();
         let (reader, mut writer) =
             std::io::pipe().map_err(|error| format!("Cannot create a pipe: {error}"))?;
         let number = pipe::inherit(&mut command, &reader)?;
@@ -319,6 +376,7 @@ impl Frontend {
             .map_err(|error| format!("Cannot run {}: {error}", self.name()))?;
         // The child must hold the only read end, so writing fails if it stops reading.
         drop(reader);
+        drop(alone);
 
         let (status, sent) = std::thread::scope(|scope| {
             let sending = scope
