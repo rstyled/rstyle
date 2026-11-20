@@ -1001,23 +1001,56 @@ fn an_edge_places_each_argument_at_the_parameter_it_binds() {
         edge_arguments(json!([{"position": 0}, {"position": 1}])),
         [Const, Param(1)]
     );
+}
 
-    // A method called by path, as Python's call of a class is, may not pass its receiver, so its
-    // arguments stay as they're written.
+/// `flow`'s call of `f`, with `f` a method, `change` made to its definition and its reference.
+fn method_edge(change: impl FnOnce(&mut Value, &mut Value)) -> Vec<ArgSource> {
     let mut document = flow();
-    let definitions = document["unit"]["definitions"].as_array_mut().unwrap();
-    let callee = definitions
-        .iter_mut()
-        .find(|it| it["id"] == "def:f")
+    let definitions = document["unit"]["definitions"].as_array().unwrap();
+    let at = definitions
+        .iter()
+        .position(|it| it["id"] == "def:f")
         .unwrap();
+    let refs = document["unit"]["functions"][0]["refs"].as_array().unwrap();
+    let call_at = refs.iter().position(|it| it["node"] == "f1").unwrap();
+    let mut callee = definitions[at].clone();
+    let mut call = refs[call_at].clone();
     callee["kind"] = json!("method");
-    let written = facts_of(document.clone())[0].edges[0].args.clone();
-    bind(
-        &mut document,
-        "f1",
-        json!([{"position": 1}, {"position": 0}]),
+    change(&mut callee, &mut call);
+    document["unit"]["definitions"][at] = callee;
+    document["unit"]["functions"][0]["refs"][call_at] = call;
+    facts_of(document)[0].edges[0].args.clone()
+}
+
+#[test]
+fn an_edge_leaves_out_a_methods_receiver() {
+    use ArgSource::{Const, Param};
+    // Whether a call by path passes it or a call of a class binds it itself.
+    let bound = |arguments: Value| method_edge(|_, call| call["arguments"] = arguments);
+    assert_eq!(
+        method_edge(|_, _| {}),
+        [Param(1)],
+        "by path, it's written first"
     );
-    assert_eq!(facts_of(document)[0].edges[0].args, written);
+    assert_eq!(bound(json!([{"position": 0}, {"position": 1}])), [Param(1)]);
+    assert_eq!(
+        bound(json!([{"position": 2}, {"position": 1}])),
+        [Param(1), Const],
+        "a call of a class passes no receiver, so its first argument can bind the second parameter"
+    );
+}
+
+#[test]
+fn an_edge_of_a_static_method_leaves_out_the_receiver_it_isnt_passed() {
+    use ArgSource::{Const, Param};
+    // Read as a method call, `flow(None, y)`'s first child is that receiver.
+    let args = method_edge(|callee, call| {
+        callee["callable"] =
+            json!({"parameters": ["type:u32", "type:u32"], "result": "type:u32", "generics": 0});
+        call["dispatch"] = json!("method");
+        call["arguments"] = json!([{}, {"position": 1}, {"position": 0}]);
+    });
+    assert_eq!(args, [Param(1), Const]);
 }
 
 #[test]
@@ -1047,6 +1080,22 @@ fn a_memory_write_reads_the_argument_bound_to_its_position() {
         class(json!([{"position": 1}])),
         Some(LibraryClass::Effect(EffectKind::Io)),
         "the buffer is another parameter, so the first takes its default"
+    );
+
+    // What runs takes a receiver, so its first parameter after it is 1, whether or not the call
+    // passes the receiver.
+    let method = |arguments: Value| {
+        let mut document = library_calls();
+        let definitions = document["unit"]["definitions"].as_array_mut().unwrap();
+        let fprintf = definitions.iter_mut().find(|it| it["id"] == "def:fprintf");
+        fprintf.unwrap()["kind"] = json!("method");
+        bind(&mut document, "c1", arguments);
+        facts_of(document)[0].calls[1].library
+    };
+    assert_eq!(method(json!([{"position": 1}])), Some(LibraryClass::Pure));
+    assert_eq!(
+        method(json!([{"position": 0}])),
+        Some(LibraryClass::Effect(EffectKind::Io))
     );
 }
 

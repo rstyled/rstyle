@@ -457,23 +457,36 @@ fn method_arguments_include_the_receiver_before_reordered_parameters() {
     assert_eq!(proven_count(document), Bound::Input("n".into()));
 }
 
-#[test]
-fn a_static_member_through_an_instance_keeps_its_sizes_unavailable() {
+/// `scan` as a static method, called through an instance whose receiver is written first.
+fn through_an_instance(arguments: Value) -> Value {
     let mut document = document();
     let caller = &mut document["unit"]["functions"][1];
     node(caller, "caller.callee")["kind"] = json!("literal");
     caller["refs"][0]["dispatch"] = json!("method");
-    caller["refs"][0]["arguments"] = json!([
-        {"position":0}, {"position":2,"value":"caller.zero"},
-        {"position":1,"value":"caller.n"}
-    ]);
-    assert_partial(document);
+    caller["refs"][0]["arguments"] = arguments;
+    document
 }
 
 #[test]
-fn a_constructor_adds_one_receiver_after_binding_its_written_parameters() {
-    let mut document = document();
-    receiver(&mut document);
+fn a_static_member_through_an_instance_binds_its_arguments_without_the_receiver() {
+    let document = through_an_instance(json!([
+        {}, {"position":1,"value":"caller.zero"}, {"position":0,"value":"caller.n"}
+    ]));
+    assert_eq!(proven_count(document), Bound::Input("n".into()));
+}
+
+#[test]
+fn a_static_member_whose_receiver_binds_a_parameter_keeps_its_sizes_unavailable() {
+    // Numbered as if the receiver were passed, which a static member isn't.
+    assert_partial(through_an_instance(json!([
+        {"position":0}, {"position":2,"value":"caller.zero"},
+        {"position":1,"value":"caller.n"}
+    ])));
+}
+
+/// The call made a call of a type, whose value is `scan`'s receiver.
+fn constructor(document: &mut Value) {
+    receiver(document);
     document["unit"]["definitions"]
         .as_array_mut()
         .unwrap()
@@ -488,7 +501,25 @@ fn a_constructor_adds_one_receiver_after_binding_its_written_parameters() {
             "id":"type:Made","kind":"record","spelling":"Made","definition":"def:Made"
         }));
     node(&mut document["unit"]["functions"][1], "caller.callee")["type"] = json!("type:Made");
+}
+
+#[test]
+fn a_constructor_binds_its_arguments_after_the_receiver_it_makes() {
+    let mut document = document();
+    constructor(&mut document);
+    *bindings(&mut document) = json!([
+        {"position":2,"parameter":"unused","value":"caller.zero"},
+        {"position":1,"parameter":"limit","value":"caller.n"}
+    ]);
     assert_eq!(proven_count(document), Bound::Input("n".into()));
+}
+
+#[test]
+fn a_constructor_whose_argument_binds_the_receiver_keeps_its_sizes_unavailable() {
+    // Numbered as if the call passed the receiver it makes, so `n` would bind `self`.
+    let mut document = document();
+    constructor(&mut document);
+    assert_partial(document);
 }
 
 fn argument_call(document: &mut Value, index: usize) {

@@ -443,7 +443,7 @@ impl<'a> Walk<'a> {
         let Some(operation) = runs.operation.as_deref() else {
             return Ok(self.classes.unlisted());
         };
-        if self.writes_to_memory(node, operation)? {
+        if self.writes_to_memory(node, (operation, runs))? {
             return Ok(Some(LibraryClass::Pure));
         }
         let calls_back = callee.reference.calls_back.as_ref();
@@ -458,15 +458,20 @@ impl<'a> Walk<'a> {
     }
 
     /// Whether the contract keeps this call's effect in a buffer, by an argument's type. The
-    /// argument is counted after the callee or a method call's receiver, by the parameter it binds to.
-    fn writes_to_memory(&self, node: &'a Node, operation: &str) -> Result<bool, String> {
+    /// argument is counted after the callee or a method call's receiver, by the parameter it binds
+    /// to: after the receiver of what runs, when it takes one, whether or not the call passes it.
+    fn writes_to_memory(
+        &self,
+        node: &'a Node,
+        (operation, runs): (&str, &Definition),
+    ) -> Result<bool, String> {
         let Some(rule) = self.classes.memory_write(operation) else {
             return Ok(false);
         };
 
         let argument = match self.body.reference(&node.id) {
             Some(reference) if reference.arguments.is_some() => {
-                let position = rule.argument + usize::from(method_form(reference));
+                let position = rule.argument + usize::from(runs.takes_receiver());
                 let arguments = self.body.arguments(node)?.into_iter();
                 let mut bound = arguments.filter(|argument| argument.position == Some(position));
                 bound.next().map(|argument| argument.value)
@@ -514,23 +519,23 @@ impl<'a> Walk<'a> {
         Ok(())
     }
 
-    /// Arguments after the callee, or after the receiver of a method call; a method
-    /// called by path takes its receiver as the first argument, which is not counted.
-    /// Where the call binds them, each is placed at the parameter it binds to, except in a
-    /// method called by path: Python's class call is one too, and passes no receiver, so
-    /// which argument is the receiver isn't known, and they stay in written order.
+    /// Arguments by the callee's parameters after its receiver, which is not counted. Where the
+    /// call binds them, each is placed at the parameter it binds to, whether the call passes the
+    /// receiver as a method call or a method called by path does, or passes none, as Python's
+    /// call of a class doesn't. Otherwise they're in written order, after the callee, or after
+    /// the receiver of a method call or of a method called by path.
     fn arguments(
         &self,
         node: &'a Node,
         reference: &Ref,
         declared: &Definition,
     ) -> Result<Vec<ArgSource>, String> {
-        let method_form = method_form(reference);
-        let receiver = usize::from(!method_form && declared.kind == DefinitionKind::Method);
-        if reference.arguments.is_some() && receiver == 0 {
-            return self.bound_arguments(node, usize::from(method_form));
+        let takes_receiver = declared.takes_receiver();
+        if reference.arguments.is_some() {
+            return self.bound_arguments(node, usize::from(takes_receiver));
         }
 
+        let receiver = usize::from(!method_form(reference) && takes_receiver);
         let children = self.body.source_children(node)?;
         children
             .iter()
@@ -539,8 +544,9 @@ impl<'a> Walk<'a> {
             .collect()
     }
 
-    /// Arguments placed by the parameter each binds to, from `first` on: one with no position
-    /// is left out, and a parameter no argument binds, which takes its default, is other.
+    /// Arguments placed by the parameter each binds to, from `first` on: one with no position,
+    /// or a receiver, is left out, and a parameter no argument binds, which takes its default, is
+    /// other.
     fn bound_arguments(&self, node: &'a Node, first: usize) -> Result<Vec<ArgSource>, String> {
         let mut placed: BTreeMap<usize, ArgSource> = BTreeMap::new();
         for argument in self.body.arguments(node)? {

@@ -337,8 +337,9 @@ caller's arguments. Lengths follow shared places and field paths, so passing `&g
 contributes `len(g.edges)`.
 
 Call arguments run in written evaluation order, while their summary inputs follow the formal positions
-recorded by the frontend. Thus `scan(unused=0, limit=n)` passes `n` to the formal `limit` even when it
-is written last. Missing arguments retain unknown sizes; the analysis does not guess their defaults.
+recorded by the frontend, as the callee numbers its own parameters, a receiver first when it takes one.
+Thus `scan(unused=0, limit=n)` passes `n` to the formal `limit` even when it is written last, and a
+static method called through an instance binds nothing to the receiver the call writes first. Missing arguments retain unknown sizes; the analysis does not guess their defaults.
 Summary inputs require a known, fixed callable interface. Unresolved positions, duplicate bindings,
 spreads, variadic interfaces and mismatched receiver layouts leave argument sizes opaque, while the
 call and its argument evaluation remain counted. Argument rosters are bounded before allocation.
@@ -351,7 +352,9 @@ destructuring and aliases of other locals retain local or unresolved size inform
 
 A call of a type, such as Python's `Made(xs, ys)`, runs the function its own reference names when the
 frontend resolves that statically, here `Made.__init__`. The value the call makes is that function's
-receiver, so `xs` and `ys` are the parameters after `self`. A frontend leaves the reference unresolved when
+receiver, so `xs` and `ys` bind the parameters after `self`, at 1 and 2. A call whose argument binds the
+receiver itself was numbered as if the call passed it, as a document from before rstyle-py numbered by
+the callee's parameters is, and gives no argument a size. A frontend leaves the reference unresolved when
 making the value runs anything else, and the call stays opaque.
 
 These contribute opaque factors, which make the composed result `Partial` and are each listed with the
