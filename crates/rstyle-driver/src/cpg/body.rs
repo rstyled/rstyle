@@ -109,8 +109,13 @@ impl<'u, 'tcx> Builder<'u, 'tcx> {
             }
         };
         let original = super::compiler::original_kind(self.tcx, hir_id);
-        let mut record = json!({"id": id, "kind": shape.kind, "original_kind": original,
-                                "children": shape.children, "provenance": provenance});
+        let mut record = super::object([
+            ("id", id.clone().into()),
+            ("kind", shape.kind.into()),
+            ("original_kind", original.into()),
+            ("children", shape.children.into()),
+            ("provenance", provenance),
+        ]);
         record.as_object_mut().unwrap().extend(shape.fields);
         match own {
             Some(own) => record["span"] = own,
