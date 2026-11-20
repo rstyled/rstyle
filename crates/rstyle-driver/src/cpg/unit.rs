@@ -1133,9 +1133,11 @@ fn compiler_facts(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> Vec<(&'stati
 
 // rstyle-allow(mutation_per_target): builds one identity record key by key
 /// The compiler's own identity of a definition, as the frontend's facts print it: its def
-/// path with its crate's disambiguator, `DefKind`, `DefPathHash`, crate name and, for another
-/// crate, its hash. The path is a `DefId` as the compiler prints it, without the crate number
-/// and index, which hold only within one compilation and move whenever an item is added.
+/// path with its crate's disambiguator, `DefKind`, `DefPathHash` and crate name. The path is
+/// a `DefId` as the compiler prints it, without the crate number and index, which hold only
+/// within one compilation and move whenever an item is added. Another crate's hash isn't
+/// recorded: any edit to that crate changes it, a comment included, so it would rewrite every
+/// document naming one of its definitions though nothing they record had changed.
 fn rust_identity(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> serde_json::Map<String, Value> {
     let mut identity = serde_json::Map::new();
     identity.insert("def_path".into(), json!(tcx.def_path_debug_str(def_id)));
@@ -1161,10 +1163,6 @@ fn rust_identity(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> serde_json::M
         identity.insert("parent".into(), json!(tcx.def_path_debug_str(parent)));
     }
     if !def_id.is_local() {
-        identity.insert(
-            "crate_hash".into(),
-            json!(tcx.crate_hash(def_id.krate).to_string()),
-        );
         let rmeta = tcx.used_crate_source(def_id.krate).rmeta.clone();
         if let Some(rmeta) = rmeta {
             identity.insert("rmeta".into(), json!(rmeta));
