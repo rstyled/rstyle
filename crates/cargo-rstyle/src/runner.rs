@@ -345,6 +345,8 @@ fn from_frontend(
         results: &results,
         documents: &kept,
     };
+    // A run kept in a store packs each unit as its document arrives.
+    let emitted = plan.emitted();
 
     let (unified, documents) = std::thread::scope(|scope| {
         // An analysis of the source needs nothing the stream brings, so it runs beside it. A run
@@ -352,7 +354,7 @@ fn from_frontend(
         let of_source = frontend.start_analyses(scope, (&local, Input::Source), &paths);
         let (records, documents) =
             match plan.filter.needs_documents() || frontend.reads_documents(&local) {
-                true => frontend_records(&plan, &frontend, &staged, &early)?,
+                true => frontend_records(&plan, &frontend, (&staged, emitted.as_ref()), &early)?,
                 false => (Vec::new(), 0),
             };
         // An analysis of the documents starts once the stream has kept them all, beside core's.
@@ -363,20 +365,21 @@ fn from_frontend(
     })?;
     let run = plan.save(&unified, staged, documents)?;
     let output = plan.output(&unified, Some(&run))?;
-    plan.reported(&run, output)
+    plan.reported(&run, output, (emitted, documents))
 }
 
 // rstyle-allow(side_effect_density): process boundary: reads the frontend's stream
 fn frontend_records(
     plan: &Plan<'_>,
     frontend: &Frontend,
-    staged: &Staged,
+    (staged, emitted): (&Staged, Option<&crate::cpg::pack::Emitted>),
     early: &Early,
 ) -> Result<(Vec<Record>, usize), String> {
     let directory = staged.folder(DOCUMENTS_FOLDER)?;
     let saving = Saving {
         directory: &directory,
         encoding: plan.cli.cpg_compression,
+        emitted,
     };
     let take = |records: Vec<Record>| early.take(records);
     let streamed = frontend.stream(&plan.source, (plan.filter.demand(), &take), &saving)?;
@@ -406,7 +409,7 @@ pub(crate) fn rust(cli: &Cli, args: &RunArgs) -> Result<(String, u8), String> {
     let unified = plan.analyzed(records, Some(early))?;
     let run = plan.save(&unified, staged, documents)?;
     let output = plan.output(&unified, Some(&run))?;
-    plan.reported(&run, output)
+    plan.reported(&run, output, (plan.emitted(), documents))
 }
 
 /// Reads the capture `cargo rstyle` and `patterns` share, so only what changed compiles, and
@@ -684,19 +687,32 @@ impl Plan<'_> {
         staged.publish()
     }
 
+    /// What keeps the run in `--store`, if there is one: units packed as they arrive, and the
+    /// rest packed from the saved run.
+    fn emitted(&self) -> Option<crate::cpg::pack::Emitted> {
+        let store = self.args.store.as_deref()?;
+        Some(crate::cpg::pack::Emitted::new(store, 3))
+    }
+
     // rstyle-allow(side_effect_density): IO boundary: prints the report, then keeps the run
     /// The run's report, printed before the run is kept in `--store` when there is one, so a
     /// check never waits on its store: what's left to print is then nothing.
-    fn reported(&self, run: &Path, output: (String, u8)) -> Result<(String, u8), String> {
-        let Some(store) = &self.args.store else {
+    fn reported(
+        &self,
+        run: &Path,
+        output: (String, u8),
+        (emitted, documents): (Option<crate::cpg::pack::Emitted>, usize),
+    ) -> Result<(String, u8), String> {
+        let Some(emitted) = emitted else {
             return Ok(output);
         };
         let (text, code) = output;
         print!("{text}");
         std::io::Write::flush(&mut std::io::stdout()).map_err(|error| error.to_string())?;
-        let kept = crate::cpg::pack::pack_run(&run.join(DOCUMENTS_FOLDER), store, 3)?;
+        let store = emitted.store().display().to_string();
+        let kept = emitted.finish(&run.join(DOCUMENTS_FOLDER), documents)?;
         let manifest = kept["manifest"].as_str().unwrap_or_default();
-        eprintln!("rstyle: run kept in {} as {manifest}", store.display());
+        eprintln!("rstyle: run kept in {store} as {manifest}");
         Ok((String::new(), code))
     }
 
