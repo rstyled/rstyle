@@ -27,7 +27,7 @@ pub mod transport;
 pub mod tree;
 
 pub use facts::{CAPABILITIES, LAYERS, all_facts, derivable_facts, rule_facts};
-pub use pool::{OnRecords, Pool, keep_records, pooled_records};
+pub use pool::{OnRecords, Order, Pool, keep_records, pooled_records};
 pub use run::{RunInputs, run_inputs};
 pub use stream::{read_records, visit_records};
 
@@ -108,7 +108,7 @@ pub fn run_records(
     documents: Vec<serde_json::Value>,
     demand: records::Demand,
 ) -> Result<Vec<records::Record>, String> {
-    read_records(documents.into_iter().map(Ok), demand)
+    read_records(documents.iter().map(layout::Parsed::from_json), demand)
 }
 
 /// A record's measured facts, with its graph, when its function is authored.
