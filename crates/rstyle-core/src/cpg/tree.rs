@@ -97,8 +97,9 @@ fn index<'a, T>(
 pub struct Argument<'a> {
     pub node: &'a Node,
     pub value: &'a Node,
-    /// What a positional argument for its parameter would be numbered, as a call's arguments
-    /// are: a receiver is 0. None where the frontend can't know, as for a spread.
+    /// The parameter it binds to, as the callee numbers its own parameters: a receiver is 0
+    /// when it takes one, whether or not the call passes it. None where the frontend can't know,
+    /// as for a spread, and where it binds nothing, as the receiver of a static method does.
     pub position: Option<usize>,
     pub parameter: Option<&'a str>,
 }
@@ -171,7 +172,8 @@ impl<'a> Body<'a> {
 
     /// A call's arguments, from its receiver when its dispatch is `method` or `dynamic` and
     /// otherwise after its callee. Where its reference binds them, each is numbered by the
-    /// parameter it binds to, and otherwise by where it's written.
+    /// callee's parameter it binds to, and otherwise by where it's written, which is the same
+    /// number in a language that passes every argument, a receiver included, where it's written.
     pub fn arguments(&self, call: &Node) -> Result<Vec<Argument<'a>>, String> {
         let reference = self.reference(&call.id);
         let dispatch = reference.and_then(|it| it.dispatch);

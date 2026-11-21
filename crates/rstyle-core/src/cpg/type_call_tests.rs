@@ -92,13 +92,31 @@ fn leaves_the_call_opaque(composed: &Value) -> bool {
 
 #[test]
 fn a_call_of_a_type_runs_the_function_its_reference_names() {
-    // The value the call makes is `__init__`'s receiver, so `ys` is `second`, whose loop this is.
+    // The value the call makes is `__init__`'s receiver, so `ys` binds `second` at 2, whose loop
+    // this is.
     let composed = make_composed(|_| {});
     assert_eq!(
         composed["Proven"]["loop_body_entries"],
         json!({"Input": "len(ys)#1"}),
         "{composed}"
     );
+}
+
+#[test]
+fn a_call_of_a_type_numbered_as_if_it_passed_the_receiver_binds_no_parameter() {
+    // A document from before rstyle-py numbered by the callee's parameters puts `xs` at 0, where
+    // `self` is. The value the call makes is `self`, so that numbering doesn't fit the call.
+    for arguments in [
+        json!([{"position": 0, "parameter": "first"}, {"position": 1, "parameter": "second"}]),
+        Value::Null,
+    ] {
+        let composed = make_composed(|reference| match arguments {
+            Value::Null => drop(reference.as_object_mut().unwrap().remove("arguments")),
+            arguments => reference["arguments"] = arguments,
+        });
+        assert!(composed["Proven"].is_null(), "{composed}");
+        assert!(!composed.to_string().contains("len(ys)"), "{composed}");
+    }
 }
 
 #[test]
@@ -112,12 +130,14 @@ fn a_call_of_a_type_stays_opaque_when_its_reference_is_unresolved() {
 
 #[test]
 fn a_call_of_a_type_stays_opaque_when_its_dispatch_is_dynamic() {
-    // As rstyle-py writes a class's call when a metaclass's `__call__` runs instead.
+    // As rstyle-py writes a class's call when a metaclass's `__call__` runs instead: the class is
+    // the receiver, and with no signature the arguments are in written order, so it binds none.
     let composed = make_composed(|reference| {
         reference["status"] = json!("unresolved");
         reference["dispatch"] = json!("dynamic");
         reference["reason"] = json!("a metaclass's `__call__` runs before `__init__` would");
         reference.as_object_mut().unwrap().remove("target");
+        reference.as_object_mut().unwrap().remove("arguments");
     });
     assert!(leaves_the_call_opaque(&composed), "{composed}");
 }

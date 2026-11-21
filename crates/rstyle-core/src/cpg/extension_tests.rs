@@ -8,6 +8,7 @@ use serde_json::{Value, json};
 const EXAMPLE: &str = include_str!("testdata/example.cpg.json");
 const COMPREHENSIONS: &str = include_str!("testdata/comprehensions-py.cpg.json");
 const DEFERRED: &str = include_str!("testdata/deferred-go.cpg.json");
+const ARGUMENTS: &str = include_str!("testdata/arguments-py.cpg.json");
 
 fn count_function(document: &mut Value) -> &mut Value {
     let functions = document["unit"]["functions"].as_array_mut().unwrap();
@@ -275,6 +276,27 @@ fn a_lazy_value_runs_in_place_only_where_its_call_drains_it() {
     assert!(keyword.contains(UNCONSUMED), "{keyword}");
     let later = summed(|call| call["arguments"] = json!([{"position": 1}]));
     assert!(later.contains(UNCONSUMED), "{later}");
+}
+
+/// A class's call binds the `self` of `list.__init__` or the `cls` of `tuple.__new__` itself, so
+/// the generator it's handed first binds the parameter after it, and is drained there. Numbered
+/// as if the call passed the receiver, the generator would bind it, and it's kept unsupported.
+#[test]
+fn a_class_drains_the_lazy_value_it_is_handed_first() {
+    for name in ["drained", "drained_tuple"] {
+        let document: Value = serde_json::from_str(ARGUMENTS).unwrap();
+        let program = named(document, name);
+        assert!(!program.contains(UNCONSUMED), "{name}: {program}");
+
+        let mut document: Value = serde_json::from_str(ARGUMENTS).unwrap();
+        let functions = document["unit"]["functions"].as_array_mut().unwrap();
+        let function = functions.iter_mut().find(|f| f["name"] == name).unwrap();
+        let refs = function["refs"].as_array_mut().unwrap();
+        let call = refs.iter_mut().find(|r| r.get("arguments").is_some());
+        call.unwrap()["arguments"] = json!([{"position": 0}]);
+        let program = named(document, name);
+        assert!(program.contains(UNCONSUMED), "{name}: {program}");
+    }
 }
 
 /// A generator expression that isn't one of a call's written arguments isn't drained by it: one

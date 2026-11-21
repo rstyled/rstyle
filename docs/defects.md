@@ -255,6 +255,11 @@ A Python keyword argument is read by the parameter it names, as mypy's signature
 `subprocess.run(shell=True, args=input)` and `open(mode="r", file=input)` are found, while
 `subprocess.run("ls", cwd=input, shell=True)` and `open(encoding=input, file="a.txt")` aren't, however they're ordered.
 
+Every argument is read by the parameter it binds to, as the callee numbers its own: `self` or `cls` first, whether the
+call passes it or not. So in `Opener("a.txt", input)` the input is `Opener.__init__`'s second parameter after `self`,
+`Tools.make("label", input)` passes a class method's `command` after its `cls`, and `tools.run(input)` passes a static
+method's first parameter, though it's called through an instance.
+
 A source can be a library's variable as well as a call, so reading `os.environ` or `sys.argv` is where input starts, and
 `os.environ.get("HOME")` and `sys.argv[1]` hold it. It can be a parameter too: a model names a library type, and a
 parameter declared as one, through pointers, is input in every part where the function is handed the type the model
@@ -299,12 +304,14 @@ ignored = ["std::env::var"]         # calls that are no end of a flow here, or a
 
 [[taint.sinks]]
 callees = ["sqlx::query"]
-arguments = [0]                     # a receiver is 0, and otherwise the first argument is
+arguments = [0]                     # the callee's own parameters: a receiver is 0, and otherwise the first is
 risk = "SQL injection"
 cwe = "CWE-89"
 ```
 
-A callee is named by its operation, its name or its identity. A command-line tool is meant to read its own environment, as that
+A callee is named by its operation, its name or its identity. A Python class is called through its `__init__`, whose
+`self` is 0, so a sink on what a class is made with names the parameter after it: `subprocess.Popen.__init__`'s command
+is 1. A command-line tool is meant to read its own environment, as that
 example is, and every result on go-ethereum and on rstyle itself is an environment variable choosing a path or a program, so
 `ignored` is often the right answer for those.
 
@@ -355,10 +362,10 @@ reach a sink or what it returns, and whether it returns input of its own, so a v
   argument reaches no sink and no parameter, though a call with no body here still gives it back. `shell=True` is still
   read wherever the parameter is named. A document from before rstyle-py wrote bindings numbers every argument where it's
   written and names no parameter, so `shell=True` isn't read in it.
-- **A Python class called to make an object** passes no `self`, while its `__init__` numbers `self` as 0, so in
-  `Opener("a.txt", input())` the input is read as `__init__`'s first parameter rather than its second. A static method
-  called through an object, as `tools.run(input())`, is off by one the other way. This is how they're numbered, keywords
-  or not.
+- **A Python run saved before rstyle-py numbered arguments by the callee's parameters** numbers a class's call, a class
+  method's through its class and a static method's through an instance by where they're written. Read now, a class's call
+  passes its first argument to `self`, so `subprocess.Popen(cmd, shell=True)` isn't found there, and runtime bounds give
+  such a call's arguments no size. Run it again.
 - **A Python `with`'s target** isn't given what its expression returns, so `with open(path) as f` leaves `f` clean.
 - **What Python can't resolve** ends a flow: `sys.stdin.buffer`, since typeshed's `sys.stdin` can be `None`, and
   `shutil.rmtree` and `io.open`, which typeshed declares as variables, so a call of one is through a value. So does a call

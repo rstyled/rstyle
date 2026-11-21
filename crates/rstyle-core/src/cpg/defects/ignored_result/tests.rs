@@ -203,6 +203,17 @@ fn a_method_returning_its_receiver_is_there_to_chain() {
 }
 
 #[test]
+fn a_receiver_the_callee_is_not_passed_cant_come_back() {
+    // A static method called through an instance: its receiver binds nothing.
+    let mut fixture = method_on("type:ref", "type:ref");
+    fixture.reference["arguments"] = json!([{}]);
+    assert_eq!(fixture.results().len(), 1);
+    let mut fixture = method_on("type:ref", "type:ref");
+    fixture.reference["arguments"] = json!([{"position": 0}]);
+    assert!(fixture.results().is_empty());
+}
+
+#[test]
 fn a_call_that_names_nothing_does_not_count() {
     for reference in [
         json!({"node": "call", "status": "unresolved", "reason": "missing"}),

@@ -1,7 +1,7 @@
 //! Nodes of a language's own registered extensions, lowered by the role library contract data
 //! gives each one, so core needs no table of any language's syntax.
 
-use super::super::model::{Node, NodeKind, RefStatus, Spread, TargetKind};
+use super::super::model::{Dispatch, Node, NodeKind, RefStatus, Spread, TargetKind};
 use super::Collector;
 use super::frame::is_pattern;
 use crate::runtime_bounds::contracts::{Contracts, Implicit};
@@ -54,8 +54,9 @@ impl<'a> Collector<'_, '_, 'a> {
 
     /// Whether the call a lazy node is an argument of drains it before returning, so it runs no
     /// later than it would where it's written: unpacked into the call's arguments, or handed as
-    /// the first positional argument to an operation `consumed_by` names. A call that could keep
-    /// it, by a keyword, a later argument or a callee of the workspace's own, doesn't.
+    /// the first positional argument to an operation `consumed_by` names, which a class's call
+    /// binds after the `self` or `cls` it makes. A call that could keep it, by a keyword, a later
+    /// argument or a callee of the workspace's own, doesn't.
     fn consumed_where_made(&self, node: &'a Node, consumed_by: &[String]) -> Result<bool, String> {
         let parent = |child: &Node| {
             let nodes = &self.facts.body.function.nodes;
@@ -86,8 +87,18 @@ impl<'a> Collector<'_, '_, 'a> {
         if spread == Some(Spread::Sequence) {
             return Ok(true);
         }
+        // A class's call binds the `self` or `cls` of what it runs itself, so what it's handed
+        // first binds the parameter after that.
+        let method = matches!(
+            reference.dispatch,
+            Some(Dispatch::Method | Dispatch::Dynamic)
+        );
+        let callee = (!method).then(|| self.facts.body.child(call, 0).ok());
+        let made = callee
+            .flatten()
+            .is_some_and(|callee| self.facts.type_call(call, callee).is_some());
         let first = argument.id == node.id
-            && arguments[at].position == Some(0)
+            && arguments[at].position == Some(usize::from(made))
             && arguments[at].parameter.is_none();
         let operation = (reference.status == RefStatus::Resolved)
             .then(|| self.facts.declared(reference))
