@@ -64,10 +64,7 @@ impl<R> Utf8<R> {
 
     fn complete_read(&self, len: usize) -> io::Result<usize> {
         if len == 0 && self.len > 0 {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "Incomplete UTF-8 in CPG JSON",
-            ));
+            return Err(io::Error::new(io::ErrorKind::InvalidData, INCOMPLETE));
         }
         Ok(len)
     }
@@ -86,6 +83,27 @@ impl<R: Read> Read for Utf8<R> {
 }
 
 const OVERSIZED: &str = "CPG transport exceeds its declared size";
+const INCOMPLETE: &str = "Incomplete UTF-8 in CPG JSON";
+
+/// A document's bytes as text, failing as a document parsed while it is read does: text that
+/// stops partway through a character is incomplete where it stops, and any other bad byte is
+/// named by where it is.
+pub(super) fn text(bytes: Vec<u8>) -> Result<String, String> {
+    String::from_utf8(bytes).map_err(|error| match error.utf8_error().error_len() {
+        Some(_) => error.to_string(),
+        None => incomplete(error.as_bytes()),
+    })
+}
+
+/// Where text stops, counted as the parser counts: lines from 1, and bytes since the last one.
+fn incomplete(bytes: &[u8]) -> String {
+    let line = 1 + bytes.iter().filter(|&&byte| byte == b'\n').count();
+    let start = bytes
+        .iter()
+        .rposition(|&byte| byte == b'\n')
+        .map_or(0, |at| at + 1);
+    format!("{INCOMPLETE} at line {line} column {}", bytes.len() - start)
+}
 
 struct Counted<R> {
     inner: R,
@@ -179,7 +197,7 @@ impl Source<'_> {
 
     /// Checked as UTF-8 whole, so a parser needn't check each string again.
     fn text(&self) -> Result<String, String> {
-        String::from_utf8(self.bytes()?).map_err(|error| self.context(error.to_string()))
+        text(self.bytes()?).map_err(|error| self.context(error))
     }
 
     /// The decoded JSON, held whole: parsing a slice is much faster than parsing a reader. A
