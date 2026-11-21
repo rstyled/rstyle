@@ -5,6 +5,7 @@ pub(crate) mod analyze;
 mod descriptor;
 pub(crate) mod ingest;
 pub(crate) mod input;
+pub(crate) mod pack;
 mod receipt;
 
 use rstyle_capture::threads;

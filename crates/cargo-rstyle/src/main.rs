@@ -188,6 +188,10 @@ enum CpgCommand {
     Flow(CpgFlowArgs),
     /// Run the selected analyses over a run's documents in one pass.
     Analyze(CpgAnalyzeArgs),
+    /// Keep a run's documents in a local store, one pack per unit, and name the run.
+    Pack(CpgPackArgs),
+    /// Write a stored run's documents back out, as any command reads them.
+    Unpack(CpgUnpackArgs),
     /// Write compat.cpg documents for the workspace from the rustc frontend.
     Emit {
         /// Output directory; its `target` subdirectory holds the private build.
@@ -218,6 +222,32 @@ struct CpgInputArgs {
     /// Read the uncompressed JSON sequence from an inherited descriptor (a handle on Windows).
     #[arg(long, value_parser = clap::value_parser!(i64).range(0..=MAX_DESCRIPTOR), conflicts_with_all = ["documents", "capture", "stdin"])]
     input_fd: Option<i64>,
+}
+
+#[derive(Args)]
+struct CpgPackArgs {
+    /// Directory holding the run's documents, with their documents.manifest.json if it has one.
+    #[arg(long)]
+    capture: PathBuf,
+    /// The store's directory; its `objects` subdirectory holds the packs.
+    #[arg(long)]
+    store: PathBuf,
+    /// zstd level of each frame: 3 by default, 9 for packs read many times.
+    #[arg(long, default_value_t = 3, value_parser = clap::value_parser!(i32).range(1..=22))]
+    level: i32,
+}
+
+#[derive(Args)]
+struct CpgUnpackArgs {
+    /// The store's directory.
+    #[arg(long)]
+    store: PathBuf,
+    /// The run's manifest, as `cpg pack` named it.
+    #[arg(long)]
+    manifest: String,
+    /// New directory for the documents.
+    #[arg(long)]
+    out: PathBuf,
 }
 
 #[derive(Args)]
@@ -467,6 +497,8 @@ fn cpg_command(cli: &Cli, command: CpgCommand) -> Result<(String, u8), String> {
         CpgCommand::Patterns(args) => cpg::patterns(cli, &args),
         CpgCommand::Flow(args) => cpg::flow(&args, cli.format),
         CpgCommand::Analyze(args) => cpg::analyze(cli, &args),
+        CpgCommand::Pack(args) => cpg::pack::pack(&args),
+        CpgCommand::Unpack(args) => cpg::pack::unpack(&args),
         CpgCommand::Emit { out } => {
             let selection = cpg::Selection {
                 packages: &cli.packages,

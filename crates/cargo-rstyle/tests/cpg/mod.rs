@@ -522,6 +522,7 @@ mod ranges;
 #[cfg(unix)]
 mod runner;
 mod stdin;
+mod store;
 mod tables;
 mod transport;
 

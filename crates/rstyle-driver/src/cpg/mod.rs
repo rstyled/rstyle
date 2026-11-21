@@ -107,7 +107,7 @@ fn id_prefixes(
     let digests: Vec<(LocalDefId, String)> = owners
         .map(|id| {
             let identity = unit.stable_identity(id.to_def_id());
-            (id, unit::sha256_hex(identity.as_bytes()))
+            (id, rstyle_core::cpg::store::sha256(identity.as_bytes()))
         })
         .collect();
     let mut sharing: HashMap<&str, usize> = HashMap::new();
