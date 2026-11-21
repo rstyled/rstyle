@@ -94,6 +94,8 @@ pub(crate) struct Stream<'a> {
 pub(crate) struct Store<'a> {
     pub directory: &'a Path,
     pub encoding: Encoding,
+    /// Where each document is also packed as it arrives, for a run kept in a local store.
+    pub emitted: Option<&'a crate::cpg::pack::Emitted>,
 }
 
 impl Store<'_> {
@@ -142,6 +144,9 @@ fn pooled_stream<R: BufRead>(
         let document = streamed(index + 1, &text)?;
         if let Some(store) = store {
             let seal = store.save(index, text.as_bytes())?;
+            if let Some(emitted) = store.emitted {
+                emitted.document(index, &text)?;
+            }
             seals
                 .lock()
                 .expect("no panic while keeping")
