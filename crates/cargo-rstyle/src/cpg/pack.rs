@@ -93,11 +93,7 @@ fn framed_in_parallel(
             .collect();
         workers
             .into_iter()
-            .map(|worker| {
-                worker
-                    .join()
-                    .unwrap_or_else(|_| Err("a packing thread failed".into()))
-            })
+            .map(|worker| worker.join().expect("a packing thread doesn't panic"))
             .collect::<Result<Vec<_>, String>>()
     })?;
     Ok(framed.into_iter().flatten().collect())

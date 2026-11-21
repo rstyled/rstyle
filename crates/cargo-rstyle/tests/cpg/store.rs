@@ -233,3 +233,31 @@ fn unpack_refuses_an_object_that_is_not_a_run_manifest() {
     ];
     assert!(failed(dir.path(), &arguments).contains("is not a run manifest"));
 }
+
+#[test]
+fn pack_names_a_sealed_document_without_its_unit() {
+    use rstyle_core::cpg::transport::{self, DOCUMENTS_MANIFEST, DocumentManifest, Encoding};
+    let dir = tempfile::tempdir().unwrap();
+    let documents = dir.path().join("documents");
+    std::fs::create_dir_all(&documents).unwrap();
+    let seal = transport::write_json(
+        &documents.join("document-000000.cpg.json.zst"),
+        Encoding::Zstd,
+        &json!({"layout": "bundled"}),
+    )
+    .unwrap();
+    let manifest = serde_json::to_vec(&DocumentManifest::of(vec![seal])).unwrap();
+    std::fs::write(documents.join(DOCUMENTS_MANIFEST), manifest).unwrap();
+    let store = dir.path().join("store").display().to_string();
+    let capture = documents.display().to_string();
+    let arguments = [
+        "rstyle",
+        "cpg",
+        "pack",
+        "--capture",
+        &capture,
+        "--store",
+        &store,
+    ];
+    assert!(failed(dir.path(), &arguments).contains("document-000000.cpg.json.zst"));
+}

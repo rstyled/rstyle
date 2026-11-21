@@ -227,12 +227,14 @@ impl<'a> Framer<'a> {
 }
 
 fn framed(keys: &Keys<'_>, function: &Value, level: i32) -> Result<Framed, String> {
-    let bytes = zstd::bulk::compress(&canonical_bytes(function), level)
-        .map_err(|error| error.to_string())?;
     Ok(Framed {
-        bytes,
+        bytes: compress(&canonical_bytes(function), level)?,
         entry: keys.entry(function, [0, 0]),
     })
+}
+
+fn compress(text: &[u8], level: i32) -> Result<Vec<u8>, String> {
+    zstd::bulk::compress(text, level).map_err(|error| error.to_string())
 }
 
 /// Where the index lies, and the mark that ends every pack.
@@ -261,7 +263,7 @@ fn without_functions(document: &Value) -> Result<Value, String> {
 
 /// Compresses `text` onto the end of `bytes`, and says where it went.
 fn append(bytes: &mut Vec<u8>, text: &[u8], level: i32) -> Result<[u64; 2], String> {
-    let frame = zstd::bulk::compress(text, level).map_err(|error| error.to_string())?;
+    let frame = compress(text, level)?;
     let at = bytes.len() as u64;
     bytes.extend(&frame);
     Ok([at, frame.len() as u64])
