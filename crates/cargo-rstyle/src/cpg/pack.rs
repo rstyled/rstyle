@@ -58,21 +58,12 @@ fn pack_unit(
     let text = |position: usize| sources[position].text(&args.capture);
     let mut documents = Vec::with_capacity(positions.len());
     for &position in &positions {
-        let mut document = parse(&text(position)?)?;
-        document["unit"]["functions"] = json!([]);
-        documents.push(document);
+        documents.push(tables_only(&text(position)?)?);
     }
     let merged = store::merge_unit(documents)?;
     let mut packer = store::Packer::new(&merged, args.level)?;
-    for &position in &positions {
-        let document = parse(&text(position)?)?;
-        for function in document["unit"]["functions"]
-            .as_array()
-            .into_iter()
-            .flatten()
-        {
-            packer.add(function)?;
-        }
+    for framed in framed_in_parallel(&positions, &text, &merged, args.level)? {
+        packer.add_framed(framed);
     }
     let packed = packer.finish()?;
     Ok(json!({
@@ -83,6 +74,55 @@ fn pack_unit(
         "functions": packed.functions,
         "bytes": packed.bytes.len(),
     }))
+}
+
+/// The unit's functions framed, in document order, its documents shared among threads. Each
+/// thread holds one document at a time and the frames it has compressed.
+fn framed_in_parallel(
+    positions: &[usize],
+    text: &(dyn Fn(usize) -> Result<String, String> + Sync),
+    merged: &Value,
+    level: i32,
+) -> Result<Vec<store::Framed>, String> {
+    let threads = std::thread::available_parallelism().map_or(1, |count| count.get());
+    let share = positions.len().div_ceil(threads).max(1);
+    let framed = std::thread::scope(|scope| {
+        let workers: Vec<_> = positions
+            .chunks(share)
+            .map(|chunk| scope.spawn(move || frame_documents(chunk, text, merged, level)))
+            .collect();
+        workers
+            .into_iter()
+            .map(|worker| {
+                worker
+                    .join()
+                    .unwrap_or_else(|_| Err("a packing thread failed".into()))
+            })
+            .collect::<Result<Vec<_>, String>>()
+    })?;
+    Ok(framed.into_iter().flatten().collect())
+}
+
+/// Each function of the documents at `positions`, framed against the unit's tables.
+fn frame_documents(
+    positions: &[usize],
+    text: &(dyn Fn(usize) -> Result<String, String> + Sync),
+    merged: &Value,
+    level: i32,
+) -> Result<Vec<store::Framed>, String> {
+    let framer = store::Framer::new(merged, level);
+    let mut framed = Vec::new();
+    for &position in positions {
+        let document = parse(&text(position)?)?;
+        for function in document["unit"]["functions"]
+            .as_array()
+            .into_iter()
+            .flatten()
+        {
+            framed.push(framer.frame(function)?);
+        }
+    }
+    Ok(framed)
 }
 
 /// A document's unit, read without the rest of it.
@@ -98,6 +138,32 @@ struct NamedUnit {
 
 fn parse(text: &str) -> Result<Value, String> {
     serde_json::from_str(text).map_err(|error| error.to_string())
+}
+
+/// A document without its unit's functions, which are skipped as they are read rather
+/// than built and dropped: most of a document is its functions.
+#[derive(Deserialize)]
+struct TablesOnly {
+    unit: UnitTables,
+    #[serde(flatten)]
+    head: serde_json::Map<String, Value>,
+}
+
+#[derive(Deserialize)]
+struct UnitTables {
+    #[serde(rename = "functions")]
+    _functions: serde::de::IgnoredAny,
+    #[serde(flatten)]
+    tables: serde_json::Map<String, Value>,
+}
+
+fn tables_only(text: &str) -> Result<Value, String> {
+    let document: TablesOnly = serde_json::from_str(text).map_err(|error| error.to_string())?;
+    let mut unit = document.unit.tables;
+    unit.insert("functions".into(), json!([]));
+    let mut head = document.head;
+    head.insert("unit".into(), Value::Object(unit));
+    Ok(Value::Object(head))
 }
 
 /// The paths a unit's documents hold, sorted: how a diff's changed paths find their units.

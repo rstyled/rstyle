@@ -173,9 +173,17 @@ impl<'a> Packer<'a> {
 
     /// Adds one of the unit's functions as a frame of its own.
     pub fn add(&mut self, function: &Value) -> Result<(), String> {
-        let frame = append(&mut self.bytes, &canonical_bytes(function), self.level)?;
-        self.entries.push(self.keys.entry(function, frame));
+        let framed = framed(&self.keys, function, self.level)?;
+        self.add_framed(framed);
         Ok(())
+    }
+
+    /// Adds a function a `Framer` already compressed, after those added before it.
+    pub fn add_framed(&mut self, framed: Framed) {
+        let Framed { bytes, mut entry } = framed;
+        entry["frame"] = json!([self.bytes.len() as u64, bytes.len() as u64]);
+        self.bytes.extend(bytes);
+        self.entries.push(entry);
     }
 
     /// The pack, with its index and footer.
@@ -190,6 +198,41 @@ impl<'a> Packer<'a> {
             functions,
         })
     }
+}
+
+/// A function compressed into its frame, with its index entry.
+pub struct Framed {
+    bytes: Vec<u8>,
+    entry: Value,
+}
+
+/// Frames a unit's functions against its tables. Each thread keeps its own, so a unit's
+/// functions can be framed on several at once and then added to its pack in order.
+pub struct Framer<'a> {
+    keys: Keys<'a>,
+    level: i32,
+}
+
+impl<'a> Framer<'a> {
+    pub fn new(document: &'a Value, level: i32) -> Self {
+        Framer {
+            keys: Keys::new(&document["unit"]),
+            level,
+        }
+    }
+
+    pub fn frame(&self, function: &Value) -> Result<Framed, String> {
+        framed(&self.keys, function, self.level)
+    }
+}
+
+fn framed(keys: &Keys<'_>, function: &Value, level: i32) -> Result<Framed, String> {
+    let bytes = zstd::bulk::compress(&canonical_bytes(function), level)
+        .map_err(|error| error.to_string())?;
+    Ok(Framed {
+        bytes,
+        entry: keys.entry(function, [0, 0]),
+    })
 }
 
 /// Where the index lies, and the mark that ends every pack.
