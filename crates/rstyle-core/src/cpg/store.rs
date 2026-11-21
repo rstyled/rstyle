@@ -66,10 +66,12 @@ pub fn merge_unit(documents: Vec<Value>) -> Result<Value, String> {
     Ok(merged)
 }
 
-/// Adds `items` to the end of the array `target` is.
+/// Adds `items` to the end of the array `target` is, starting one where the first document
+/// had none of that table.
 fn extend(target: &mut Value, items: Vec<Value>) {
-    if let Some(array) = target.as_array_mut() {
-        array.extend(items);
+    match target.as_array_mut() {
+        Some(array) => array.extend(items),
+        None => *target = Value::Array(items),
     }
 }
 

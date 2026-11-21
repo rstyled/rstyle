@@ -115,3 +115,121 @@ fn a_run_whose_documents_disagree_is_not_packed() {
         "{pack:?}"
     );
 }
+
+#[test]
+fn an_unpacked_run_packs_again_to_the_same_manifest() {
+    let dir = tempfile::tempdir().unwrap();
+    let emitted = emitted_crate(dir.path());
+    let store = dir.path().join("store").display().to_string();
+    let pack = |capture: &Path| -> String {
+        let capture = capture.display().to_string();
+        let output = succeeded(
+            dir.path(),
+            &[
+                "rstyle",
+                "cpg",
+                "pack",
+                "--capture",
+                &capture,
+                "--store",
+                &store,
+            ],
+        );
+        let summary: Value = serde_json::from_slice(&output.stdout).unwrap();
+        summary["manifest"].as_str().unwrap().to_owned()
+    };
+    let first = pack(&emitted);
+    let unpacked = dir.path().join("unpacked");
+    let out = unpacked.display().to_string();
+    succeeded(
+        dir.path(),
+        &[
+            "rstyle",
+            "cpg",
+            "unpack",
+            "--store",
+            &store,
+            "--manifest",
+            &first,
+            "--out",
+            &out,
+        ],
+    );
+    // The unpacked run is read through its documents manifest, and holds what was packed.
+    assert_eq!(pack(&unpacked), first);
+}
+
+/// `rstyle` in a new directory's store, which must fail; returns its error output.
+fn failed(dir: &Path, arguments: &[&str]) -> String {
+    let output = rstyle(dir, arguments);
+    assert_ne!(output.status.code(), Some(0), "{output:?}");
+    String::from_utf8_lossy(&output.stderr).into_owned()
+}
+
+#[test]
+fn pack_names_a_run_directory_it_cannot_read() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = dir.path().join("store").display().to_string();
+    let missing = dir.path().join("missing").display().to_string();
+    let error = failed(
+        dir.path(),
+        &[
+            "rstyle",
+            "cpg",
+            "pack",
+            "--capture",
+            &missing,
+            "--store",
+            &store,
+        ],
+    );
+    assert!(error.contains("missing"), "{error}");
+}
+
+#[test]
+fn pack_names_a_document_without_its_unit() {
+    let dir = tempfile::tempdir().unwrap();
+    let documents = dir.path().join("documents");
+    std::fs::create_dir_all(&documents).unwrap();
+    std::fs::write(
+        documents.join("document-0.cpg.json"),
+        b"{\"layout\": \"bundled\"}",
+    )
+    .unwrap();
+    let store = dir.path().join("store").display().to_string();
+    let capture = documents.display().to_string();
+    let error = failed(
+        dir.path(),
+        &[
+            "rstyle",
+            "cpg",
+            "pack",
+            "--capture",
+            &capture,
+            "--store",
+            &store,
+        ],
+    );
+    assert!(error.contains("document-0.cpg.json"), "{error}");
+}
+
+#[test]
+fn unpack_refuses_an_object_that_is_not_a_run_manifest() {
+    let dir = tempfile::tempdir().unwrap();
+    let objects = rstyle_core::cpg::store::Objects::new(&dir.path().join("store/objects"));
+    let name = objects.put(b"{\"schema\": \"something else\"}").unwrap();
+    let store = dir.path().join("store").display().to_string();
+    let out = dir.path().join("out").display().to_string();
+    let arguments = [
+        "rstyle",
+        "cpg",
+        "unpack",
+        "--store",
+        &store,
+        "--manifest",
+        &name,
+        "--out",
+        &out,
+    ];
+    assert!(failed(dir.path(), &arguments).contains("is not a run manifest"));
+}

@@ -254,3 +254,83 @@ fn serde_json_writes_canonical_json() {
         canonical(&original)
     );
 }
+
+#[test]
+fn a_table_only_a_later_document_holds_is_kept() {
+    let mut first = document(vec![function("fn:a", 10, 20, "type:u8")], types(), "");
+    first["unit"].as_object_mut().unwrap().remove("types");
+    let second = document(vec![], types(), "");
+    let merged = merge_unit(vec![first, second]).unwrap();
+    assert_eq!(
+        merged["unit"]["types"].as_array().unwrap().len(),
+        types().len()
+    );
+}
+
+#[test]
+fn documents_of_two_units_are_not_merged() {
+    let first = document(vec![], types(), "");
+    let mut second = document(vec![], types(), "");
+    second["unit"]["id"] = json!("unit:other");
+    assert!(
+        merge_unit(vec![first, second])
+            .unwrap_err()
+            .contains("different units")
+    );
+    assert!(merge_unit(Vec::new()).is_err());
+}
+
+#[test]
+fn a_pack_of_another_format_is_refused() {
+    let mut bytes = packed(&document(vec![], types(), ""));
+    bytes[PACK_MAGIC.len()] = 9;
+    assert!(index(&bytes).unwrap_err().contains("format 9"));
+    let mut written = Vec::new();
+    assert!(write_unpacked(&bytes, &mut written).is_err());
+    assert!(unpack(&bytes).is_err());
+}
+
+#[test]
+fn a_frame_is_named_by_its_offset_and_length() {
+    assert_eq!(place(&json!([3, 4])).unwrap(), [3, 4]);
+    assert!(place(&json!(["3", 4])).is_err());
+    assert!(frame(b"short", [2, 100]).is_err());
+}
+
+#[test]
+fn a_unit_document_that_is_not_an_object_has_no_tables() {
+    assert!(tables(&json!("a unit")).is_empty());
+    assert!(pack(&json!({"unit": {"id": "unit:t"}}), 3).is_err());
+}
+
+#[test]
+fn context_without_a_signature_or_a_listed_file_still_reads() {
+    let mut bare = function("fn:a", 10, 20, "type:u8");
+    bare.as_object_mut().unwrap().remove("signature");
+    let mut elsewhere = bare.clone();
+    elsewhere["span"]["file"] = json!("file:unlisted.rs");
+    let keys = entry(
+        &packed(&document(vec![bare, elsewhere], types(), &"x".repeat(50))),
+        0,
+    );
+    let other = entry(
+        &packed(&document(
+            vec![function("fn:a", 10, 20, "type:u8")],
+            types(),
+            &"x".repeat(50),
+        )),
+        0,
+    );
+    assert_eq!(
+        keys["context"], other["context"],
+        "the function's own span stands in for its signature's"
+    );
+    let unlisted = index(&packed(&document(vec![], types(), ""))).unwrap();
+    assert_eq!(unlisted["functions"], json!([]));
+}
+
+#[test]
+fn a_span_without_numbers_is_left_as_it_is() {
+    let span = json!({"file": "file:a.rs", "start": "here", "end": null});
+    assert_eq!(rebased(&span, "file:a.rs", 10), span);
+}
