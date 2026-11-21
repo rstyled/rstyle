@@ -362,7 +362,8 @@ fn from_frontend(
         Ok::<_, String>((unified, documents))
     })?;
     let run = plan.save(&unified, staged, documents)?;
-    plan.output(&unified, Some(&run))
+    let output = plan.output(&unified, Some(&run))?;
+    plan.reported(&run, output)
 }
 
 // rstyle-allow(side_effect_density): process boundary: reads the frontend's stream
@@ -404,7 +405,8 @@ pub(crate) fn rust(cli: &Cli, args: &RunArgs) -> Result<(String, u8), String> {
     let (records, documents) = rust_records(&plan, &staged, &early)?;
     let unified = plan.analyzed(records, Some(early))?;
     let run = plan.save(&unified, staged, documents)?;
-    plan.output(&unified, Some(&run))
+    let output = plan.output(&unified, Some(&run))?;
+    plan.reported(&run, output)
 }
 
 /// Reads the capture `cargo rstyle` and `patterns` share, so only what changed compiles, and
@@ -679,13 +681,23 @@ impl Plan<'_> {
             exclude: Some(self.config.exclude.0.clone()),
         };
         transport::write_json(&staged.path().join(RUN_FILE), Encoding::Json, &record)?;
-        let run = staged.publish()?;
-        if let Some(store) = &self.args.store {
-            let kept = crate::cpg::pack::pack_run(&run.join(DOCUMENTS_FOLDER), store, 3)?;
-            let manifest = kept["manifest"].as_str().unwrap_or_default();
-            eprintln!("rstyle: run kept in {} as {manifest}", store.display());
-        }
-        Ok(run)
+        staged.publish()
+    }
+
+    // rstyle-allow(side_effect_density): IO boundary: prints the report, then keeps the run
+    /// The run's report, printed before the run is kept in `--store` when there is one, so a
+    /// check never waits on its store: what's left to print is then nothing.
+    fn reported(&self, run: &Path, output: (String, u8)) -> Result<(String, u8), String> {
+        let Some(store) = &self.args.store else {
+            return Ok(output);
+        };
+        let (text, code) = output;
+        print!("{text}");
+        std::io::Write::flush(&mut std::io::stdout()).map_err(|error| error.to_string())?;
+        let kept = crate::cpg::pack::pack_run(&run.join(DOCUMENTS_FOLDER), store, 3)?;
+        let manifest = kept["manifest"].as_str().unwrap_or_default();
+        eprintln!("rstyle: run kept in {} as {manifest}", store.display());
+        Ok((String::new(), code))
     }
 
     fn output(&self, unified: &Unified, run: Option<&Path>) -> Result<(String, u8), String> {
