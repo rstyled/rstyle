@@ -338,8 +338,12 @@ fn cargo_command() -> Command {
 
 fn command(capture: &Capture, cli: &Cli, args: &Args) -> Result<Command, String> {
     let mut command = cargo_command();
+    // Freshness by content, not file times: a fresh checkout, or a build directory restored onto
+    // one, leaves every source newer than its output, which would recapture every unit. Cargo
+    // takes the setting only with the unstable flag beside it.
     command
-        .args(["check", "--message-format=json"])
+        .args(["check", "-Zchecksum-freshness", "--message-format=json"])
+        .env("CARGO_BUILD_FINGERPRINT", "content")
         .env("CARGO_TARGET_DIR", build_lane::directory(capture))
         .env("CARGO_INCREMENTAL", "0")
         .env("RSTYLE_CAPTURE_PLAN", capture.directory.join("plan.json"));

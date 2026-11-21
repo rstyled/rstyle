@@ -225,11 +225,63 @@ fn source_edits_replace_completed_advisory_owner_observations() {
     assert_eq!(changed["compiler_advisory"], again["compiler_advisory"]);
 }
 
+/// Every file of the workspace but its build output, a little newer than it was: what a fresh
+/// checkout leaves, or a build directory restored onto one.
+fn touch_sources(directory: &Path) {
+    let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+    let mut pending = vec![directory.to_path_buf()];
+    while let Some(current) = pending.pop() {
+        for entry in std::fs::read_dir(current).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                if path.file_name().unwrap() != "target" {
+                    pending.push(path);
+                }
+            } else {
+                let file = std::fs::File::options().write(true).open(&path).unwrap();
+                file.set_modified(later).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn a_fresh_checkout_s_file_times_keep_the_owners_it_captured() {
+    let directory = clone_workspace();
+    let first = live(directory.path(), &[], 0);
+    touch_sources(directory.path());
+    let second = live(directory.path(), &[], 0);
+    fresh(&second, "clone_fixture", true);
+    owned(&second, true);
+    assert_eq!(first["compiler_advisory"], second["compiler_advisory"]);
+
+    // Content still counts.
+    std::fs::write(directory.path().join("src/lib.rs"), "pub fn changed() {}\n").unwrap();
+    let changed = live(directory.path(), &[], 0);
+    fresh(&changed, "clone_fixture", false);
+}
+
+#[test]
+fn an_index_from_another_build_of_the_tools_forces_recapture() {
+    let directory = clone_workspace();
+    let first = live(directory.path(), &[], 0);
+    let path = index(&first);
+    let mut written: Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    let tools = written["tools"].as_array_mut().unwrap();
+    assert_eq!(tools.len(), 2, "{tools:?}");
+    tools[1]["checksum"] = "xxh3-64:0000000000000000".into();
+    std::fs::write(&path, written.to_string()).unwrap();
+    let second = live(directory.path(), &[], 0);
+    fresh(&second, "clone_fixture", false);
+    assert_eq!(first["compiler_advisory"], second["compiler_advisory"]);
+}
+
 #[test]
 fn missing_corrupt_and_incomplete_owner_indexes_force_recapture() {
     let directory = clone_workspace();
     let mut previous = live(directory.path(), &[], 0);
-    for replacement in [None, Some("{"), Some("{\"schema\":1}")] {
+    for replacement in [None, Some("{"), Some("{\"schema\":2}")] {
         let path = index(&previous);
         match replacement {
             None => std::fs::remove_file(path).unwrap(),

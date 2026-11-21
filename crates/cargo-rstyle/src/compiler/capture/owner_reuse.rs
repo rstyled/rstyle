@@ -9,10 +9,11 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     process::Output,
-    time::SystemTime,
 };
 
 const INDEX_FILE: &str = "advisory-owners.json";
+/// 2: tools named by their bytes, under content freshness.
+const SCHEMA: u32 = 2;
 
 #[derive(Serialize, Deserialize)]
 pub(super) struct Index {
@@ -22,11 +23,11 @@ pub(super) struct Index {
     entries: Vec<Entry>,
 }
 
+/// A program the capture ran, by its bytes: the same build reinstalled, as a fresh worker does,
+/// still serves the owners it captured, and a rebuilt one doesn't.
 #[derive(Serialize, Deserialize, PartialEq)]
 struct Tool {
-    path: PathBuf,
-    modified: SystemTime,
-    len: u64,
+    checksum: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -139,17 +140,14 @@ fn tools(plan: &Plan) -> Result<Vec<Tool>, String> {
 }
 
 fn tool(path: PathBuf) -> Result<Tool, String> {
-    let path = path.canonicalize().map_err(|e| e.to_string())?;
-    let metadata = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+    let bytes = std::fs::read(&path).map_err(|e| format!("Cannot read {}: {e}", path.display()))?;
     Ok(Tool {
-        path,
-        modified: metadata.modified().map_err(|e| e.to_string())?,
-        len: metadata.len(),
+        checksum: rstyle_capture::checksum(&bytes),
     })
 }
 
 fn reusable(index: &Index, capture: &Capture, tools: &[Tool]) -> bool {
-    index.schema == 1
+    index.schema == SCHEMA
         && index.plan.same_capture(&capture.plan)
         && index.tools == tools
         && !index.entries.is_empty()
@@ -254,7 +252,7 @@ fn publish(capture: &Capture, cargo: &[u8], tools: Vec<Tool>) -> Result<(), Stri
 
 fn completed_index(capture: &Capture, cargo: &[u8], tools: Vec<Tool>) -> Result<Index, String> {
     Ok(Index {
-        schema: 1,
+        schema: SCHEMA,
         plan: capture.plan.clone(),
         tools,
         entries: entries(capture, cargo)?,
