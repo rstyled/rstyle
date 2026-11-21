@@ -129,9 +129,8 @@ mod tests {
             let value = stdout
                 .lines()
                 .find_map(|line| line.strip_prefix(prefix.as_str()));
-            value
-                .unwrap_or_else(|| panic!("no {name} in {stdout}{stderr}"))
-                .to_owned()
+            assert!(value.is_some(), "no {name} in {stdout}{stderr}");
+            value.unwrap_or_default().to_owned()
         };
         (field("arguments"), field("parallel") == "true")
     }
