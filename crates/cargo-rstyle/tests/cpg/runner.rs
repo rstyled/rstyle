@@ -6,6 +6,7 @@ use std::os::unix::fs::PermissionsExt;
 
 const FRONTEND: &str = r#"#!/bin/sh
 set -eu
+arrived() { set -- "$1"/*; echo "$#"; }
 case "$1" in
 describe)
     if [ -n "${FAKE_DESCRIBE_FAILS:-}" ]; then echo "unknown command" >&2; exit 1; fi
@@ -34,6 +35,16 @@ analyze)
     reader|quitter|sinking) test "$7" = --input-fd ;;
     *) test "$#" = 6 ;;
     esac
+    if [ -n "${FAKE_MEETING:-}" ]; then
+        # Every analysis waits here for all of them, which only analyses running side by side can meet.
+        : > "$FAKE_MEETING/$2"
+        waited=0
+        until [ "$(arrived "$FAKE_MEETING")" -eq "$FAKE_MEETING_SIZE" ]; do
+            waited=$((waited + 1))
+            if [ "$waited" -gt 200 ]; then echo "$2 waited alone" >&2; exit 4; fi
+            sleep 0.05
+        done
+    fi
     case "$2" in
     reader) cat "/dev/fd/$8" > "$FAKE_RECEIVED" ;;
     sinking) cat "/dev/fd/$8" > /dev/null; exit 3 ;;
@@ -53,6 +64,7 @@ const NO_ANALYSES: &str =
     r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[]}"#;
 const ANALYSES: &str = r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[{"name":"calls"},{"name":"broken"},{"name":"invalid"},{"name":"silent"}]}"#;
 const READERS: &str = r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[{"name":"reader","input":"documents"},{"name":"quitter","input":"documents"},{"name":"sinking","input":"documents"},{"name":"calls","input":"source"}]}"#;
+const MIXED: &str = r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[{"name":"sinking","input":"documents"},{"name":"calls"},{"name":"reader","input":"documents"},{"name":"broken"}]}"#;
 const CXX: &str = r#"{"schema":"rstyle.frontend-description/1","language":"cxx","analyses":[]}"#;
 const CXX_EXCLUDING: &str = r#"{"schema":"rstyle.frontend-description/1","language":"cxx","analyses":[],"options":["exclude"]}"#;
 const PY: &str = r#"{"schema":"rstyle.frontend-description/1","language":"py","analyses":[],"options":["exclude"]}"#;
@@ -232,17 +244,23 @@ fn text_output_names_where_the_run_is() {
 #[test]
 fn a_failed_stream_publishes_nothing() {
     let project = Project::new();
-    let output = project
-        .command(NO_ANALYSES, &["go"])
-        .env("FAKE_TRUNCATE", "1")
-        .output()
-        .unwrap();
-    assert_eq!(output.status.code(), Some(2), "{output:?}");
-    assert!(
-        stderr(&output).contains("ended before its terminal null"),
-        "{output:?}"
-    );
-    assert!(project.run_folders().is_empty());
+    // The second has an analysis of the source running beside the stream when it fails.
+    for (description, args) in [
+        (NO_ANALYSES, &["go"][..]),
+        (ANALYSES, &["go", "--filter", "check,go:calls"]),
+    ] {
+        let output = project
+            .command(description, args)
+            .env("FAKE_TRUNCATE", "1")
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(2), "{output:?}");
+        assert!(
+            stderr(&output).contains("ended before its terminal null"),
+            "{output:?}"
+        );
+        assert!(project.run_folders().is_empty());
+    }
 }
 
 #[test]
@@ -937,6 +955,73 @@ fn no_filter_runs_every_analysis_and_a_failure_is_the_worst_result() {
             .contains("no results file"),
         "{frontend:?}"
     );
+}
+
+#[test]
+fn analyses_run_side_by_side_and_report_in_the_order_described() {
+    let project = Project::new();
+    let meeting = project.root().join("meeting");
+    std::fs::create_dir(&meeting).unwrap();
+    let output = project
+        .command(MIXED, &["go", "--format", "json"])
+        .env("FAKE_MEETING", &meeting)
+        .env("FAKE_MEETING_SIZE", "4")
+        .env("FAKE_RECEIVED", project.root().join("received"))
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(!stderr(&output).contains("waited alone"), "{output:?}");
+    let unified = report(&output);
+    assert!(unified["check"].is_object(), "core's results still arrive");
+    let frontend = unified["frontend"].as_array().unwrap();
+    let outcomes: Vec<_> = frontend
+        .iter()
+        .map(|result| {
+            let analysis = result["analysis"].as_str().unwrap();
+            (analysis, result["status"].as_str().unwrap())
+        })
+        .collect();
+    assert_eq!(
+        outcomes,
+        [
+            ("go:sinking", "failed"),
+            ("go:calls", "complete"),
+            ("go:reader", "complete"),
+            ("go:broken", "failed"),
+        ]
+    );
+    for failed in [&frontend[0], &frontend[3]] {
+        let error = failed["error"].as_str().unwrap();
+        assert!(error.contains("failed with"), "{error}");
+    }
+    assert_eq!(
+        frontend_published(&saved_run(&output)),
+        (
+            vec!["calls.sarif".into(), "reader.sarif".into()],
+            vec!["go/calls/".into(), "go/reader/".into()]
+        )
+    );
+}
+
+/// The files a run's frontend analyses published, and the categories of their runs in the final
+/// SARIF, in its order.
+fn frontend_published(run: &Path) -> (Vec<String>, Vec<String>) {
+    let mut files: Vec<_> = std::fs::read_dir(run.join("frontend"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect();
+    files.sort();
+    let log: Value =
+        serde_json::from_slice(&std::fs::read(run.join("report.sarif")).unwrap()).unwrap();
+    let categories = log["runs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|run| run["automationDetails"]["id"].as_str())
+        .filter(|id| !id.starts_with("rstyle/"))
+        .map(String::from)
+        .collect();
+    (files, categories)
 }
 
 #[test]
