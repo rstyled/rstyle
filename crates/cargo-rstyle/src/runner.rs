@@ -50,6 +50,10 @@ pub(crate) struct RunArgs {
     /// Analyze a saved run without running the frontend; saves only with --out.
     #[arg(long)]
     from: Option<PathBuf>,
+    /// Keep the saved run's documents in this local store too, one pack per unit, as `rstyle
+    /// cpg pack` does, and say the manifest that names them.
+    #[arg(long, conflicts_with = "from")]
+    store: Option<PathBuf>,
     /// Exit 1 when any candidate is left after the ignore ledger (for CI).
     #[arg(long)]
     fail_on_candidates: bool,
@@ -341,6 +345,8 @@ fn from_frontend(
         results: &results,
         documents: &kept,
     };
+    // A run kept in a store packs each unit as its document arrives.
+    let emitted = plan.emitted();
 
     let (unified, documents) = std::thread::scope(|scope| {
         // An analysis of the source needs nothing the stream brings, so it runs beside it. A run
@@ -348,7 +354,7 @@ fn from_frontend(
         let of_source = frontend.start_analyses(scope, (&local, Input::Source), &paths);
         let (records, documents) =
             match plan.filter.needs_documents() || frontend.reads_documents(&local) {
-                true => frontend_records(&plan, &frontend, &staged, &early)?,
+                true => frontend_records(&plan, &frontend, (&staged, emitted.as_ref()), &early)?,
                 false => (Vec::new(), 0),
             };
         // An analysis of the documents starts once the stream has kept them all, beside core's.
@@ -358,20 +364,22 @@ fn from_frontend(
         Ok::<_, String>((unified, documents))
     })?;
     let run = plan.save(&unified, staged, documents)?;
-    plan.output(&unified, Some(&run))
+    let output = plan.output(&unified, Some(&run))?;
+    plan.reported(&run, output, (emitted, documents))
 }
 
 // rstyle-allow(side_effect_density): process boundary: reads the frontend's stream
 fn frontend_records(
     plan: &Plan<'_>,
     frontend: &Frontend,
-    staged: &Staged,
+    (staged, emitted): (&Staged, Option<&crate::cpg::pack::Emitted>),
     early: &Early,
 ) -> Result<(Vec<Record>, usize), String> {
     let directory = staged.folder(DOCUMENTS_FOLDER)?;
     let saving = Saving {
         directory: &directory,
         encoding: plan.cli.cpg_compression,
+        emitted,
     };
     let take = |records: Vec<Record>| early.take(records);
     let streamed = frontend.stream(&plan.source, (plan.filter.demand(), &take), &saving)?;
@@ -397,10 +405,12 @@ pub(crate) fn rust(cli: &Cli, args: &RunArgs) -> Result<(String, u8), String> {
     let staged = Staged::new(args.destination(&plan.project, "rust")?)?;
     let early = Early::new(&plan.filter, &plan.config)?;
 
-    let (records, documents) = rust_records(&plan, &staged, &early)?;
+    let emitted = plan.emitted();
+    let (records, documents) = rust_records(&plan, &staged, &early, emitted.as_ref())?;
     let unified = plan.analyzed(records, Some(early))?;
     let run = plan.save(&unified, staged, documents)?;
-    plan.output(&unified, Some(&run))
+    let output = plan.output(&unified, Some(&run))?;
+    plan.reported(&run, output, (emitted, documents))
 }
 
 /// Reads the capture `cargo rstyle` and `patterns` share, so only what changed compiles, and
@@ -410,12 +420,16 @@ fn rust_records(
     plan: &Plan<'_>,
     staged: &Staged,
     early: &Early,
+    emitted: Option<&crate::cpg::pack::Emitted>,
 ) -> Result<(Vec<Record>, usize), String> {
     if !plan.filter.needs_documents() {
         return Ok((Vec::new(), 0));
     }
 
     let units = compiler::captured_documents(plan.cli)?;
+    if let Some(emitted) = emitted {
+        note_sealed_units(&units, emitted);
+    }
     let documents = store::keep_documents(&units, &staged.folder(DOCUMENTS_FOLDER)?)?;
     let seals = units.iter().flat_map(|unit| {
         unit.documents
@@ -425,6 +439,25 @@ fn rust_records(
     let records =
         input::sealed_records(seals, plan.filter.demand(), &|records| early.take(records))?;
     Ok((records, documents))
+}
+
+/// Notes each unit by its documents' text, as their seals name it, so keeping the run once
+/// it's reported reads only the units that changed. A unit whose seals don't name their text
+/// is left out, and the run is packed from its documents.
+fn note_sealed_units(units: &[compiler::SealedUnit], emitted: &crate::cpg::pack::Emitted) {
+    for unit in units {
+        let digests: Option<Vec<String>> = unit
+            .documents
+            .iter()
+            .map(|seal| {
+                let checksum = seal.decoded_checksum.as_deref()?;
+                Some(checksum.strip_prefix("sha256:")?.to_owned())
+            })
+            .collect();
+        if let Some(digests) = digests.filter(|digests| !digests.is_empty()) {
+            emitted.sealed_unit(digests);
+        }
+    }
 }
 
 /// Reads a saved run back, with no frontend unless the filter names one of its analyses.
@@ -678,6 +711,35 @@ impl Plan<'_> {
         staged.publish()
     }
 
+    /// What keeps the run in `--store`, if there is one: units packed as they arrive, or named
+    /// by their documents' seals, and the rest packed from the saved run.
+    fn emitted(&self) -> Option<crate::cpg::pack::Emitted> {
+        let store = self.args.store.as_deref()?;
+        Some(crate::cpg::pack::Emitted::new(store, 3))
+    }
+
+    // rstyle-allow(side_effect_density): IO boundary: prints the report, then keeps the run
+    /// The run's report, printed before the run is kept in `--store` when there is one, so a
+    /// check never waits on its store: what's left to print is then nothing.
+    fn reported(
+        &self,
+        run: &Path,
+        output: (String, u8),
+        (emitted, documents): (Option<crate::cpg::pack::Emitted>, usize),
+    ) -> Result<(String, u8), String> {
+        let Some(emitted) = emitted else {
+            return Ok(output);
+        };
+        let (text, code) = output;
+        print!("{text}");
+        std::io::Write::flush(&mut std::io::stdout()).map_err(|error| error.to_string())?;
+        let store = emitted.store().display().to_string();
+        let kept = emitted.finish(&run.join(DOCUMENTS_FOLDER), documents)?;
+        let manifest = kept["manifest"].as_str().unwrap_or_default();
+        eprintln!("rstyle: run kept in {store} as {manifest}");
+        Ok((String::new(), code))
+    }
+
     fn output(&self, unified: &Unified, run: Option<&Path>) -> Result<(String, u8), String> {
         let code = unified.exit_code(self.args.fail_on_candidates);
         let output = match self.cli.format {
@@ -809,6 +871,42 @@ fn marked_or_repository(start: &Path, marks_a_project: fn(&Path) -> bool) -> Opt
 mod tests {
     use super::*;
 
+    /// A unit of one saved document holding `text`, sealed as Rust's capture seals it, its
+    /// text's sha256 named only when `named`.
+    fn sealed_unit(directory: &Path, text: &str, named: bool) -> compiler::SealedUnit {
+        let decoded = rstyle_core::cpg::store::sha256(text.as_bytes());
+        let seal = serde_json::json!({
+            "file": "document-0.cpg.json", "checksum": "xxh3-64:0", "bytes": text.len(),
+            "decoded_checksum": named.then(|| format!("sha256:{decoded}")),
+        });
+        compiler::SealedUnit {
+            directory: directory.to_path_buf(),
+            documents: vec![serde_json::from_value(seal).unwrap()],
+        }
+    }
+
+    #[test]
+    fn a_rust_run_is_kept_by_its_units_seals_when_they_name_their_text() {
+        let dir = tempfile::tempdir().unwrap();
+        let text = serde_json::json!({
+            "unit": {"id": "unit:t", "files": [], "definitions": [], "types": [], "functions": [
+                {"id": "fn:a", "span": {"file": "file:a.rs", "start": 0, "end": 1}},
+            ]},
+        })
+        .to_string();
+        std::fs::write(dir.path().join("document-0.cpg.json"), &text).unwrap();
+        let packed = crate::cpg::pack::pack_run(dir.path(), &dir.path().join("packed"), 3).unwrap();
+        for named in [true, false] {
+            let emitted = crate::cpg::pack::Emitted::new(&dir.path().join(format!("{named}")), 3);
+            let empty = compiler::SealedUnit {
+                directory: dir.path().to_path_buf(),
+                documents: Vec::new(),
+            };
+            note_sealed_units(&[sealed_unit(dir.path(), &text, named), empty], &emitted);
+            assert_eq!(emitted.finish(dir.path(), 1).unwrap(), packed);
+        }
+    }
+
     #[test]
     fn a_python_project_is_what_says_how_it_is_packaged_then_its_repository() {
         let dir = tempfile::tempdir().unwrap();
@@ -832,6 +930,7 @@ mod tests {
                 filter: Vec::new(),
                 out: None,
                 from: None,
+                store: None,
                 fail_on_candidates: false,
                 no_ignore: false,
                 excludes: Vec::new(),
@@ -888,6 +987,7 @@ mod tests {
                 filter: Vec::new(),
                 out: None,
                 from: None,
+                store: None,
                 fail_on_candidates: false,
                 no_ignore: false,
                 excludes: Vec::new(),
