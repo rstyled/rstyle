@@ -1,6 +1,6 @@
-//! Derive a run's documents on several threads while one thread receives them. Neither
-//! arrival nor completion order can show in the result: any failure rejects the run, and
-//! records leave in canonical order.
+//! Derive a run's documents on several threads while one thread receives them. Completion
+//! order can't show in the result: any failure rejects the run, and records leave in
+//! canonical order or in the order their documents arrived.
 use super::{
     layout::{self, Parsed},
     model::Document,
@@ -24,6 +24,17 @@ pub struct Pool<'a> {
     /// Given each document's records on the worker that derived them, before the pool keeps
     /// what it returns, to take what needn't wait for the rest of the run.
     pub on_records: OnRecords<'a>,
+    pub order: Order,
+}
+
+/// The order records leave a pool in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Order {
+    /// By unit and function, whatever order the documents came in.
+    Canonical,
+    /// As one thread reading the documents in turn would leave them: each document's records
+    /// in their place, and split units', merged at the end, after them.
+    Arrival,
 }
 
 /// What a pool hands each document's records to. Its error fails the run.
@@ -58,7 +69,7 @@ pub fn pooled_records<J: Send>(
         drop(queue);
         produce(jobs, sender, &state);
     });
-    state.finish()
+    state.finish(pool.order)
 }
 
 fn produce<J>(
@@ -109,7 +120,8 @@ struct State<'a> {
     failure: Mutex<Option<String>>,
     functions: Mutex<layout::FunctionIds>,
     split: Mutex<Vec<(usize, Value)>>,
-    records: Mutex<Vec<Record>>,
+    /// Each document's records, by its place in arrival order.
+    records: Mutex<Vec<(usize, Vec<Record>)>>,
 }
 
 impl<'a> State<'a> {
@@ -144,7 +156,7 @@ impl<'a> State<'a> {
 
     fn derive(&self, index: usize, document: Parsed) -> Result<(), String> {
         match document {
-            Parsed::Bundled(document) => self.bundled(&document),
+            Parsed::Bundled(document) => self.bundled(index, &document),
             Parsed::Split(document) => {
                 self.split
                     .lock()
@@ -155,7 +167,7 @@ impl<'a> State<'a> {
         }
     }
 
-    fn bundled(&self, document: &Document) -> Result<(), String> {
+    fn bundled(&self, index: usize, document: &Document) -> Result<(), String> {
         (self.on_document)(document);
 
         self.functions
@@ -166,11 +178,11 @@ impl<'a> State<'a> {
         self.records
             .lock()
             .expect("no panic while extending")
-            .extend(batch);
+            .push((index, batch));
         Ok(())
     }
 
-    fn finish(self) -> Result<Vec<Record>, String> {
+    fn finish(self, order: Order) -> Result<Vec<Record>, String> {
         if let Some(failure) = self.failure.lock().expect("no panic").take() {
             return Err(failure);
         }
@@ -178,11 +190,16 @@ impl<'a> State<'a> {
         split.sort_by_key(|(index, _)| *index);
         let split = split.into_iter().map(|(_, document)| document).collect();
 
+        // After every document that arrived, in the order their groups are merged.
         for group in layout::split_runs(split) {
-            self.bundled(&layout::bundle(group)?)?;
+            self.bundled(usize::MAX, &layout::bundle(group)?)?;
         }
-        let mut records = self.records.into_inner().expect("no panic");
-        records::canonical_order(&mut records);
+        let mut batches = self.records.into_inner().expect("no panic");
+        batches.sort_by_key(|(index, _)| *index);
+        let mut records: Vec<Record> = batches.into_iter().flat_map(|(_, batch)| batch).collect();
+        if order == Order::Canonical {
+            records::canonical_order(&mut records);
+        }
         Ok(records)
     }
 }
@@ -206,6 +223,7 @@ mod tests {
             on_failure: &no_failure,
             on_document: &|_| {},
             on_records: &keep_records,
+            order: Order::Canonical,
         }
     }
 
@@ -252,6 +270,30 @@ mod tests {
     }
 
     #[test]
+    fn arrival_order_is_the_order_one_thread_reads_them_in() {
+        let mut third = example();
+        third["unit"]["id"] = "unit:third".into();
+        let mut documents = vec![other_unit()];
+        documents.extend(layout::split(&example()));
+        documents.push(third);
+        let serial = read_records(documents.iter().map(Parsed::from_json), Demand::default());
+        let serial = functions(&serial.unwrap());
+        for workers in [1, 4] {
+            let pool = Pool {
+                order: Order::Arrival,
+                ..pool(workers, Demand::default())
+            };
+            let jobs = documents.iter().map(Ok);
+            let arrived = pooled_records(jobs, |_, d| Parsed::from_json(d), &pool).unwrap();
+            assert_eq!(functions(&arrived), serial);
+        }
+        let jobs = documents.iter().map(Ok);
+        let pool = pool(4, Demand::default());
+        let canonical = pooled_records(jobs, |_, d| Parsed::from_json(d), &pool).unwrap();
+        assert_ne!(functions(&canonical), serial);
+    }
+
+    #[test]
     fn it_derives_what_the_serial_reader_derives() {
         let demand = Demand::default();
         let serial = read_records([Parsed::from_json(&example())], demand).unwrap();
@@ -293,6 +335,7 @@ mod tests {
             on_failure: &stop,
             on_document: &|_| {},
             on_records: &keep_records,
+            order: Order::Canonical,
         };
         let jobs = (0..100).map(|index| match index {
             3 => Err("broken pipe".to_string()),

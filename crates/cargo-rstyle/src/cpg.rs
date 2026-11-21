@@ -8,8 +8,9 @@ pub(crate) mod input;
 mod receipt;
 
 use rstyle_core::config::Config;
+use rstyle_core::cpg::Order;
 use rstyle_core::cpg::bounds::report::from_records;
-use rstyle_core::cpg::records::{self, Demand, Record};
+use rstyle_core::cpg::records::{Demand, Record};
 use rstyle_core::filter::{Analysis, Filter};
 use rstyle_core::unified::{self, FlowReport, FlowRow, take_flow};
 use rstyle_core::{cpg, patterns_report, report};
@@ -26,7 +27,7 @@ pub fn check(
     config: Option<&Path>,
     format: Format,
 ) -> Result<(String, u8), String> {
-    let received = match input::read(args, Demand::default()) {
+    let received = match input::read(args, Demand::default(), Order::Arrival) {
         Ok(received) => received,
         Err(error) => return error.output(format),
     };
@@ -56,12 +57,11 @@ pub fn patterns(cli: &Cli, args: &CpgPatternsArgs) -> Result<(String, u8), Strin
         flow: false,
         defects: false,
     };
-    let received = match input::read(&args.input, demand) {
+    let received = match input::read(&args.input, demand, Order::Canonical) {
         Ok(received) => received,
         Err(error) => return error.output(cli.format),
     };
-    let mut records = received.records;
-    records::canonical_order(&mut records);
+    let records = received.records;
     let bounds = args
         .complexity
         .then(|| from_records(&records, args.display.top));
@@ -93,7 +93,7 @@ pub fn flow(args: &CpgFlowArgs, format: Format) -> Result<(String, u8), String> 
         flow: true,
         ..Demand::default()
     };
-    let received = match input::read(&args.input, demand) {
+    let received = match input::read(&args.input, demand, Order::Arrival) {
         Ok(received) => received,
         Err(error) => return error.output(format),
     };
@@ -127,7 +127,7 @@ pub fn analyze(cli: &Cli, args: &CpgAnalyzeArgs) -> Result<(String, u8), String>
     let filter = Filter::parse(&args.filter)?;
     validate_analyze(&filter, args)?;
 
-    let received = match input::read_pooled(&args.input, filter.demand()) {
+    let received = match input::read(&args.input, filter.demand(), Order::Canonical) {
         Ok(received) => received,
         Err(error) => return error.output(cli.format),
     };
