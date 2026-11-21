@@ -238,3 +238,55 @@ fn a_verified_document_outside_the_model_is_named_by_every_route() {
         assert!(message.contains(" at line 1 column "), "{message}");
     }
 }
+
+#[test]
+fn listed_documents_are_read_against_the_manifest_beside_them() {
+    let (dir, seals) = capture(&[(example(), Encoding::Zstd), (other(), Encoding::Json)]);
+    let text = example()
+        .to_string()
+        .replace("example::", "third::")
+        .replace("src/lib.rs", "third/lib.rs");
+    let mut third: Value = serde_json::from_str(&text).unwrap();
+    third["unit"]["id"] = json!("unit:third");
+    let plain = tempfile::tempdir().unwrap();
+    let unsealed = plain.path().join("third.cpg.json");
+    std::fs::write(&unsealed, serde_json::to_vec(&third).unwrap()).unwrap();
+    let check = |paths: &[PathBuf]| {
+        Command::new(cargo_bin("cargo-rstyle"))
+            .args(["rstyle", "cpg", "check", "--format", "json"])
+            .args(paths)
+            .output()
+            .unwrap()
+    };
+    let sealed: Vec<PathBuf> = seals
+        .iter()
+        .map(|seal| dir.path().join(&seal.file))
+        .collect();
+    let mut both = sealed.clone();
+    both.push(unsealed);
+    let output = check(&both);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert_eq!(report(&output)["summary"]["functions"], 9);
+
+    let stray = dir.path().join("stray.cpg.json");
+    std::fs::write(&stray, serde_json::to_vec(&third).unwrap()).unwrap();
+    let output = check(&[sealed[0].clone(), stray.clone()]);
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    let expected = format!("{} is not listed in its document manifest", stray.display());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains(&expected),
+        "{output:?}"
+    );
+
+    std::fs::write(&sealed[1], serde_json::to_vec(&third).unwrap()).unwrap();
+    let output = check(&sealed);
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    let expected = format!(
+        "Captured document {} disagrees with its manifest",
+        seals[1].file
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains(&expected),
+        "{output:?}"
+    );
+}

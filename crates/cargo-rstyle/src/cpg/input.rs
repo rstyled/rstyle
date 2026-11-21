@@ -9,6 +9,8 @@ use rstyle_core::cpg::{
         self, CaptureReader, Captured, DocumentManifest, Encoding, SealedDocument, SequenceReader,
     },
 };
+use std::collections::{BTreeMap, btree_map::Entry};
+use std::ffi::OsStr;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -52,7 +54,8 @@ pub(super) fn read(
         .receive()
         .into_received();
     }
-    records_on_disk(&args.documents, |path| super::read(path), &pool)
+    listed(&args.documents)
+        .and_then(|listed| records_on_disk(listed, Listed::read, &pool))
         .map(|records| Received {
             records,
             receipt: None,
@@ -181,7 +184,76 @@ pub(crate) fn seen_file_records(
     hooks: (See<'_>, OnRecords<'_>),
 ) -> Result<Vec<Record>, String> {
     let pool = pool(demand, Order::Canonical, hooks);
-    records_on_disk(paths, |path| super::read(path), &pool)
+    records_on_disk(listed(paths)?, Listed::read, &pool)
+}
+
+/// A listed document, and its seal when a manifest beside it seals the documents there.
+struct Listed<'a> {
+    path: &'a Path,
+    seal: Option<SealedDocument>,
+}
+
+impl Listed<'_> {
+    fn read(self) -> Result<Parsed, String> {
+        let text = match &self.seal {
+            Some(seal) => transport::read_sealed_text(directory(self.path), seal)?,
+            None => transport::read_json_text(self.path)?,
+        };
+        layout::parse(&text).map_err(|error| format!("{}: {error}", self.path.display()))
+    }
+}
+
+fn directory(path: &Path) -> &Path {
+    path.parent().unwrap_or_else(|| Path::new("."))
+}
+
+/// Each listed document with its seal. A directory's manifest is read once, however many of
+/// its documents are listed.
+fn listed(paths: &[PathBuf]) -> Result<Vec<Listed<'_>>, String> {
+    let mut manifests = BTreeMap::new();
+    for path in paths {
+        if let Entry::Vacant(entry) = manifests.entry(directory(path)) {
+            entry.insert(Seals::beside(path)?);
+        }
+    }
+    paths
+        .iter()
+        .map(|path| {
+            let seal = manifests[directory(path)].of(path)?;
+            Ok(Listed { path, seal })
+        })
+        .collect()
+}
+
+/// The seals of a directory's manifest by file, if it has one.
+struct Seals(Option<BTreeMap<String, SealedDocument>>);
+
+impl Seals {
+    // rstyle-allow(side_effect_density): IO boundary: reads a directory's document manifest
+    fn beside(path: &Path) -> Result<Self, String> {
+        let manifest = directory(path).join(transport::DOCUMENTS_MANIFEST);
+        if !manifest.exists() {
+            return Ok(Self(None));
+        }
+        let bytes = std::fs::read(&manifest).map_err(|e| e.to_string())?;
+        let manifest = DocumentManifest::read(&bytes)?;
+        let seals = manifest
+            .documents
+            .into_iter()
+            .map(|seal| (seal.file.clone(), seal));
+        Ok(Self(Some(seals.collect())))
+    }
+
+    fn of(&self, path: &Path) -> Result<Option<SealedDocument>, String> {
+        let Some(seals) = &self.0 else {
+            return Ok(None);
+        };
+        path.file_name()
+            .and_then(OsStr::to_str)
+            .and_then(|file| seals.get(file))
+            .map(|seal| Some(seal.clone()))
+            .ok_or_else(|| format!("{} is not listed in its document manifest", path.display()))
+    }
 }
 
 /// Every record of a sealed capture, each document verified against its seal on a worker and
