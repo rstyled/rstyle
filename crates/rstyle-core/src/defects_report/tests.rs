@@ -359,6 +359,43 @@ fn an_allow_comment_covers_a_dropped_result_and_it_still_counts_the_rest() {
     assert_eq!(report.suppressed, 1);
 }
 
+/// `document_with_calls`, where `g` is the standard library operation keyed `operation`.
+fn library_calls(dropped: &[bool], operation: &str) -> Value {
+    let mut document = document_with_calls(dropped);
+    let definitions = document["unit"]["definitions"].as_array_mut().unwrap();
+    let g = definitions.last_mut().unwrap();
+    g["operation"] = json!(operation);
+    g["standard"] = json!(true);
+    document
+}
+
+#[test]
+fn a_conversion_is_not_weighed_and_other_library_calls_are() {
+    for conversion in [
+        "py:bool.__new__",
+        "py:bytes.__new__",
+        "py:complex.__new__",
+        "py:dict.__init__",
+        "py:float.__new__",
+        "py:frozenset.__new__",
+        "py:int.__new__",
+        "py:list.__init__",
+        "py:set.__init__",
+        "py:str.__new__",
+        "py:tuple.__new__",
+    ] {
+        let calls = library_calls(&nine_uses_and_a_drop(), conversion);
+        let report = report_of(vec![calls], &Config::default());
+        assert!(report.defects.is_empty(), "{conversion}: {report:?}");
+    }
+    let calls = library_calls(&nine_uses_and_a_drop(), "py:str.join");
+    let report = report_of(vec![calls], &Config::default());
+    let [row] = report.defects.as_slice() else {
+        panic!("{report:?}");
+    };
+    assert_eq!(row.rule, "ignored_result");
+}
+
 #[test]
 fn an_excluded_call_neither_counts_nor_is_reported() {
     let mut config = Config::default();

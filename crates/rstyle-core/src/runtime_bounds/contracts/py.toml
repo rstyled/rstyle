@@ -119,3 +119,17 @@ basis = "items, keys and values yield each entry of the dict once, and a dict th
 role = "Traversal"
 receiver = ["map"]
 operations = ["dict.items", "dict.keys", "dict.values"]
+
+# Conversion roles: a call that makes a value of one of Python's own types from what it's handed. Code
+# calls one as often for what converting does as for the value: `float(arg)` in a `try` checks that
+# `arg` is a number, `str(queryset.query)` compiles a query and `bool(queryset)` runs one. So a call
+# that drops the value isn't a slip, and `ignored_result` doesn't weigh these. A class's call is keyed
+# by its own `__init__` where it has one and by its `__new__` otherwise, as rstyle-py resolves it.
+
+[[conversion]]
+basis = "bool, int, float, complex, str and bytes make a value of their own type from their argument, through a method of the argument's such as __bool__, __float__ or __str__, and raise on one they can't convert"
+operations = ["bool.__new__", "bytes.__new__", "complex.__new__", "float.__new__", "int.__new__", "str.__new__"]
+
+[[conversion]]
+basis = "list, tuple, set, frozenset and dict make a container of the items their argument yields, through its own __iter__, and a set's or dict's hash them"
+operations = ["dict.__init__", "frozenset.__new__", "list.__init__", "set.__init__", "tuple.__new__"]
