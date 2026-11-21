@@ -28,6 +28,7 @@ impl Fixture {
 
         let plan = Plan {
             document_encoding: Default::default(),
+            driver_threads: std::num::NonZeroU8::MIN,
             workspace_all_targets: None,
             compiler_patterns: false,
             compiler_runtime_bounds: false,

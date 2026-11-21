@@ -59,6 +59,7 @@ mod tests {
     fn plan(targets: Vec<Target>) -> Plan {
         Plan {
             document_encoding: Default::default(),
+            driver_threads: std::num::NonZeroU8::MIN,
             workspace_all_targets: None,
             compiler_patterns: false,
             compiler_runtime_bounds: false,
@@ -117,5 +118,20 @@ mod tests {
         .unwrap();
         super::super::reserve_ledger(&path).unwrap();
         assert!(super::super::reserve_ledger(&path).is_err());
+    }
+
+    #[test]
+    fn a_capture_on_other_threads_serves_this_one() {
+        let one = plan(vec![target("a")]);
+        let many = Plan {
+            driver_threads: std::num::NonZeroU8::new(8).unwrap(),
+            ..one.clone()
+        };
+        assert!(one.same_capture(&many));
+        let other = Plan {
+            driver: "/other-driver".into(),
+            ..many
+        };
+        assert!(!one.same_capture(&other));
     }
 }

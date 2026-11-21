@@ -1,5 +1,6 @@
 //! What the CLI and the Rust driver agree on about one captured unit.
 pub mod diagnostics;
+pub mod threads;
 
 use serde::{Deserialize, Serialize};
 use std::path::{Component, Path, PathBuf};
