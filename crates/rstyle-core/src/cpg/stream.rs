@@ -1,15 +1,15 @@
 //! Derive each bundled unit's records before reading the following document.
 use super::{
-    layout,
+    layout::{self, Parsed},
     model::Document,
     records::{self, Demand, Record},
 };
 use serde_json::Value;
 
-/// Bundled JSON trees and typed units are released after their records are derived.
-/// Split documents are retained until EOF to preserve arbitrary input ordering.
+/// Bundled units are released after their records are derived. Split documents are
+/// retained until EOF to preserve arbitrary input ordering.
 pub fn read_records(
-    documents: impl IntoIterator<Item = Result<Value, String>>,
+    documents: impl IntoIterator<Item = Result<Parsed, String>>,
     demand: Demand,
 ) -> Result<Vec<Record>, String> {
     let mut records = Vec::new();
@@ -24,7 +24,7 @@ pub fn read_records(
 /// Visits derived records without retaining all of them. Earlier batches are
 /// provisional: a later malformed document or duplicate can still reject the run.
 pub fn visit_records(
-    documents: impl IntoIterator<Item = Result<Value, String>>,
+    documents: impl IntoIterator<Item = Result<Parsed, String>>,
     demand: Demand,
     mut visit: impl FnMut(Vec<Record>) -> Result<(), String>,
 ) -> Result<(), String> {
@@ -47,12 +47,14 @@ struct RunReader {
 }
 
 impl RunReader {
-    fn read(&mut self, document: Value) -> Result<Vec<Record>, String> {
-        if document["layout"].as_str() == Some("bundled") {
-            return self.bundled(layout::bundle(vec![document])?);
+    fn read(&mut self, document: Parsed) -> Result<Vec<Record>, String> {
+        match document {
+            Parsed::Bundled(document) => self.bundled(*document),
+            Parsed::Split(document) => {
+                self.split.push(document);
+                Ok(Vec::new())
+            }
         }
-        self.split.push(document);
-        Ok(Vec::new())
     }
 
     fn bundled(&mut self, document: Document) -> Result<Vec<Record>, String> {

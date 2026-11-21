@@ -217,3 +217,24 @@ fn capture_and_explicit_documents_cannot_be_mixed() {
         "{output:?}"
     );
 }
+
+#[test]
+fn a_verified_document_outside_the_model_is_named_by_every_route() {
+    let mut extra = other();
+    extra["unit"]["functions"][0]["nodes"][0]["role"] = json!("tail");
+    let (dir, seals) = capture(&[(example(), Encoding::Zstd), (extra, Encoding::Json)]);
+    let expected = format!(
+        "{}: Invalid compat.cpg document: unknown field `role`",
+        seals[1].file
+    );
+    for route in ["receive", "check", "patterns", "flow", "analyze"] {
+        let output = command(route, dir.path(), &[]);
+        assert_eq!(output.status.code(), Some(2), "{output:?}");
+        let receipt = report(&output);
+        assert_eq!(receipt["status"], "rejected");
+        assert_eq!(receipt["transport"]["verified_documents"], 2);
+        let message = receipt["failures"][0]["message"].as_str().unwrap();
+        assert!(message.starts_with(&expected), "{message}");
+        assert!(message.contains(" at line 1 column "), "{message}");
+    }
+}

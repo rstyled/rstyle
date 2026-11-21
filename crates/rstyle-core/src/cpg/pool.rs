@@ -2,7 +2,7 @@
 //! arrival nor completion order can show in the result: any failure rejects the run, and
 //! records leave in canonical order.
 use super::{
-    layout,
+    layout::{self, Parsed},
     model::Document,
     records::{self, Demand, Record},
 };
@@ -34,13 +34,13 @@ pub fn keep_records(records: Vec<Record>) -> Result<Vec<Record>, String> {
     Ok(records)
 }
 
-/// Derives every job's document. `load` turns a job, numbered in arrival order, into its
+/// Derives every job's document. `load` reads a job, numbered in arrival order, into its
 /// document on a worker thread. At most `workers` jobs wait in the queue, so a producer
 /// faster than the workers holds a bounded number of documents in memory. Split documents
 /// are retained until every job has arrived, since they can arrive in any order.
 pub fn pooled_records<J: Send>(
     jobs: impl IntoIterator<Item = Result<J, String>>,
-    load: impl Fn(usize, J) -> Result<Value, String> + Sync,
+    load: impl Fn(usize, J) -> Result<Parsed, String> + Sync,
     pool: &Pool<'_>,
 ) -> Result<Vec<Record>, String> {
     let workers = pool.workers.max(1);
@@ -83,7 +83,7 @@ fn produce<J>(
 fn work<J>(
     queue: Arc<Mutex<Receiver<(usize, J)>>>,
     state: &State<'_>,
-    load: &impl Fn(usize, J) -> Result<Value, String>,
+    load: &impl Fn(usize, J) -> Result<Parsed, String>,
 ) {
     while let Some((index, job)) = next(&queue) {
         // After a failure, keep draining so the producer never waits on a full queue.
@@ -142,15 +142,17 @@ impl<'a> State<'a> {
         }
     }
 
-    fn derive(&self, index: usize, document: Value) -> Result<(), String> {
-        if document["layout"].as_str() == Some("bundled") {
-            return self.bundled(&layout::bundle(vec![document])?);
+    fn derive(&self, index: usize, document: Parsed) -> Result<(), String> {
+        match document {
+            Parsed::Bundled(document) => self.bundled(&document),
+            Parsed::Split(document) => {
+                self.split
+                    .lock()
+                    .expect("no panic while retaining")
+                    .push((index, document));
+                Ok(())
+            }
         }
-        self.split
-            .lock()
-            .expect("no panic while retaining")
-            .push((index, document));
-        Ok(())
     }
 
     fn bundled(&self, document: &Document) -> Result<(), String> {
@@ -216,7 +218,7 @@ mod tests {
         };
         pooled_records(
             documents.into_iter().map(Ok),
-            |_, document| Ok(document),
+            |_, document| Parsed::from_json(&document),
             &pool(workers, demand),
         )
     }
@@ -252,10 +254,14 @@ mod tests {
     #[test]
     fn it_derives_what_the_serial_reader_derives() {
         let demand = Demand::default();
-        let serial = read_records([Ok(example())], demand).unwrap();
+        let serial = read_records([Parsed::from_json(&example())], demand).unwrap();
         let mut sorted = serial.clone();
         records::canonical_order(&mut sorted);
-        let parallel = pooled_records([Ok(example())], |_, d| Ok(d), &pool(4, demand));
+        let parallel = pooled_records(
+            [Ok(example())],
+            |_, d| Parsed::from_json(&d),
+            &pool(4, demand),
+        );
         assert_eq!(functions(&parallel.unwrap()), functions(&sorted));
     }
 
@@ -292,7 +298,7 @@ mod tests {
             3 => Err("broken pipe".to_string()),
             _ => Ok(index),
         });
-        let error = pooled_records(jobs, |_, _| Ok(example()), &pool).unwrap_err();
+        let error = pooled_records(jobs, |_, _| Parsed::from_json(&example()), &pool).unwrap_err();
         assert!(
             error == "broken pipe" || error.contains("appears more than once"),
             "{error}"

@@ -90,6 +90,37 @@ fn cpg_check_applies_an_explicit_config() {
 }
 
 #[test]
+fn a_listed_document_outside_the_model_is_named_by_its_path() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut extra = example();
+    extra["unit"]["functions"][0]["nodes"][0]["role"] = json!("tail");
+    let unknown = dir.path().join("unknown.cpg.json");
+    std::fs::write(&unknown, serde_json::to_vec(&extra).unwrap()).unwrap();
+    let unfinished = dir.path().join("unfinished.cpg.json");
+    std::fs::write(&unfinished, b"{").unwrap();
+    let cases = [
+        (&unknown, "unknown field `role`"),
+        (
+            &unfinished,
+            "EOF while parsing an object at line 1 column 1",
+        ),
+    ];
+    for (path, problem) in cases {
+        for route in ["check", "analyze"] {
+            let output = Command::new(cargo_bin("cargo-rstyle"))
+                .args(["rstyle", "cpg", route])
+                .arg(path)
+                .output()
+                .unwrap();
+            assert_eq!(output.status.code(), Some(2), "{output:?}");
+            let expected = format!("{}: Invalid compat.cpg document: {problem}", path.display());
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(stderr.contains(&expected), "{stderr}");
+        }
+    }
+}
+
+#[test]
 fn cpg_check_rejects_invalid_runs() {
     let mut newer = example();
     newer["profile"]["version"] = json!("0.2.0");

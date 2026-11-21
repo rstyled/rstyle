@@ -48,18 +48,46 @@ pub fn bundle(mut documents: Vec<Value>) -> Result<Document, String> {
         }
     };
 
-    let document: Document = serde_json::from_value(bundled)
-        .map_err(|error| format!("Invalid compat.cpg document: {error}"))?;
+    let document: Document = serde_json::from_value(bundled).map_err(invalid)?;
     identity(&document)?;
     Ok(document)
 }
 
-/// One bundled document, read from the bytes its frontend wrote.
-pub fn read(bytes: &[u8]) -> Result<Document, String> {
-    let document: Document = serde_json::from_slice(bytes)
-        .map_err(|error| format!("Invalid compat.cpg document: {error}"))?;
-    identity(&document)?;
-    Ok(document)
+/// One document of a run, as read before the rest of the run arrives.
+#[derive(Debug)]
+pub enum Parsed {
+    /// A bundled unit document, in the model and within the profile.
+    Bundled(Box<Document>),
+    /// A document of a split run. It stays JSON until the run is complete, since a function
+    /// document is paired with its unit by the canonical digest of the unit document as
+    /// written, and by the members both repeat.
+    Split(Value),
+}
+
+impl Parsed {
+    /// Reads a document a caller already holds as JSON, through its bytes as any other is.
+    pub fn from_json(document: &Value) -> Result<Self, String> {
+        parse(&serde_json::to_string(document).map_err(invalid)?)
+    }
+}
+
+/// One document of a run, read from the text its frontend wrote. A bundled one is read
+/// straight into the model, with no JSON tree between.
+pub fn parse(text: &str) -> Result<Parsed, String> {
+    let document: Document = serde_json::from_str(text).map_err(invalid)?;
+    match document.layout {
+        Layout::Bundled => {
+            identity(&document)?;
+            Ok(Parsed::Bundled(Box::new(document)))
+        }
+        Layout::Split => serde_json::from_str(text)
+            .map(Parsed::Split)
+            .map_err(invalid),
+    }
+}
+
+fn invalid(error: impl std::fmt::Display) -> String {
+    format!("Invalid compat.cpg document: {error}")
 }
 
 /// Every bundled unit document of a run: its bundled documents, and each split unit
@@ -230,3 +258,6 @@ pub fn split(bundled: &Value) -> Vec<Value> {
     }
     documents
 }
+
+#[cfg(test)]
+mod tests;

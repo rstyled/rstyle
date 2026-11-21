@@ -209,10 +209,10 @@ fn mined(
 }
 
 // rstyle-allow(side_effect_density): IO boundary: reads one input document
-fn read(path: &Path) -> Result<serde_json::Value, String> {
+fn read(path: &Path) -> Result<cpg::layout::Parsed, String> {
     let directory = path.parent().unwrap_or_else(|| Path::new("."));
     let manifest = directory.join(cpg::transport::DOCUMENTS_MANIFEST);
-    if manifest.exists() {
+    let text = if manifest.exists() {
         let bytes = std::fs::read(&manifest).map_err(|e| e.to_string())?;
         let manifest = cpg::transport::DocumentManifest::read(&bytes)?;
         let seal = manifest
@@ -220,10 +220,11 @@ fn read(path: &Path) -> Result<serde_json::Value, String> {
             .iter()
             .find(|seal| Some(std::ffi::OsStr::new(&seal.file)) == path.file_name())
             .ok_or_else(|| format!("{} is not listed in its document manifest", path.display()))?;
-        cpg::transport::read_sealed(directory, seal)
+        cpg::transport::read_sealed_text(directory, seal)?
     } else {
-        cpg::transport::read_json(path)
-    }
+        cpg::transport::read_json_text(path)?
+    };
+    cpg::layout::parse(&text).map_err(|error| format!("{}: {error}", path.display()))
 }
 
 /// Documents name no Cargo workspace, so only an explicit `--config` applies.

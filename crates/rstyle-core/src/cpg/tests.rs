@@ -380,10 +380,9 @@ fn split_documents_must_belong_to_their_unit() {
 
     let mut documents = split(&example());
     documents[0]["layout"] = json!("neither");
-    assert_eq!(
-        error_of(documents),
-        "Every document of a run must be bundled or split"
-    );
+    assert!(error_of(documents).starts_with(
+        "Invalid compat.cpg document: unknown variant `neither`, expected `bundled` or `split`"
+    ));
 }
 
 /// The example, as another compilation of the same source.
@@ -2108,7 +2107,11 @@ fn a_cxx_unit_names_a_writable_static_without_rusts_syntax() {
 /// Every analysis of a document, as JSON and as text.
 fn whole_report(document: Value) -> String {
     let filter = crate::filter::Filter::Everything;
-    let records = super::read_records([Ok(document)], filter.demand()).unwrap();
+    let records = super::read_records(
+        [crate::cpg::layout::Parsed::from_json(&document)],
+        filter.demand(),
+    )
+    .unwrap();
     let (config, options) = (Default::default(), Default::default());
     let analyses = crate::unified::analyze(records, &filter, &config, &options).unwrap();
     format!(

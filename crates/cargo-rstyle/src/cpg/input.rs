@@ -3,6 +3,7 @@ use super::receipt::{Receipt, TransportProgress};
 use crate::{CpgInputArgs, CpgReceiveArgs, Format};
 use rstyle_core::cpg::{
     self, OnRecords, Pool, keep_records,
+    layout::{self, Parsed},
     records::{Demand, Record},
     transport::{self, CaptureReader, DocumentManifest, Encoding, SealedDocument, SequenceReader},
 };
@@ -146,11 +147,10 @@ pub(crate) fn stream_records<R: BufRead>(
     stream: &Stream<'_>,
 ) -> Result<Vec<Record>, String> {
     let seals = Mutex::new(Vec::new());
-    let load = |index: usize, bytes: Vec<u8>| {
-        let document = serde_json::from_slice(&bytes)
-            .map_err(|error| format!("CPG stream document {}: {error}", index + 1))?;
+    let load = |index: usize, text: String| {
+        let document = streamed(index + 1, &text)?;
         if let Some(store) = &stream.store {
-            let seal = store.save(index, &bytes)?;
+            let seal = store.save(index, text.as_bytes())?;
             seals
                 .lock()
                 .expect("no panic while keeping")
@@ -165,7 +165,7 @@ pub(crate) fn stream_records<R: BufRead>(
         on_document: &|_| {},
         on_records: stream.on_records,
     };
-    let jobs = std::iter::from_fn(|| reader.next_bytes().transpose());
+    let jobs = std::iter::from_fn(|| reader.next_text().transpose());
     let records = cpg::pooled_records(jobs, load, &pool)?;
 
     reader.complete()?;
@@ -175,11 +175,16 @@ pub(crate) fn stream_records<R: BufRead>(
     Ok(records)
 }
 
+/// The `number`th document of a stream, counting from 1.
+fn streamed(number: usize, text: &str) -> Result<Parsed, String> {
+    layout::parse(text).map_err(|error| format!("CPG stream document {number}: {error}"))
+}
+
 /// Every record of documents already on disk, read and derived on a pool. There's nothing to
 /// stop if one fails.
 fn records_on_disk<J: Send>(
     jobs: impl IntoIterator<Item = J>,
-    read: impl Fn(J) -> Result<serde_json::Value, String> + Sync,
+    read: impl Fn(J) -> Result<Parsed, String> + Sync,
     (demand, see, take): (Demand, See<'_>, OnRecords<'_>),
 ) -> Result<Vec<Record>, String> {
     let pool = Pool {
@@ -235,13 +240,16 @@ pub(crate) fn sealed_records<'a>(
     seen_sealed_records(seals, demand, (&|_| {}, take))
 }
 
+// rstyle-allow(side_effect_density): IO boundary: reads each sealed document on a worker
 fn seen_sealed_records<'a>(
     seals: impl IntoIterator<Item = (&'a Path, &'a SealedDocument)>,
     demand: Demand,
     (see, take): (See<'_>, OnRecords<'_>),
 ) -> Result<Vec<Record>, String> {
     let read = |(directory, seal): (&Path, &SealedDocument)| {
-        transport::read_sealed(directory, seal).map_err(|error| format!("{}: {error}", seal.file))
+        transport::read_sealed_text(directory, seal)
+            .and_then(|text| layout::parse(&text))
+            .map_err(|error| format!("{}: {error}", seal.file))
     };
     records_on_disk(seals, read, (demand, see, take))
 }
@@ -326,12 +334,20 @@ impl<'a> Request<'a> {
     }
 }
 
-trait Source: Iterator<Item = Result<serde_json::Value, String>> {
+trait Source {
+    /// The next document, once its transport is verified, or none at the end of the input.
+    fn next_document(&mut self) -> Option<Result<Parsed, String>>;
     fn complete(&self) -> Result<(), String>;
     fn progress(&self) -> TransportProgress;
 }
 
 impl Source for CaptureReader {
+    fn next_document(&mut self) -> Option<Result<Parsed, String>> {
+        let read = self.next_text().transpose()?;
+        Some(read.and_then(|document| {
+            layout::parse(&document.text).map_err(|error| format!("{}: {error}", document.file))
+        }))
+    }
     fn complete(&self) -> Result<(), String> {
         CaptureReader::complete(self)
     }
@@ -341,6 +357,11 @@ impl Source for CaptureReader {
 }
 
 impl<R: BufRead> Source for SequenceReader<R> {
+    fn next_document(&mut self) -> Option<Result<Parsed, String>> {
+        let text = self.next_text().transpose()?;
+        let number = SequenceReader::progress(self).received_documents;
+        Some(text.and_then(|text| streamed(number, &text)))
+    }
     fn complete(&self) -> Result<(), String> {
         SequenceReader::complete(self)
     }
@@ -377,7 +398,9 @@ impl<R: Source> Session<R> {
         let retain = self.retain;
         let mut records = Vec::new();
 
-        cpg::visit_records(&mut self.reader, self.demand, |batch| {
+        let reader = &mut self.reader;
+        let documents = std::iter::from_fn(|| reader.next_document());
+        cpg::visit_records(documents, self.demand, |batch| {
             if retain {
                 records.extend(batch);
             }

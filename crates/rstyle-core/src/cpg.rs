@@ -108,7 +108,7 @@ pub fn run_records(
     documents: Vec<serde_json::Value>,
     demand: records::Demand,
 ) -> Result<Vec<records::Record>, String> {
-    read_records(documents.into_iter().map(Ok), demand)
+    read_records(documents.iter().map(layout::Parsed::from_json), demand)
 }
 
 /// A record's measured facts, with its graph, when its function is authored.

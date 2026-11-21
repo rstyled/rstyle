@@ -150,14 +150,15 @@ impl<R: BufRead> SequenceReader<R> {
         Ok(())
     }
 
-    /// The next record's bytes, unparsed, so another thread can parse them.
-    pub fn next_bytes(&mut self) -> Result<Option<Vec<u8>>, String> {
+    /// The next record's text, unparsed, so another thread can parse it. Text that isn't UTF-8
+    /// fails the stream here, as it does when a record is parsed as it's read.
+    pub fn next_text(&mut self) -> Result<Option<String>, String> {
         self.next_with(|record| {
             let mut bytes = Vec::new();
             record
                 .read_to_end(&mut bytes)
                 .map_err(|error| error.to_string())?;
-            Ok(bytes)
+            String::from_utf8(bytes).map_err(|error| error.to_string())
         })
     }
 
