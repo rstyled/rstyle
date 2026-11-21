@@ -327,7 +327,9 @@ fn from_frontend(
     let local = filter.frontend_analyses(language, &frontend.analyses())?;
     let plan = Plan::new((cli, args), (filter, language), (source, project))?;
     let staged = Staged::new(args.destination(&plan.project, language)?)?;
-    let frontend = frontend.excluding(&plan.config.exclude.0);
+    let frontend = frontend
+        .excluding(&plan.config.exclude.0)
+        .caching(|| store::frontend_cache(&plan.project, language).ok());
     let early = Early::new(&plan.filter, &plan.config)?;
     if !local.is_empty() {
         staged.folder(FRONTEND_FOLDER)?;
