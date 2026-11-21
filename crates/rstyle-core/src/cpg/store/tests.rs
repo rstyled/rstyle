@@ -332,8 +332,103 @@ fn context_without_a_signature_or_a_listed_file_still_reads() {
     assert_eq!(unlisted["functions"], json!([]));
 }
 
+// The copies the digests used to be taken of, which reading spans while serializing has to
+// match byte for byte.
+/// The value with every span left out.
+fn unspanned(value: &Value) -> Value {
+    match value {
+        Value::Object(fields) if is_span(fields) => Value::Null,
+        Value::Object(fields) => fields
+            .iter()
+            .map(|(key, item)| (key.clone(), unspanned(item)))
+            .collect::<serde_json::Map<_, _>>()
+            .into(),
+        Value::Array(items) => items.iter().map(unspanned).collect(),
+        scalar => scalar.clone(),
+    }
+}
+
+/// The value with each span in `file` made relative to `base`.
+fn rebased(value: &Value, file: &str, base: u64) -> Value {
+    match value {
+        Value::Object(fields) if is_span(fields) && fields["file"] == file => {
+            let mut span = fields.clone();
+            for key in ["start", "end"] {
+                if let Some(offset) = span[key].as_u64() {
+                    span[key] = json!(offset as i64 - base as i64);
+                }
+            }
+            span.into()
+        }
+        Value::Object(fields) => fields
+            .iter()
+            .map(|(key, item)| (key.clone(), rebased(item, file, base)))
+            .collect::<serde_json::Map<_, _>>()
+            .into(),
+        Value::Array(items) => items.iter().map(|item| rebased(item, file, base)).collect(),
+        scalar => scalar.clone(),
+    }
+}
+
 #[test]
-fn a_span_without_numbers_is_left_as_it_is() {
+fn digests_read_spans_as_rewritten_copies_of_the_value_would() {
+    let value = json!({
+        "id": "fn:a",
+        "span": {"file": "file:a.rs", "start": 12, "end": 30},
+        "other": {"file": "file:b.rs", "start": 12, "end": 30},
+        "named": {"file": "file:a.rs", "start": "here", "end": null},
+        "wide": {"file": "file:a.rs", "start": 3, "end": 4, "line": 1, "column": 2},
+        "nodes": [
+            {"id": "n1", "span": {"file": "file:a.rs", "start": 14, "end": 15, "line": 2}},
+            [1.5, -2, true, null, "é\n"],
+        ],
+    });
+    for base in [0, 10, 40] {
+        assert_eq!(
+            read_digest(&value, Spans::From("file:a.rs", base)),
+            digest(&rebased(&value, "file:a.rs", base))
+        );
+    }
+    assert_eq!(
+        read_digest(&value, Spans::Dropped),
+        digest(&unspanned(&value))
+    );
     let span = json!({"file": "file:a.rs", "start": "here", "end": null});
     assert_eq!(rebased(&span, "file:a.rs", 10), span);
+}
+
+#[test]
+fn the_comment_line_is_found_from_where_lines_start() {
+    let mut content = String::from("// é first\n#[attr]\nfn a() {}\r\n");
+    for line in 0..45 {
+        content.push_str(&format!("// note {line}\nfn f{line}() {{}}\n"));
+    }
+    let starts = line_starts(&content);
+    for start in 0..content.len() + 3 {
+        let before = content.get(..start).unwrap_or(&content);
+        let line = 1 + before.matches('\n').count();
+        assert_eq!(
+            comment_line_at(&content, &starts, start),
+            comment_line_above(&content, line),
+            "at byte {start}"
+        );
+    }
+}
+
+#[test]
+fn sha256_names_bytes_in_lowercase_hex() {
+    assert_eq!(
+        sha256(b"abc"),
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    );
+}
+
+#[test]
+fn a_document_without_a_unit_is_not_merged() {
+    let first = document(vec![], types(), "");
+    for broken in [json!({"unit": "unit:t"}), json!("a document")] {
+        let error = merge_unit(vec![first.clone(), broken.clone()]).unwrap_err();
+        assert!(error.contains("holds its unit"), "{error}");
+        assert!(merge_unit(vec![broken]).is_err());
+    }
 }

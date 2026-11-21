@@ -5,7 +5,7 @@
 //! their bytes.
 
 use super::layout::canonical;
-use super::source::comment_line_above;
+use super::source::{comment_line_above, comment_line_above_from};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeSet, HashMap};
@@ -28,10 +28,13 @@ pub struct Packed {
 
 /// The lowercase hex sha256 of `bytes`.
 pub fn sha256(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut text = String::with_capacity(64);
+    for byte in Sha256::digest(bytes) {
+        text.push(HEX[usize::from(byte >> 4)].into());
+        text.push(HEX[usize::from(byte & 15)].into());
+    }
+    text
 }
 
 fn digest(value: &Value) -> String {
@@ -47,23 +50,110 @@ fn canonical_bytes(value: &Value) -> Vec<u8> {
 /// One bundled document of a unit from the bundled documents a frontend wrote it in. Every
 /// table entry two documents both hold must be the same, since one of them is kept.
 pub fn merge_unit(documents: Vec<Value>) -> Result<Value, String> {
+    merge_documents(documents.into_iter().map(Ok))
+}
+
+/// As [`merge_unit`], with each document merged as it's read, so no more than one of them
+/// is held besides what's merged so far.
+pub fn merge_documents(
+    documents: impl IntoIterator<Item = Result<Value, String>>,
+) -> Result<Value, String> {
     let mut documents = documents.into_iter();
-    let mut merged = documents.next().ok_or("a unit has no documents")?;
-    let mut seen: HashMap<(String, String), String> = HashMap::new();
-    remember(&merged["unit"], &mut seen);
+    let first = documents.next().ok_or("a unit has no documents")??;
+    let mut merger = Merger::new(first)?;
     for document in documents {
-        let unit = &document["unit"];
-        if unit["id"] != merged["unit"]["id"] {
-            return Err("documents of different units can't be merged".into());
+        merger.add(document?)?;
+    }
+    Ok(merger.merged)
+}
+
+/// A unit's documents merged into one in the order they're added.
+struct Merger {
+    merged: Value,
+    /// Where each table entry kept so far lies in its table.
+    seen: HashMap<(String, String), usize>,
+}
+
+impl Merger {
+    fn new(first: Value) -> Result<Self, String> {
+        if !first["unit"].is_object() {
+            return Err("a document holds its unit".into());
         }
-        let functions = unit["functions"].as_array().cloned().unwrap_or_default();
-        extend(&mut merged["unit"]["functions"], functions);
-        for (table, entries) in tables(unit) {
-            let fresh = unseen(unit, &table, entries, &mut seen)?;
-            extend(&mut merged["unit"][table.as_str()], fresh);
+        let mut seen = HashMap::new();
+        remember(&first["unit"], &mut seen);
+        Ok(Merger {
+            merged: first,
+            seen,
+        })
+    }
+
+    /// Merges `document` after those added before it: its functions follow theirs, and each
+    /// table entry none of them held follows theirs too.
+    fn add(&mut self, document: Value) -> Result<(), String> {
+        let unit = unit_of(document)?;
+        merge_into(&mut self.merged, unit, &mut self.seen)
+    }
+}
+
+/// The unit a document holds.
+fn unit_of(mut document: Value) -> Result<serde_json::Map<String, Value>, String> {
+    match document.get_mut("unit").map(Value::take) {
+        Some(Value::Object(unit)) => Ok(unit),
+        _ => Err("a document holds its unit".into()),
+    }
+}
+
+/// Merges `unit`, of a later document, into the unit of `merged`.
+fn merge_into(
+    merged: &mut Value,
+    unit: serde_json::Map<String, Value>,
+    seen: &mut HashMap<(String, String), usize>,
+) -> Result<(), String> {
+    let id = merged["unit"]["id"].clone();
+    if unit.get("id").unwrap_or(&Value::Null) != &id {
+        return Err("documents of different units can't be merged".into());
+    }
+    extend(&mut merged["unit"]["functions"], Vec::new());
+    for (table, entries) in unit {
+        let Value::Array(entries) = entries else {
+            continue;
+        };
+        let target = &mut merged["unit"][table.as_str()];
+        match table.as_str() {
+            "functions" => extend(target, entries),
+            _ => merge_table(target, &table, entries, seen).map_err(|key| {
+                let id = id.as_str().unwrap_or("a unit");
+                format!("{id}: two documents disagree on {table} entry {key}")
+            })?,
         }
     }
-    Ok(merged)
+    Ok(())
+}
+
+/// Adds to the table `target` the entries no earlier document held. An entry held with
+/// other content is refused, by its key, since only one of the two could be kept.
+fn merge_table(
+    target: &mut Value,
+    table: &str,
+    entries: Vec<Value>,
+    seen: &mut HashMap<(String, String), usize>,
+) -> Result<(), String> {
+    extend(target, Vec::new());
+    let kept = target
+        .as_array_mut()
+        .expect("a table is an array once extended");
+    for entry in entries {
+        let key = (table.to_owned(), entry_key(&entry));
+        match seen.get(&key) {
+            Some(&at) if kept[at] == entry => {}
+            Some(_) => return Err(key.1),
+            None => {
+                seen.insert(key, kept.len());
+                kept.push(entry);
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Adds `items` to the end of the array `target` is, starting one where the first document
@@ -83,10 +173,10 @@ fn entry_key(entry: &Value) -> String {
     }
 }
 
-fn remember(unit: &Value, seen: &mut HashMap<(String, String), String>) {
+fn remember(unit: &Value, seen: &mut HashMap<(String, String), usize>) {
     for (table, entries) in tables(unit) {
-        for entry in entries {
-            seen.insert((table.clone(), entry_key(entry)), canonical(entry));
+        for (at, entry) in entries.iter().enumerate() {
+            seen.insert((table.clone(), entry_key(entry)), at);
         }
     }
 }
@@ -100,36 +190,6 @@ fn tables(unit: &Value) -> Vec<(String, &Vec<Value>)> {
         .filter(|(name, _)| name.as_str() != "functions")
         .filter_map(|(name, value)| Some((name.clone(), value.as_array()?)))
         .collect()
-}
-
-/// The entries of one table that no earlier document held; an entry held with other
-/// content is an error, since only one of the two could be kept.
-fn unseen(
-    unit: &Value,
-    table: &str,
-    entries: &[Value],
-    seen: &mut HashMap<(String, String), String>,
-) -> Result<Vec<Value>, String> {
-    let mut fresh = Vec::new();
-    for entry in entries {
-        let key = (table.to_owned(), entry_key(entry));
-        let text = canonical(entry);
-        match seen.get(&key) {
-            Some(kept) if *kept == text => {}
-            Some(_) => {
-                return Err(format!(
-                    "{}: two documents disagree on {table} entry {}",
-                    unit["id"].as_str().unwrap_or("a unit"),
-                    key.1
-                ));
-            }
-            None => {
-                seen.insert(key, text);
-                fresh.push(entry.clone());
-            }
-        }
-    }
-    Ok(fresh)
 }
 
 /// Packs a unit's bundled document at zstd `level`.
@@ -160,8 +220,9 @@ impl<'a> Packer<'a> {
         let head = without_functions(document)?;
         let mut bytes = PACK_MAGIC.to_vec();
         bytes.extend(FORMAT);
-        let frame = append(&mut bytes, &canonical_bytes(&head), level)?;
-        let unit = json!({"id": document["unit"]["id"], "digest": digest(&head), "frame": frame});
+        let text = canonical_bytes(&head);
+        let frame = append(&mut bytes, &text, level)?;
+        let unit = json!({"id": document["unit"]["id"], "digest": sha256(&text), "frame": frame});
         Ok(Packer {
             keys: Keys::new(&document["unit"]),
             bytes,
@@ -227,9 +288,11 @@ impl<'a> Framer<'a> {
 }
 
 fn framed(keys: &Keys<'_>, function: &Value, level: i32) -> Result<Framed, String> {
+    // The frame holds the function's text as its digest names it.
+    let text = canonical_bytes(function);
     Ok(Framed {
-        bytes: compress(&canonical_bytes(function), level)?,
-        entry: keys.entry(function, [0, 0]),
+        bytes: compress(&text, level)?,
+        entry: keys.entry(function, &sha256(&text)),
     })
 }
 
@@ -277,13 +340,20 @@ pub fn index(pack: &[u8]) -> Result<Value, String> {
     if pack[PACK_MAGIC.len()] != FORMAT[0] {
         return Err(format!("pack format {} is not one this reads", pack[6]));
     }
-    let footer = &pack[pack.len() - FOOTER..];
-    if &footer[16..] != INDEX_MAGIC {
+    serde_json::from_str(&frame(pack, index_place(pack)?)?).map_err(|error| error.to_string())
+}
+
+/// Where a pack's index lies, as its footer says.
+fn index_place(pack: &[u8]) -> Result<[u64; 2], String> {
+    let footer = pack
+        .get(pack.len().saturating_sub(FOOTER)..)
+        .unwrap_or_default();
+    if footer.len() < FOOTER || &footer[16..] != INDEX_MAGIC {
         return Err("a pack ends with its index's place".into());
     }
     let at = u64::from_le_bytes(footer[..8].try_into().expect("eight bytes"));
     let length = u64::from_le_bytes(footer[8..16].try_into().expect("eight bytes"));
-    serde_json::from_str(&frame(pack, [at, length])?).map_err(|error| error.to_string())
+    Ok([at, length])
 }
 
 /// The text of the frame at `place` in `pack`.
@@ -380,6 +450,8 @@ struct Keys<'a> {
     edges: std::cell::RefCell<HashMap<&'a str, Vec<&'a str>>>,
     /// Each entry's digest without spans, worked out once for the unit.
     digests: std::cell::RefCell<HashMap<&'a str, String>>,
+    /// Where each line of each file starts, worked out once for the unit.
+    lines: std::cell::RefCell<HashMap<&'a str, Vec<usize>>>,
 }
 
 impl<'a> Keys<'a> {
@@ -405,18 +477,21 @@ impl<'a> Keys<'a> {
             files: by_id(listed("files")),
             edges: Default::default(),
             digests: Default::default(),
+            lines: Default::default(),
         }
     }
 
-    fn entry(&self, function: &Value, frame: [u64; 2]) -> Value {
+    /// The function's index entry, with `text` the digest of its text; its frame is placed
+    /// when it's added to a pack.
+    fn entry(&self, function: &Value, text: &str) -> Value {
         let span = &function["span"];
         let file = span["file"].as_str().unwrap_or_default();
         let start = span["start"].as_u64().unwrap_or_default();
         json!({
             "locator": function["id"],
-            "frame": frame,
-            "digest": digest(function),
-            "shape": digest(&rebased(function, file, start)),
+            "frame": [0, 0],
+            "digest": text,
+            "shape": read_digest(function, Spans::From(file, start)),
             "reads": self.reads(function),
             "context": self.context(function),
             "file": span["file"],
@@ -434,7 +509,7 @@ impl<'a> Keys<'a> {
             .map(|id| {
                 let entry = digests
                     .entry(id)
-                    .or_insert_with(|| digest(&unspanned(self.entries[id])));
+                    .or_insert_with(|| read_digest(self.entries[id], Spans::Dropped));
                 format!("{id}={entry}\n")
             })
             .collect();
@@ -489,23 +564,50 @@ impl<'a> Keys<'a> {
             true => &function["signature"]["span"],
             false => &function["span"],
         };
-        let file = self
-            .files
-            .get(signature["file"].as_str().unwrap_or_default())
-            .copied();
+        let id = signature["file"].as_str().unwrap_or_default();
+        let file = self.files.get_key_value(id);
         let content = file
-            .and_then(|file| file["content"].as_str())
+            .and_then(|(_, file)| file["content"].as_str())
             .unwrap_or_default();
         let start = signature["start"].as_u64().unwrap_or_default() as usize;
-        let before = content.get(..start).unwrap_or(content);
-        let line = 1 + before.matches('\n').count();
-        let mut marks = file.cloned().unwrap_or(Value::Null);
-        if let Some(fields) = marks.as_object_mut() {
-            fields.remove("content");
-            fields.remove("digest");
-        }
-        digest(&json!({"preceding": comment_line_above(content, line), "file": marks}))
+        let preceding = match file {
+            Some((id, _)) => {
+                let mut lines = self.lines.borrow_mut();
+                let starts = lines.entry(id).or_insert_with(|| line_starts(content));
+                comment_line_at(content, starts, start)
+            }
+            None => comment_line_above(content, 1),
+        };
+        // What the file's entry says of the file, but its text.
+        let marks = match file.map(|(_, file)| *file) {
+            Some(Value::Object(fields)) => fields
+                .iter()
+                .filter(|(key, _)| !matches!(key.as_str(), "content" | "digest"))
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect::<serde_json::Map<_, _>>()
+                .into(),
+            other => other.cloned().unwrap_or(Value::Null),
+        };
+        digest(&json!({"preceding": preceding, "file": marks}))
     }
+}
+
+/// Where each line of `content` starts.
+fn line_starts(content: &str) -> Vec<usize> {
+    std::iter::once(0)
+        .chain(content.match_indices('\n').map(|(at, _)| at + 1))
+        .collect()
+}
+
+/// The comment line above the line byte `start` of `content` lies on, whose lines start at
+/// `starts`; a `start` outside the text, or inside a character, reads as its end.
+fn comment_line_at(content: &str, starts: &[usize], start: usize) -> String {
+    let start = match content.is_char_boundary(start) {
+        true => start,
+        false => usize::MAX,
+    };
+    let line = starts.partition_point(|&at| at <= start).max(1);
+    comment_line_above_from(content, starts, line)
 }
 
 fn is_span(fields: &serde_json::Map<String, Value>) -> bool {
@@ -515,40 +617,63 @@ fn is_span(fields: &serde_json::Map<String, Value>) -> bool {
             .all(|key| fields.contains_key(*key))
 }
 
-/// The value with every span left out.
-fn unspanned(value: &Value) -> Value {
-    match value {
-        Value::Object(fields) if is_span(fields) => Value::Null,
-        Value::Object(fields) => fields
-            .iter()
-            .map(|(key, item)| (key.clone(), unspanned(item)))
-            .collect::<serde_json::Map<_, _>>()
-            .into(),
-        Value::Array(items) => items.iter().map(unspanned).collect(),
-        scalar => scalar.clone(),
+/// How a digest reads a value's spans.
+#[derive(Clone, Copy)]
+enum Spans<'a> {
+    /// Left out: each span reads as null.
+    Dropped,
+    /// Each span in the file read relative to the offset.
+    From(&'a str, u64),
+}
+
+/// A value as a digest reads it, its spans read as [`Spans`] says, written without copying
+/// the value: the same text as the value with its spans rewritten, serialized.
+struct Read<'a>(&'a Value, Spans<'a>);
+
+impl serde::Serialize for Read<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::{SerializeMap, SerializeSeq};
+        let Read(value, spans) = *self;
+        match (value, spans) {
+            (Value::Object(fields), Spans::Dropped) if is_span(fields) => {
+                serializer.serialize_unit()
+            }
+            (Value::Object(fields), Spans::From(file, base))
+                if is_span(fields) && fields["file"] == file =>
+            {
+                let mut map = serializer.serialize_map(Some(fields.len()))?;
+                for (key, item) in fields {
+                    match (key.as_str(), item.as_u64()) {
+                        ("start" | "end", Some(offset)) => {
+                            map.serialize_entry(key, &(offset as i64 - base as i64))?;
+                        }
+                        _ => map.serialize_entry(key, item)?,
+                    }
+                }
+                map.end()
+            }
+            (Value::Object(fields), _) => {
+                let mut map = serializer.serialize_map(Some(fields.len()))?;
+                for (key, item) in fields {
+                    map.serialize_entry(key, &Read(item, spans))?;
+                }
+                map.end()
+            }
+            (Value::Array(items), _) => {
+                let mut seq = serializer.serialize_seq(Some(items.len()))?;
+                for item in items {
+                    seq.serialize_element(&Read(item, spans))?;
+                }
+                seq.end()
+            }
+            (scalar, _) => scalar.serialize(serializer),
+        }
     }
 }
 
-/// The value with each span in `file` made relative to `base`.
-fn rebased(value: &Value, file: &str, base: u64) -> Value {
-    match value {
-        Value::Object(fields) if is_span(fields) && fields["file"] == file => {
-            let mut span = fields.clone();
-            for key in ["start", "end"] {
-                if let Some(offset) = span[key].as_u64() {
-                    span[key] = json!(offset as i64 - base as i64);
-                }
-            }
-            span.into()
-        }
-        Value::Object(fields) => fields
-            .iter()
-            .map(|(key, item)| (key.clone(), rebased(item, file, base)))
-            .collect::<serde_json::Map<_, _>>()
-            .into(),
-        Value::Array(items) => items.iter().map(|item| rebased(item, file, base)).collect(),
-        scalar => scalar.clone(),
-    }
+/// The digest of `value` with its spans read as `spans` says.
+fn read_digest(value: &Value, spans: Spans<'_>) -> String {
+    sha256(&serde_json::to_vec(&Read(value, spans)).expect("a JSON value serializes"))
 }
 
 // rstyle-allow(side_effect_density): IO boundary: reads a document file

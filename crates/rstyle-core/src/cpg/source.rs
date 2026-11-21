@@ -119,3 +119,11 @@ pub fn comment_line_above(content: &str, line: usize) -> String {
         .collect();
     preceding_comment_line(&above, above.len())
 }
+
+/// As [`comment_line_above`], with `starts` where each line of `content` starts, so only the
+/// lines searched are read.
+pub fn comment_line_above_from(content: &str, starts: &[usize], line: usize) -> String {
+    let first = line.saturating_sub(1 + LOOKBACK_LINES);
+    let from = starts.get(first).copied().unwrap_or(content.len());
+    comment_line_above(&content[from..], line - first)
+}

@@ -10,6 +10,7 @@ use rstyle_core::cpg::transport::{
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 pub(crate) fn pack(args: &CpgPackArgs) -> Result<(String, u8), String> {
     let summary = pack_run(&args.capture, &args.store, args.level)?;
@@ -24,17 +25,26 @@ pub(crate) fn pack_run(capture: &Path, store: &Path, level: i32) -> Result<Value
     let sources = sources(capture)?;
     let entries = units(&sources, capture)?
         .into_iter()
-        .map(|unit| {
-            let key = unit.key(level);
-            if let Some(entry) = kept_entry(store, &objects, &key) {
-                return Ok(entry);
-            }
-            let entry = pack_unit((capture, level), &objects, &sources, unit)?;
-            keep_entry(store, &key, &entry)?;
-            Ok(entry)
-        })
+        .map(|unit| reused_or_packed((capture, store, level), &objects, &sources, &unit))
         .collect::<Result<Vec<Value>, String>>()?;
     manifest(&objects, entries)
+}
+
+/// A unit's entry in the run's manifest: as it was kept the last time its documents were
+/// packed, else packed now and recorded under its documents.
+fn reused_or_packed(
+    (capture, store, level): (&Path, &Path, i32),
+    objects: &Objects,
+    sources: &[Source],
+    unit: &UnitDocuments,
+) -> Result<Value, String> {
+    let key = unit.key(level);
+    if let Some(entry) = kept_entry(store, objects, &key) {
+        return Ok(entry);
+    }
+    let entry = pack_unit((capture, level), objects, sources, &unit.positions)?;
+    keep_entry(store, &key, &entry)?;
+    Ok(entry)
 }
 
 /// One unit's documents, by position, and what keys its pack: the sha256 of each of its
@@ -109,20 +119,23 @@ fn pack_unit(
     (capture, level): (&Path, i32),
     objects: &Objects,
     sources: &[Source],
-    UnitDocuments { id, positions, .. }: UnitDocuments,
+    positions: &[usize],
 ) -> Result<Value, String> {
     let text = |position: usize| sources[position].text(capture);
-    let mut documents = Vec::with_capacity(positions.len());
-    for &position in &positions {
-        documents.push(tables_only(&text(position)?)?);
-    }
-    let merged = store::merge_unit(documents)?;
+    let merged = store::merge_documents(
+        positions
+            .iter()
+            .map(|&position| tables_only(&text(position)?)),
+    )?;
     let mut packer = store::Packer::new(&merged, level)?;
-    for framed in framed_in_parallel(&positions, &text, &merged, level)? {
+    for framed in framed_in_parallel(positions, &text, &merged, level)? {
         packer.add_framed(framed);
     }
     let packed = packer.finish()?;
-    kept(objects, id, &merged, packed)
+    let id = merged["unit"]["id"]
+        .as_str()
+        .ok_or("a document names its unit")?;
+    kept(objects, id.to_owned(), &merged, packed)
 }
 
 /// A unit's entry in the run's manifest, once its pack is kept.
@@ -142,12 +155,17 @@ fn kept(
     }))
 }
 
-/// Units packed as their documents arrive from a frontend's stream: one with the whole of
-/// its unit is packed then and there, so keeping the run reads nothing again.
+/// What a run knows of its units before it's kept. A document holding the whole of its unit,
+/// from a frontend's stream, is packed as it arrives; a unit whose documents' seals name their
+/// text, as Rust's capture writes them, is named by them, so only the units that changed are
+/// read again. Either way keeping the run reads no more than it has to.
 pub(crate) struct Emitted {
     store: PathBuf,
     level: i32,
-    units: std::sync::Mutex<Vec<(usize, String, Value)>>,
+    units: Mutex<Vec<(usize, String, Value)>>,
+    /// Units whose documents' seals say what text they hold: for each, the sha256 of its
+    /// documents' text, in the run's order.
+    sealed: Mutex<Vec<Vec<String>>>,
 }
 
 impl Emitted {
@@ -156,6 +174,7 @@ impl Emitted {
             store: store.to_path_buf(),
             level,
             units: Default::default(),
+            sealed: Default::default(),
         }
     }
 
@@ -190,17 +209,32 @@ impl Emitted {
         Ok(())
     }
 
+    /// Notes the run's next unit by the sha256 of its documents' text, as their seals say,
+    /// so keeping the run reads only the units no earlier run kept.
+    pub(crate) fn sealed_unit(&self, digests: Vec<String>) {
+        let mut sealed = self.sealed.lock().expect("no panic while packing");
+        sealed.push(digests);
+    }
+
     /// The store the run is kept in.
     pub(crate) fn store(&self) -> &Path {
         &self.store
     }
 
-    /// The run of `documents` saved in `capture`, kept: from what was packed as it arrived when
-    /// each came as its own unit, else packed from the saved documents, as a run whose
-    /// documents didn't stream, or whose unit came in several, is.
+    /// The run of `documents` saved in `capture`, kept: from its units' seals when they name
+    /// every document, else from what was packed as it arrived when each came as its own unit,
+    /// else packed from the saved documents, as a run whose documents didn't stream, or whose
+    /// unit came in several, is.
     pub(crate) fn finish(self, capture: &Path, documents: usize) -> Result<Value, String> {
+        let sealed = self.sealed.into_inner().expect("no panic while packing");
+        if !sealed.is_empty() {
+            return match sealed.iter().map(Vec::len).sum::<usize>() == documents {
+                true => sealed_run((capture, &self.store, self.level), sealed),
+                false => pack_run(capture, &self.store, self.level),
+            };
+        }
         let mut units = self.units.into_inner().expect("no panic while packing");
-        units.sort_by_key(|(index, _, _)| *index);
+        units.sort_by_key(|(index, ..)| *index);
         let ids: std::collections::BTreeSet<&String> = units.iter().map(|(_, id, _)| id).collect();
         if ids.len() != units.len() || units.len() != documents {
             return pack_run(capture, &self.store, self.level);
@@ -208,6 +242,43 @@ impl Emitted {
         let entries: Vec<Value> = units.into_iter().map(|(_, _, entry)| entry).collect();
         manifest(&Objects::new(&self.store.join("objects")), entries)
     }
+}
+
+// rstyle-allow(side_effect_density): IO boundary: reads a run's changed units and writes their packs
+/// Keeps the run saved in `capture` whose units' documents, in order, hold the text `sealed`
+/// names: a unit kept before is named, not read. Units that turn out to share an ID are
+/// packed as one, as [`pack_run`] does.
+fn sealed_run(
+    (capture, store, level): (&Path, &Path, i32),
+    sealed: Vec<Vec<String>>,
+) -> Result<Value, String> {
+    let objects = Objects::new(&store.join("objects"));
+    let sources = sources(capture)?;
+    let mut next = 0;
+    let mut entries = Vec::with_capacity(sealed.len());
+    for digests in sealed {
+        let positions: Vec<usize> = (next..next + digests.len()).collect();
+        next += digests.len();
+        let unit = UnitDocuments {
+            id: String::new(),
+            positions,
+            digests,
+        };
+        entries.push(reused_or_packed(
+            (capture, store, level),
+            &objects,
+            &sources,
+            &unit,
+        )?);
+    }
+    let ids: std::collections::BTreeSet<&str> = entries
+        .iter()
+        .filter_map(|entry| entry["unit"].as_str())
+        .collect();
+    if ids.len() != entries.len() {
+        return pack_run(capture, store, level);
+    }
+    manifest(&objects, entries)
 }
 
 /// Names the run whose units are `entries`, and says what it kept.
@@ -404,6 +475,10 @@ mod tests {
     use super::*;
 
     fn document(functions: &[&str]) -> String {
+        unit_document("unit:t", functions)
+    }
+
+    fn unit_document(unit: &str, functions: &[&str]) -> String {
         let functions: Vec<Value> = functions
             .iter()
             .map(|id| json!({"id": id, "span": {"file": "file:a.rs", "start": 0, "end": 1}}))
@@ -412,7 +487,7 @@ mod tests {
             "schema_version": "0.1.0", "profile": {"id": "compat.cpg", "version": "0.1.0"},
             "producer": {"name": "test", "version": "0"}, "coverage": {}, "layout": "bundled",
             "document": "unit",
-            "unit": {"id": "unit:t", "files": [], "definitions": [], "types": [], "functions": functions},
+            "unit": {"id": unit, "files": [], "definitions": [], "types": [], "functions": functions},
         });
         serde_json::to_string(&document).unwrap()
     }
@@ -455,5 +530,67 @@ mod tests {
             .finish(dir.path(), 1)
             .unwrap();
         assert_eq!(kept["units"].as_u64(), Some(1));
+    }
+
+    /// A saved run of `documents`, each a unit's ID and its functions, and the sha256 of each
+    /// document's text.
+    fn saved_run(dir: &Path, documents: &[(&str, &[&str])]) -> Vec<String> {
+        documents
+            .iter()
+            .enumerate()
+            .map(|(index, (unit, functions))| {
+                let text = unit_document(unit, functions);
+                std::fs::write(dir.join(format!("document-{index}.cpg.json")), &text).unwrap();
+                store::sha256(text.as_bytes())
+            })
+            .collect()
+    }
+
+    #[test]
+    fn units_named_by_their_seals_are_kept_as_packing_the_run_keeps_them() {
+        let dir = tempfile::tempdir().unwrap();
+        let run = dir.path().join("run");
+        std::fs::create_dir(&run).unwrap();
+        let digests = saved_run(
+            &run,
+            &[
+                ("unit:t", &["fn:a"]),
+                ("unit:t", &["fn:b"]),
+                ("unit:u", &["fn:c"]),
+            ],
+        );
+        let sealed = Emitted::new(&dir.path().join("store"), 3);
+        sealed.sealed_unit(digests[..2].to_vec());
+        sealed.sealed_unit(digests[2..].to_vec());
+        let kept = sealed.finish(&run, 3).unwrap();
+        let packed = pack_run(&run, &dir.path().join("packed"), 3).unwrap();
+        assert_eq!(kept, packed);
+
+        // A unit kept before is named by its seals alone: its documents aren't read again.
+        for index in 0..3 {
+            std::fs::write(run.join(format!("document-{index}.cpg.json")), "not JSON").unwrap();
+        }
+        let again = Emitted::new(&dir.path().join("store"), 3);
+        again.sealed_unit(digests[..2].to_vec());
+        again.sealed_unit(digests[2..].to_vec());
+        assert_eq!(again.finish(&run, 3).unwrap(), kept);
+    }
+
+    #[test]
+    fn seals_that_miss_documents_or_split_a_unit_leave_the_run_to_be_packed() {
+        let dir = tempfile::tempdir().unwrap();
+        let digests = saved_run(dir.path(), &[("unit:t", &["fn:a"]), ("unit:t", &["fn:b"])]);
+        let missing = Emitted::new(&dir.path().join("missing"), 3);
+        missing.sealed_unit(digests[..1].to_vec());
+        let split = Emitted::new(&dir.path().join("split"), 3);
+        split.sealed_unit(digests[..1].to_vec());
+        split.sealed_unit(digests[1..].to_vec());
+        for emitted in [missing, split] {
+            let kept = emitted.finish(dir.path(), 2).unwrap();
+            assert_eq!(
+                (kept["units"].as_u64(), kept["functions"].as_u64()),
+                (Some(1), Some(2))
+            );
+        }
     }
 }

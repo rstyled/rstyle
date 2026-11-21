@@ -3061,14 +3061,10 @@ fn two_crates_with_build_scripts_make_one_run() {
     );
 }
 
-#[test]
-fn a_run_with_a_store_keeps_its_documents_there_too() {
-    let project = Project::new();
-    let store = project.root().join("store");
-    let output = project.go(&["--format", "json", "--store", store.to_str().unwrap()]);
-    assert_eq!(output.status.code(), Some(0), "{output:?}");
-    let stderr = stderr(&output);
-    let manifest = stderr
+/// The manifest a run with `--store` says it kept itself under.
+fn kept_manifest(output: &Output) -> String {
+    let stderr = stderr(output);
+    stderr
         .lines()
         .find_map(|line| {
             line.split(" as ")
@@ -3077,7 +3073,56 @@ fn a_run_with_a_store_keeps_its_documents_there_too() {
         })
         .unwrap_or_else(|| panic!("no manifest named: {stderr}"))
         .trim()
-        .to_owned();
+        .to_owned()
+}
+
+#[test]
+fn a_rust_run_with_a_store_keeps_what_packing_its_saved_run_keeps() {
+    let directory = fixture("animals");
+    let root = directory.path().canonicalize().unwrap();
+    let store = root.join("store");
+    let args = [
+        "--format",
+        "json",
+        "--no-ignore",
+        "--store",
+        store.to_str().unwrap(),
+    ];
+    let first = rust_run(&root, &args);
+    assert!(
+        first.status.code().is_some_and(|code| code < 2),
+        "{first:?}"
+    );
+    let manifest = kept_manifest(&first);
+
+    let documents = saved_run(&first).join("documents");
+    let packed = Command::new(cargo_bin("rstyle"))
+        .args([
+            "cpg",
+            "pack",
+            "--capture",
+            documents.to_str().unwrap(),
+            "--store",
+        ])
+        .arg(root.join("packed"))
+        .output()
+        .unwrap();
+    assert_eq!(packed.status.code(), Some(0), "{packed:?}");
+    let summary: Value = serde_json::from_slice(&packed.stdout).unwrap();
+    assert_eq!(summary["manifest"], manifest.as_str());
+
+    // Nothing changed: the run names the same units, by their seals.
+    let second = rust_run(&root, &args);
+    assert_eq!(kept_manifest(&second), manifest, "{second:?}");
+}
+
+#[test]
+fn a_run_with_a_store_keeps_its_documents_there_too() {
+    let project = Project::new();
+    let store = project.root().join("store");
+    let output = project.go(&["--format", "json", "--store", store.to_str().unwrap()]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let manifest = kept_manifest(&output);
 
     // The stored run unpacks to the documents the run saved.
     let run = saved_run(&output);
