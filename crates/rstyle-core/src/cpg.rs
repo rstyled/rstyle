@@ -22,6 +22,7 @@ pub mod records;
 mod run;
 mod shapes;
 pub mod source;
+pub mod store;
 mod stream;
 pub mod transport;
 pub mod tree;

@@ -110,6 +110,7 @@ pub(super) struct Streamed {
 pub(super) struct Saving<'a> {
     pub directory: &'a Path,
     pub encoding: Encoding,
+    pub emitted: Option<&'a crate::cpg::pack::Emitted>,
 }
 
 impl Frontend {
@@ -234,6 +235,7 @@ impl Frontend {
             store: Some(Store {
                 directory: saving.directory,
                 encoding: saving.encoding,
+                emitted: saving.emitted,
             }),
         };
         let records = input::stream_records(&mut sequence, &stream);
