@@ -24,6 +24,9 @@ pub use early::{Early, SpilledFlow};
 pub struct Analyses {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub check: Option<Report>,
+    /// All selected source measurements, independent of findings and suppressions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub complexity: Option<Vec<crate::complexity_report::Function>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub patterns: Option<PatternsReport>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -157,13 +160,12 @@ pub fn analyze_taking(
         })
         .transpose()?;
 
-    let (check, patterns) = checked_and_mined(records, filter, config, options)?;
+    let completed = checked_and_mined(records, filter, config, options)?;
     Ok(Analyses {
-        check,
-        patterns,
         runtime_bounds,
         flow,
         defects,
+        ..completed
     })
 }
 
@@ -190,11 +192,15 @@ impl Analyses {
     pub fn text(&self) -> String {
         let check = self.check.as_ref().map(report::text);
         let patterns = self.patterns.as_ref().map(patterns_report::text);
+        let complexity = self
+            .complexity
+            .as_ref()
+            .map(|rows| crate::complexity_report::text(rows).join("\n"));
         let bounds = self.runtime_bounds.as_ref().map(DocumentReport::text);
         let flow = self.flow.as_ref().map(FlowReport::summary);
         let defects = self.defects.as_ref().map(DefectsReport::text);
 
-        [check, patterns, bounds, flow, defects]
+        [check, complexity, patterns, bounds, flow, defects]
             .into_iter()
             .flatten()
             .collect::<Vec<_>>()
@@ -208,7 +214,13 @@ impl Analyses {
             .patterns
             .as_ref()
             .is_some_and(|report| fail_on_candidates && !report.candidates.is_empty());
-        check.max(u8::from(candidates))
+        let incomplete = self
+            .complexity
+            .as_ref()
+            .is_some_and(|rows| rows.iter().any(|row| row.complexity.is_none()));
+        check
+            .max(u8::from(candidates))
+            .max(if incomplete { 2 } else { 0 })
     }
 
     /// One log per analysis that makes SARIF, with its file name. `root` is what their relative
@@ -240,32 +252,38 @@ fn checked_and_mined(
     filter: &Filter,
     config: &Config,
     options: &patterns_report::Options,
-) -> Result<(Option<Report>, Option<PatternsReport>), String> {
+) -> Result<Analyses, String> {
     let check = filter.core(Analysis::Check);
-    if !filter.core(Analysis::Patterns) {
-        return match check {
-            true => Ok((
-                Some(checked(cpg::run_inputs(records, config)?, config)?),
-                None,
-            )),
-            false => Ok((None, None)),
-        };
+    let mine = filter.core(Analysis::Patterns);
+    let rank = filter.core(Analysis::Complexity);
+    if !check && !mine && !rank {
+        return Ok(Analyses::default());
     }
-
     let inputs = cpg::run_inputs(records, config)?;
     let completed = match check {
         true => check_then_observed(inputs, config)?,
         false => observed(inputs, config)?,
     };
-    let (mut patterns, _) =
-        patterns_report::run_distinct_owned_and_retain(completed.facts, options);
-    candidates::annotate_completed_effects(&mut patterns.candidates, &completed.effects)?;
-    Ok((completed.report, Some(patterns)))
-}
-
-fn checked(inputs: RunInputs, config: &Config) -> Result<Report, String> {
-    crate::evaluate_with_effects(inputs.facts, config, Retention::Report, inputs.effects)
-        .map(|evaluation| evaluation.report)
+    let complexity = rank.then(|| {
+        crate::complexity_report::ranked(&completed.facts)
+            .into_iter()
+            .map(crate::complexity_report::Function::from)
+            .collect()
+    });
+    let patterns = if mine {
+        let (mut patterns, _) =
+            patterns_report::run_distinct_owned_and_retain(completed.facts, options);
+        candidates::annotate_completed_effects(&mut patterns.candidates, &completed.effects)?;
+        Some(patterns)
+    } else {
+        None
+    };
+    Ok(Analyses {
+        check: completed.report,
+        complexity,
+        patterns,
+        ..Analyses::default()
+    })
 }
 
 struct Completed {
@@ -333,6 +351,7 @@ mod tests {
         let whole = serde_json::to_value(run(&[])).unwrap();
         for (name, key) in [
             ("check", "check"),
+            ("complexity", "complexity"),
             ("patterns", "patterns"),
             ("bounds", "runtime_bounds"),
             ("flow", "flow"),
@@ -343,6 +362,23 @@ mod tests {
             assert_eq!(object.keys().collect::<Vec<_>>(), [key], "{name}");
             assert_eq!(object[key], whole[key], "{name}");
         }
+    }
+
+    #[test]
+    fn complexity_includes_clean_functions_without_changing_findings() {
+        let analyses = run(&["check", "complexity"]);
+        let check = analyses.check.unwrap();
+        let rows = analyses.complexity.unwrap();
+        assert_eq!(rows.len(), check.summary.functions);
+        assert!(rows.len() > check.functions.len());
+        assert!(rows.iter().all(|row| row.complexity.is_some()));
+    }
+
+    #[test]
+    fn complexity_alone_reports_missing_measurements_as_incomplete() {
+        let mut analyses = run(&["complexity"]);
+        analyses.complexity.as_mut().unwrap()[0].complexity = None;
+        assert_eq!(analyses.exit_code(false), 2);
     }
 
     #[test]

@@ -7,6 +7,7 @@ use std::collections::BTreeSet;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Analysis {
     Check,
+    Complexity,
     Patterns,
     Bounds,
     Flow,
@@ -14,8 +15,9 @@ pub enum Analysis {
 }
 
 impl Analysis {
-    const ALL: [Self; 5] = [
+    const ALL: [Self; 6] = [
         Self::Check,
+        Self::Complexity,
         Self::Patterns,
         Self::Bounds,
         Self::Flow,
@@ -25,6 +27,7 @@ impl Analysis {
     pub fn name(self) -> &'static str {
         match self {
             Self::Check => "check",
+            Self::Complexity => "complexity",
             Self::Patterns => "patterns",
             Self::Bounds => "bounds",
             Self::Flow => "flow",
@@ -35,6 +38,7 @@ impl Analysis {
     fn named(name: &str) -> Option<Self> {
         match name {
             "check" => Some(Self::Check),
+            "complexity" => Some(Self::Complexity),
             "patterns" => Some(Self::Patterns),
             "bounds" => Some(Self::Bounds),
             "flow" => Some(Self::Flow),
@@ -175,7 +179,7 @@ fn parsed(name: &str) -> Result<Selected, String> {
     }
     Analysis::named(name).map(Selected::Core).ok_or_else(|| {
         format!(
-            "Unknown analysis `{name}`: expected check, patterns, bounds, flow, defects or <frontend>:<analysis>"
+            "Unknown analysis `{name}`: expected check, complexity, patterns, bounds, flow, defects or <frontend>:<analysis>"
         )
     })
 }
@@ -238,6 +242,13 @@ mod tests {
         assert!(filter.needs_documents());
         let demand = filter.demand();
         assert!(demand.graphs && demand.bounds && demand.flow && demand.defects);
+    }
+
+    #[test]
+    fn core_analysis_names_round_trip() {
+        for analysis in Analysis::ALL {
+            assert_eq!(Analysis::named(analysis.name()), Some(analysis));
+        }
     }
 
     #[test]
