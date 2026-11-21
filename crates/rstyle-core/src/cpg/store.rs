@@ -702,8 +702,7 @@ impl Objects {
     }
 
     fn path(&self, name: &str) -> Result<PathBuf, String> {
-        let valid = name.len() == 64 && name.bytes().all(|byte| byte.is_ascii_hexdigit());
-        if !valid {
+        if !crate::hex::is_lowercase(name, 64) {
             return Err(format!("{name} is not an object's name"));
         }
         Ok(self.root.join(&name[..2]).join(&name[2..]))

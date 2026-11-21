@@ -17,6 +17,7 @@ pub mod facts;
 pub mod filter;
 pub mod graph;
 pub mod groups;
+pub mod hex;
 pub mod ledger;
 pub mod lines;
 pub mod locator;
