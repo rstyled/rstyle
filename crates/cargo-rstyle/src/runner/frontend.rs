@@ -171,6 +171,19 @@ impl Frontend {
         self
     }
 
+    /// The same frontend, given the directory `directory` makes to keep between runs if it takes
+    /// `--cache`. A frontend keeps only what makes it faster there, so a directory that can't be
+    /// made leaves the run as it would be without it.
+    pub(super) fn caching(mut self, directory: impl FnOnce() -> Option<PathBuf>) -> Self {
+        if self.options.iter().any(|option| option == "cache")
+            && let Some(directory) = directory()
+        {
+            let arguments = [OsString::from("--cache"), directory.into_os_string()];
+            self.stream_arguments.extend(arguments);
+        }
+        self
+    }
+
     fn name(&self) -> std::path::Display<'_> {
         self.program.display()
     }

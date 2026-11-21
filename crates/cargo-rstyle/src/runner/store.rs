@@ -101,12 +101,23 @@ pub(super) fn project_folder(project: &Path) -> Result<PathBuf, String> {
     Ok(folder)
 }
 
+// rstyle-allow(side_effect_density): IO boundary: creates a folder in the project's `.rstyle`
+/// The folder at `relative` in the project's `.rstyle`, made if it isn't there.
+fn project_subfolder(project: &Path, relative: &Path) -> Result<PathBuf, String> {
+    let folder = project_folder(project)?.join(relative);
+    std::fs::create_dir_all(&folder).map_err(|error| format!("{}: {error}", folder.display()))?;
+    Ok(folder)
+}
+
+/// The directory the project keeps for `language`'s frontend between runs, beside its runs.
+pub(super) fn frontend_cache(project: &Path, language: &'static str) -> Result<PathBuf, String> {
+    project_subfolder(project, &Path::new("cache").join(language))
+}
+
 /// The project's runs of `language`.
-// rstyle-allow(side_effect_density): IO boundary: creates the run folder
 pub(super) fn project_runs(project: &Path, language: &'static str) -> Result<Runs, String> {
     let keep = crate::compiler::capture::saved_run_limit()?;
-    let parent = project_folder(project)?.join("runs");
-    std::fs::create_dir_all(&parent).map_err(|error| format!("{}: {error}", parent.display()))?;
+    let parent = project_subfolder(project, Path::new("runs"))?;
     Ok(Runs {
         parent,
         language,

@@ -68,6 +68,7 @@ const MIXED: &str = r#"{"schema":"rstyle.frontend-description/1","language":"go"
 const CXX: &str = r#"{"schema":"rstyle.frontend-description/1","language":"cxx","analyses":[]}"#;
 const CXX_EXCLUDING: &str = r#"{"schema":"rstyle.frontend-description/1","language":"cxx","analyses":[],"options":["exclude"]}"#;
 const PY: &str = r#"{"schema":"rstyle.frontend-description/1","language":"py","analyses":[],"options":["exclude"]}"#;
+const CACHING: &str = r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[],"options":["cache"]}"#;
 const CXX_READERS: &str = r#"{"schema":"rstyle.frontend-description/1","language":"cxx","analyses":[{"name":"reader","input":"documents"},{"name":"calls","input":"source"}]}"#;
 
 /// A Go module and a frontend to run over it.
@@ -3059,4 +3060,48 @@ fn two_crates_with_build_scripts_make_one_run() {
         flow.iter().all(|row| row["flow"]["standing"] != "unknown"),
         "{flow:?}"
     );
+}
+
+#[test]
+fn a_frontend_that_takes_a_cache_is_given_the_project_s_own() {
+    let project = Project::new();
+    let arguments = || std::fs::read_to_string(project.root().join("arguments")).unwrap();
+    let run = |description: &str| {
+        project
+            .command(description, &["go", "--format", "json"])
+            .env("FAKE_ARGUMENTS", project.root().join("arguments"))
+            .output()
+            .unwrap()
+    };
+    let cache = project.root().join(".rstyle/cache/go");
+
+    let output = run(NO_ANALYSES);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(!arguments().contains("--cache"), "{}", arguments());
+    assert!(
+        !cache.exists(),
+        "a frontend that keeps nothing gets no directory"
+    );
+
+    let output = run(CACHING);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let given: Vec<String> = arguments().lines().map(str::to_owned).collect();
+    let at = given
+        .iter()
+        .position(|argument| argument == "--cache")
+        .unwrap();
+    assert_eq!(PathBuf::from(&given[at + 1]), cache);
+    assert!(cache.is_dir());
+
+    // A project whose `.rstyle` can't hold a cache still runs, as it would without one.
+    std::fs::remove_dir_all(project.root().join(".rstyle/cache")).unwrap();
+    std::fs::write(project.root().join(".rstyle/cache"), "").unwrap();
+    let output = project
+        .command(CACHING, &["go", "--format", "json", "--out"])
+        .arg(project.root().join("elsewhere"))
+        .env("FAKE_ARGUMENTS", project.root().join("arguments"))
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(!arguments().contains("--cache"), "{}", arguments());
 }
