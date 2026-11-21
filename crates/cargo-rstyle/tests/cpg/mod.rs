@@ -522,6 +522,7 @@ mod ranges;
 #[cfg(unix)]
 mod runner;
 mod stdin;
+mod tables;
 mod transport;
 
 fn parsed(documents: &[String]) -> Vec<Value> {

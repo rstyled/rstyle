@@ -48,11 +48,16 @@ impl<'tcx> Unit<'tcx> {
         if matches!(self.tcx.def_kind(def_id), DefKind::Macro(_)) {
             stable.push('!');
         }
-        // A type may share its path with a function of the value namespace, as a braced
-        // struct and a function of its name do; `#type` names the type.
+        // A type or a module may share its path with a function of the value namespace, as a
+        // braced struct and a function of its name do; `#type` names the type or module.
         let type_namespace = matches!(
             self.tcx.def_kind(def_id),
-            DefKind::Struct | DefKind::Enum | DefKind::Union | DefKind::TyAlias | DefKind::Trait
+            DefKind::Struct
+                | DefKind::Enum
+                | DefKind::Union
+                | DefKind::TyAlias
+                | DefKind::Trait
+                | DefKind::Mod
         );
         let namesake = match def_id.is_local() {
             true => self.value_paths().contains(&stable),
@@ -544,7 +549,11 @@ impl<'tcx> Unit<'tcx> {
         let id = type_id(self.tcx, &spelling, ty);
         if !self.types.contains_key(&id) {
             self.types.insert(id.clone(), json!({}));
-            let mut record = self.type_record(ty);
+            // One spelling reaches here with its lifetimes bound by a signature in one function
+            // and free or erased in another, and its record must not depend on which came
+            // first. No record reads a lifetime, only whether there are lifetime arguments.
+            let erased = ty::fold_regions(self.tcx, ty, |_, _| self.tcx.lifetimes.re_erased);
+            let mut record = self.type_record(erased);
             record["id"] = json!(id);
             record["spelling"] = json!(spelling);
             if let Some(key) = super::sysroot::type_key(self.tcx, ty) {
@@ -982,13 +991,26 @@ fn bool_array<'tcx>(
 }
 
 /// A type's ID: its spelling, and for a type mentioning type parameters their indices,
-/// since the same spelling names different parameters in different functions.
+/// since the same spelling names different parameters in different functions. A closure or
+/// coroutine is spelled by where it is written, which every one a macro expands at one call
+/// site shares, and a type declared inside a body by a path without the body, so a type
+/// mentioning either also names its definition.
 fn type_id(tcx: TyCtxt<'_>, spelling: &str, ty: Ty<'_>) -> String {
     let parameters: BTreeSet<String> = ty
         .walk()
         .filter_map(|arg| arg.as_type())
         .filter_map(|ty| match ty.kind() {
             ty::Param(param) => Some(format!("{}={}", param.name, param.index)),
+            ty::Closure(def_id, _) | ty::Coroutine(def_id, _) | ty::CoroutineClosure(def_id, _) => {
+                Some(ids::def_id_str(tcx, *def_id))
+            }
+            // A type declared inside a body, as derive macros declare `__Field`, is spelled
+            // by a path that leaves out which body, so another of its name shares it.
+            ty::Adt(adt, _)
+                if adt.did().is_local() && tcx.def_kind(tcx.parent(adt.did())) != DefKind::Mod =>
+            {
+                Some(ids::def_id_str(tcx, adt.did()))
+            }
             // A nominal type spelled as a primitive is, as `struct u32` is, by its identity.
             ty::Adt(adt, _) if primitive_name(&tcx.def_path_str(adt.did())) => {
                 Some(format!("{:?}", tcx.def_path_hash(adt.did())))
