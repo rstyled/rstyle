@@ -432,3 +432,24 @@ fn a_document_without_a_unit_is_not_merged() {
         assert!(merge_unit(vec![broken]).is_err());
     }
 }
+
+#[test]
+fn a_span_past_i64_s_range_is_rebased_without_wrapping() {
+    let read = |start: u64, end: u64, base: u64| {
+        let value = json!({"span": {"file": "file:a.rs", "start": start, "end": end}});
+        serde_json::to_string(&Read(&value, Spans::From("file:a.rs", base))).unwrap()
+    };
+    let past = i64::MAX as u64 + 1;
+    assert_eq!(
+        read(0, past, 0),
+        format!(r#"{{"span":{{"end":{past},"file":"file:a.rs","start":0}}}}"#)
+    );
+    assert_eq!(
+        read(0, 1, u64::MAX),
+        format!(
+            r#"{{"span":{{"end":-{},"file":"file:a.rs","start":-{}}}}}"#,
+            u64::MAX - 1,
+            u64::MAX
+        )
+    );
+}

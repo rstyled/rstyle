@@ -645,7 +645,8 @@ impl serde::Serialize for Read<'_> {
                 for (key, item) in fields {
                     match (key.as_str(), item.as_u64()) {
                         ("start" | "end", Some(offset)) => {
-                            map.serialize_entry(key, &(offset as i64 - base as i64))?;
+                            // Any two u64 offsets differ by something an i128 holds.
+                            map.serialize_entry(key, &(i128::from(offset) - i128::from(base)))?;
                         }
                         _ => map.serialize_entry(key, item)?,
                     }
