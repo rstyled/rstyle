@@ -245,6 +245,13 @@ mod tests {
     }
 
     #[test]
+    fn core_analysis_names_round_trip() {
+        for analysis in Analysis::ALL {
+            assert_eq!(Analysis::named(analysis.name()), Some(analysis));
+        }
+    }
+
+    #[test]
     fn a_filter_selects_only_its_names() {
         let filter = only(&["check", "bounds", "check"]);
         assert!(filter.core(Analysis::Check));
