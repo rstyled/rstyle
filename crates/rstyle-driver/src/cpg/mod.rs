@@ -14,6 +14,7 @@ pub(crate) mod sysroot;
 mod unit;
 
 use rstyle_capture::PackageContext;
+use rustc_data_structures::sync::{DynSend, DynSync, par_map};
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::LOCAL_CRATE;
@@ -36,22 +37,49 @@ pub fn emit(tcx: TyCtxt<'_>, root: &Path, dir: &Path) -> Result<(), String> {
     }
     let name = unit_name(tcx);
     let encoding = rstyle_core::cpg::transport::Encoding::from_environment()?;
-    let documents = documents_in(tcx, (root, None), None);
-
-    for (index, (document, unrecorded)) in documents.enumerate() {
-        if let Some((id, reason)) = unrecorded.first() {
-            return Err(format!("{}: {reason}", tcx.def_path_str(id.to_def_id())));
-        }
+    write_documents(tcx, (root, None), None, |index, document| {
         let path = dir.join(format!("{name}.{index:06}{}", encoding.suffix()));
-        rstyle_core::cpg::transport::write_json(&path, encoding, &document)?;
-    }
+        rstyle_core::cpg::transport::write_json(&path, encoding, &document)
+    })?;
     Ok(())
+}
+
+/// What `write` returns for each of the crate's documents, in order, each recording the capture
+/// `session` when given. While rustc runs its front end on more than one thread the documents
+/// are built and written on its threads, at most one per thread at once; otherwise in order on
+/// this one, each written before the next is built.
+pub fn write_documents<T: DynSend>(
+    tcx: TyCtxt<'_>,
+    (root, package): (&Path, Option<&PackageContext>),
+    session: Option<Value>,
+    write: impl Fn(usize, Value) -> Result<T, String> + DynSync + DynSend,
+) -> Result<Vec<T>, String> {
+    let recorded =
+        |(document, unrecorded): (Value, Vec<(LocalDefId, String)>)| match unrecorded.first() {
+            Some((id, reason)) => Err(format!("{}: {reason}", tcx.def_path_str(id.to_def_id()))),
+            None => Ok(document),
+        };
+    if !crate::threads::parallel() {
+        let documents = documents_in(tcx, (root, package), session).enumerate();
+        return documents
+            .map(|(index, built)| write(index, recorded(built)?))
+            .collect();
+    }
+
+    let package = cargo_package(package);
+    let batches = batches(tcx);
+    let prefixes = id_prefixes(tcx, root, batches.iter().flatten().copied());
+    par_map(batches.into_iter().enumerate(), |(index, batch)| {
+        let origin = (root, package.clone(), session.clone());
+        let built = batch_document(tcx, (origin, index == 0), &batch, &prefixes);
+        write(index, recorded(built)?)
+    })
 }
 
 // rstyle-allow(side_effect_density): documents are produced lazily, one batch at a time
 /// The crate's function documents, each recording the capture `session` when given:
 /// the compiler invocation, the selected unit, and each file's path.
-pub fn documents_in<'tcx, 'r>(
+fn documents_in<'tcx, 'r>(
     tcx: TyCtxt<'tcx>,
     (root, package): (&'r Path, Option<&'r PackageContext>),
     session: Option<Value>,

@@ -493,6 +493,74 @@ fn capture_without_evaluations_exits_two() {
     }
 }
 
+/// The runner reads `RSTYLE_DRIVER_THREADS` once and sets it on every driver it runs: the
+/// number given, else every core it may run on.
+#[cfg(unix)]
+#[test]
+fn every_driver_runs_on_the_threads_the_runner_was_given() {
+    use std::os::unix::fs::PermissionsExt;
+    let available = std::thread::available_parallelism().unwrap().get().min(255);
+    let available = available.to_string();
+    for (given, expected) in [
+        (Some("1"), "1"),
+        (Some("3"), "3"),
+        (None, available.as_str()),
+    ] {
+        let dir = fixture("violations");
+        let seen = dir.path().join("threads-seen");
+        let recorder = dir.path().join("recording-driver");
+        let script = format!(
+            "#!/bin/sh\necho \"$RSTYLE_DRIVER_THREADS\" >> '{}'\nexec '{}' \"$@\"\n",
+            seen.display(),
+            driver().display()
+        );
+        std::fs::write(&recorder, script).unwrap();
+        std::fs::set_permissions(&recorder, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let mut command = Command::new(cargo_bin("cargo-rstyle"));
+        command
+            .current_dir(dir.path())
+            .env("RSTYLE_DRIVER", &recorder)
+            .env_remove("CARGO_TARGET_DIR");
+        match given {
+            Some(threads) => command.env("RSTYLE_DRIVER_THREADS", threads),
+            None => command.env_remove("RSTYLE_DRIVER_THREADS"),
+        };
+        let output = diagnostic_process::output(&mut command).unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(1),
+            "{given:?}: {}",
+            stdout(&output)
+        );
+
+        let seen = std::fs::read_to_string(seen).unwrap();
+        assert!(!seen.is_empty());
+        assert!(
+            seen.lines().all(|line| line == expected),
+            "{given:?}: {seen}"
+        );
+    }
+}
+
+#[test]
+fn a_driver_thread_count_that_is_not_a_number_from_one_to_255_exits_two() {
+    let dir = fixture("violations");
+    let output = diagnostic_process::output(
+        Command::new(cargo_bin("cargo-rstyle"))
+            .current_dir(dir.path())
+            .env("RSTYLE_DRIVER", driver())
+            .env("RSTYLE_DRIVER_THREADS", "0")
+            .env_remove("CARGO_TARGET_DIR"),
+    )
+    .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("RSTYLE_DRIVER_THREADS must be a number of threads from 1 to 255, not `0`"),
+        "{stderr}"
+    );
+}
+
 #[test]
 fn bad_config_exits_two() {
     let dir = fixture("clean");

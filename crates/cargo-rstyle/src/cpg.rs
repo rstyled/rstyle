@@ -7,6 +7,7 @@ pub(crate) mod ingest;
 pub(crate) mod input;
 mod receipt;
 
+use rstyle_capture::threads;
 use rstyle_core::config::Config;
 use rstyle_core::cpg::bounds::report::from_records;
 use rstyle_core::cpg::records::{self, Demand, Record};
@@ -301,7 +302,8 @@ fn emit_documents(selection: &Selection<'_>, out: &Path, target: &Path) -> Resul
         .env("RUSTC_WORKSPACE_WRAPPER", crate::run::driver_path()?)
         .env("RSTYLE_CPG_DIR", out)
         .env("RSTYLE_CPG_ROOT", &root)
-        .env("RSTYLE_CPG_COMPRESSION", selection.encoding.cli_name());
+        .env("RSTYLE_CPG_COMPRESSION", selection.encoding.cli_name())
+        .env(threads::VARIABLE, threads::from_environment()?.to_string());
     status(check, "cargo check")?;
 
     Ok(documents(out)?.len())

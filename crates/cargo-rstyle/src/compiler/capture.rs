@@ -14,6 +14,7 @@ use rstyle_core::cli_args::flag_value;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
+    num::NonZeroU8,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -34,6 +35,9 @@ pub struct Target {
 pub struct Plan {
     #[serde(default)]
     pub document_encoding: rstyle_core::cpg::transport::Encoding,
+    /// The threads each driver compiles and writes on, from `RSTYLE_DRIVER_THREADS`.
+    #[serde(default = "one_thread")]
+    pub driver_threads: NonZeroU8,
     /// Original Cargo selection covers every workspace package and all targets.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_all_targets: Option<bool>,
@@ -60,7 +64,7 @@ impl Plan {
     }
 
     /// Whether another capture's documents serve this one. What each route then reads of them
-    /// doesn't matter: the driver writes the same documents for every route.
+    /// doesn't matter: the driver writes the same documents for every route, on any threads.
     fn same_capture(&self, other: &Self) -> bool {
         self.captured() == other.captured()
     }
@@ -69,6 +73,7 @@ impl Plan {
         Self {
             compiler_patterns: false,
             compiler_runtime_bounds: false,
+            driver_threads: one_thread(),
             ..self.clone()
         }
     }
@@ -180,9 +185,14 @@ fn run_directory(target: &Path) -> Result<PathBuf, String> {
     Ok(directory)
 }
 
+fn one_thread() -> NonZeroU8 {
+    NonZeroU8::MIN
+}
+
 fn plan(root: PathBuf, targets: Vec<Target>, environment: CaptureEnvironment) -> Plan {
     Plan {
         document_encoding: Default::default(),
+        driver_threads: environment.driver_threads,
         workspace_all_targets: None,
         compiler_patterns: false,
         compiler_runtime_bounds: false,
@@ -198,6 +208,7 @@ fn plan(root: PathBuf, targets: Vec<Target>, environment: CaptureEnvironment) ->
 
 struct CaptureEnvironment {
     driver: PathBuf,
+    driver_threads: NonZeroU8,
     compiler_identity: String,
     cargo_identity: String,
 }
@@ -205,6 +216,7 @@ struct CaptureEnvironment {
 fn capture_environment() -> Result<CaptureEnvironment, String> {
     Ok(CaptureEnvironment {
         driver: run::canonical(&run::driver_path()?).map_err(|e| e.to_string())?,
+        driver_threads: rstyle_capture::threads::from_environment()?,
         compiler_identity: tool_identity("rustc", "-vV")?,
         cargo_identity: tool_identity("cargo", "--version")?,
     })
@@ -650,6 +662,10 @@ fn driver_command(
     }
     command
         .env("RSTYLE_CPG_COMPRESSION", plan.document_encoding.cli_name())
+        .env(
+            rstyle_capture::threads::VARIABLE,
+            plan.driver_threads.to_string(),
+        )
         .args(arguments);
     Ok(command)
 }

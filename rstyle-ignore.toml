@@ -49,6 +49,14 @@ fns = [
   "rstyle_core::cpg::transport::manifest::SealedDocument::verify",
 ]
 
+[ignore.4022b7484080]
+kind = "parameterize"
+reason = "each reads its own variable into its own parser, in crates that share nothing else; a helper would wrap one environment read"
+fns = [
+  "cargo_rstyle::compiler::capture::retention::limit",
+  "rstyle_capture::threads::from_environment",
+]
+
 [ignore.6dd938055815]
 kind = "parameterize"
 reason = "thin wrappers over the shared publish_with; each only names its renderer"

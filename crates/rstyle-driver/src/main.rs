@@ -6,6 +6,7 @@
 extern crate rustc_abi;
 extern crate rustc_ast;
 extern crate rustc_attr_ir;
+extern crate rustc_data_structures;
 extern crate rustc_driver;
 extern crate rustc_hir;
 extern crate rustc_hir_typeck;
@@ -21,11 +22,13 @@ mod ids;
 mod mutations;
 mod paths;
 mod spans;
+mod threads;
 
 use rstyle_core::cli_args::flag_value;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_interface::interface::Compiler;
 use rustc_middle::ty::TyCtxt;
+use std::num::NonZeroU8;
 use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 
@@ -41,8 +44,8 @@ fn with_sysroot(mut args: Vec<String>) -> Vec<String> {
 }
 
 fn main() -> ExitCode {
-    match driver_options::parse(std::env::args().skip(1).collect()) {
-        Ok(invocation) => run(invocation),
+    match invocation() {
+        Ok((invocation, threads)) => run(invocation, threads),
         Err(error) => {
             eprintln!("rstyle-driver: {error}");
             ExitCode::from(2)
@@ -50,7 +53,13 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(invocation: driver_options::Invocation) -> ExitCode {
+/// The driver's own options, and the threads it runs rustc on.
+fn invocation() -> Result<(driver_options::Invocation, NonZeroU8), String> {
+    let invocation = driver_options::parse(std::env::args().skip(1).collect())?;
+    Ok((invocation, rstyle_capture::threads::from_environment()?))
+}
+
+fn run(invocation: driver_options::Invocation, threads: NonZeroU8) -> ExitCode {
     // The private driver selection has been consumed; rustc receives its path
     // followed by only its own compiler arguments.
     let args = with_sysroot(invocation.arguments);
@@ -60,6 +69,9 @@ fn run(invocation: driver_options::Invocation) -> ExitCode {
         unit_context: invocation.unit_context,
         source_root: std::env::var_os(rstyle_core::advisory::SOURCE_ROOT_ENV).map(PathBuf::from),
     });
+    // The documents record the compilation Cargo asked for: the threads it runs on change how
+    // it runs, not what it compiles.
+    let args = threads::compiler_arguments(args, threads);
 
     if let (Some(dir), Some(root)) = (
         std::env::var_os(cpg::DIR_ENV),
