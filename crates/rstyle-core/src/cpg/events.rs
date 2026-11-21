@@ -8,6 +8,7 @@ use super::model::{
 };
 use super::source::Sources;
 use super::tree::{Body, Tables, anchor, generated, is_kind, line, scope_end};
+use super::waits::FixedWaits;
 use crate::complexity::{Kind, Node as Construct};
 use crate::facts::{
     ArgSource, CallEvent, Edge, EffectEvent, EffectKind, LibraryClass, MutationEvent,
@@ -24,6 +25,18 @@ pub struct Events {
     pub edges: Vec<Edge>,
     pub effects: Vec<EffectEvent>,
     pub recursions: Vec<Construct>,
+    /// Lines of calls that wait a fixed time.
+    pub waits: Vec<usize>,
+}
+
+impl Events {
+    /// Records a call, and its line among the fixed waits when it is one.
+    fn call(&mut self, call: CallEvent, waits: bool) {
+        if waits {
+            self.waits.push(call.line);
+        }
+        self.calls.push(call);
+    }
 }
 
 /// Whether a call has no callee node, so that its receiver is its first argument.
@@ -42,6 +55,7 @@ pub struct Walk<'a> {
     owner: &'a str,
     params: BTreeMap<&'a str, usize>,
     classes: &'a EffectClasses,
+    waits: &'a FixedWaits,
 }
 
 /// A node being walked, and whether a user-written `unsafe` block encloses it.
@@ -74,7 +88,7 @@ impl<'a> Walk<'a> {
         body: &'a Body<'a>,
         tables: &'a Tables<'a>,
         sources: &'a Sources<'a>,
-        classes: &'a EffectClasses,
+        (classes, waits): (&'a EffectClasses, &'a FixedWaits),
     ) -> Self {
         let signature = &body.function.signature;
         let params = signature
@@ -89,6 +103,7 @@ impl<'a> Walk<'a> {
             owner: &body.function.definition,
             params,
             classes,
+            waits,
         }
     }
 
@@ -282,13 +297,14 @@ impl<'a> Walk<'a> {
         let library = self.library_class(site.node, &callee)?;
         let library_callee =
             (callee.selected.scope == Scope::Library).then(|| declared.stable_identity.clone());
-        out.calls.push(CallEvent {
+        let call = CallEvent {
             callee: name,
             line,
             dynamic,
             library,
             library_callee,
-        });
+        };
+        out.call(call, self.waits.holds(callee.selected));
         Ok(())
     }
 

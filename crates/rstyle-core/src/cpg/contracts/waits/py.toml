@@ -1,0 +1,6 @@
+# Library calls that wait a fixed time, for the `test_sleep` rule, keyed by operation without its
+# namespace, as the effect classes are: `asyncio.sleep` is `asyncio.tasks.sleep`. Each entry names
+# one operation exactly.
+schema = "rstyle.fixed-waits/1"
+namespace = "py"
+operations = ["asyncio.tasks.sleep", "time.sleep"]

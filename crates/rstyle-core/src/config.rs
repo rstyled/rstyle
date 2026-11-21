@@ -63,13 +63,16 @@ pub struct StrictStyleConfig {
     pub guard_clause: GuardClauseConfig,
     #[serde(skip_serializing_if = "PrimitiveObsessionConfig::is_off")]
     pub primitive_obsession: PrimitiveObsessionConfig,
+    #[serde(skip_serializing_if = "TestSleepConfig::is_off")]
+    pub test_sleep: TestSleepConfig,
     #[serde(skip_serializing_if = "ValueObjectConfig::is_off")]
     pub value_object: ValueObjectConfig,
 }
 
 impl StrictStyleConfig {
     fn all_off(&self) -> bool {
-        !self.comments.enabled
+        !self.test_sleep.enabled
+            && !self.comments.enabled
             && !self.fn_spacing.enabled
             && !self.guard_clause.enabled
             && !self.primitive_obsession.enabled
@@ -132,6 +135,19 @@ impl Default for CommentsConfig {
 }
 
 impl CommentsConfig {
+    fn is_off(&self) -> bool {
+        !self.enabled
+    }
+}
+
+/// A test that waits a fixed time instead of for what it waits on. Off unless a project turns it on.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TestSleepConfig {
+    pub enabled: bool,
+}
+
+impl TestSleepConfig {
     fn is_off(&self) -> bool {
         !self.enabled
     }
@@ -1004,6 +1020,20 @@ mod tests {
         let on = policy("[strict_style.guard_clause]\nenabled = true");
         let rules = on["strict_style"].as_object().unwrap();
         assert_eq!(rules.keys().collect::<Vec<_>>(), ["guard_clause"], "{on}");
+    }
+
+    #[test]
+    fn test_sleep_is_off_until_a_project_turns_it_on() {
+        let default = Config::default();
+        assert!(!default.strict_style.test_sleep.enabled);
+        let off = serde_json::to_value(default).unwrap();
+        assert!(off.get("strict_style").is_none(), "nothing on: {off}");
+
+        let on = Config::parse("[strict_style.test_sleep]\nenabled = true").unwrap();
+        assert!(on.strict_style.test_sleep.enabled);
+        let on = serde_json::to_value(on).unwrap();
+        let rules = on["strict_style"].as_object().unwrap();
+        assert_eq!(rules.keys().collect::<Vec<_>>(), ["test_sleep"], "{on}");
     }
 
     #[test]

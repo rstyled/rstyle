@@ -9,6 +9,7 @@ use super::model::{Coverage, Document, Function, Status};
 use super::shapes::{mutated_types, param_list, signature_shape};
 use super::source::Sources;
 use super::tree::{Body, Tables};
+use super::waits::FixedWaits;
 use crate::complexity::Measurement;
 use crate::facts::FnFacts;
 
@@ -74,6 +75,7 @@ pub(super) fn derive_each(document: &Document, graphs: bool) -> Result<EachFunct
     let roles = graphs.then(|| Roles::of(&document.producer.namespace));
     let classes = EffectClasses::of(&document.producer.namespace);
     let comments = CommentSyntax::of(&document.producer.namespace);
+    let waits = FixedWaits::of(&document.producer.namespace);
     let functions = unit.functions.as_deref().unwrap_or_default();
     // A function whose file lies outside the workspace root has no workspace facts,
     // unless the build wrote it there, as it does when the target directory is elsewhere.
@@ -89,7 +91,7 @@ pub(super) fn derive_each(document: &Document, graphs: bool) -> Result<EachFunct
         .map(|function| {
             let facts = function_facts(
                 function,
-                (&tables, &sources, roles, classes),
+                (&tables, &sources, roles, (classes, waits)),
                 (comments, measured),
             );
             (function, facts)
@@ -131,19 +133,29 @@ fn complexity_available(coverage: &Coverage) -> bool {
         .is_some_and(|ast| matches!(ast.status, Status::Supported | Status::Approximated))
 }
 
+/// What a function's calls are classified by: their effects, and which wait a fixed time.
+type Contracts<'c> = (&'c EffectClasses, &'c FixedWaits);
+
+/// A function's fixed waits, kept only where its language marks its file as tests.
+fn test_waits(function: &Function, sources: &Sources<'_>, waits: Vec<usize>) -> Vec<usize> {
+    match sources.marks(&function.signature.span).test {
+        true => waits,
+        false => Vec::new(),
+    }
+}
+
 fn function_facts(
     function: &Function,
-    (tables, sources, roles, classes): (&Tables<'_>, &Sources<'_>, Option<&Roles>, &EffectClasses),
+    (tables, sources, roles, classes): (&Tables<'_>, &Sources<'_>, Option<&Roles>, Contracts<'_>),
     (comments, measured): (&CommentSyntax, bool),
 ) -> Result<FnFacts, String> {
     let body = Body::new(function)?;
     let walk = Walk::new(&body, tables, sources, classes);
     let events = walk.events()?;
     let (mutations, mutated): (Vec<_>, Vec<_>) = mutations(&walk)?.into_iter().unzip();
-    let complexity = match measured {
-        true => Some(measure(&body, sources, &events)?),
-        false => None,
-    };
+    let complexity = measured
+        .then(|| measure(&body, sources, &events))
+        .transpose()?;
 
     let signature = &function.signature;
     let (line, column) = sources.location(&signature.span)?;
@@ -175,6 +187,7 @@ fn function_facts(
         mutated_types: mutated_types(tables, mutated)?,
         sig: signature_shape(&body, tables)?,
         guard_clauses: guard_clauses(&body, sources)?,
+        test_waits: test_waits(function, sources, events.waits),
         // Patterns are searched in source functions; a macro-written one has no graph.
         pdg: match roles.filter(|_| !super::records::written_by_macro(function)) {
             Some(roles) => Some(dependence_graph(&body, tables, sources, roles)?),
