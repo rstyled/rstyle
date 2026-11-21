@@ -599,6 +599,11 @@ impl Objects {
         Ok(name)
     }
 
+    /// Whether an object of this name is kept, without reading it.
+    pub fn has(&self, name: &str) -> bool {
+        self.path(name).is_ok_and(|path| path.is_file())
+    }
+
     // rstyle-allow(side_effect_density): IO boundary: reads an object and checks its name
     /// The object named `name`, refused unless its bytes still hash to the name.
     pub fn get(&self, name: &str) -> Result<Vec<u8>, String> {

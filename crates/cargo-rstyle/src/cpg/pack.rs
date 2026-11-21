@@ -11,13 +11,28 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
-// rstyle-allow(side_effect_density): IO boundary: reads a run and writes its packs
 pub(crate) fn pack(args: &CpgPackArgs) -> Result<(String, u8), String> {
-    let objects = Objects::new(&args.store.join("objects"));
-    let sources = sources(&args.capture)?;
-    let entries = units(&sources, &args.capture)?
+    let summary = pack_run(&args.capture, &args.store, args.level)?;
+    Ok((format!("{summary}\n"), 0))
+}
+
+// rstyle-allow(side_effect_density): IO boundary: reads a run and writes its packs
+/// Keeps the run whose documents are in `capture` in `store`, one pack per unit at zstd
+/// `level`, and says what it kept: the manifest naming the run, and its size.
+pub(crate) fn pack_run(capture: &Path, store: &Path, level: i32) -> Result<Value, String> {
+    let objects = Objects::new(&store.join("objects"));
+    let sources = sources(capture)?;
+    let entries = units(&sources, capture)?
         .into_iter()
-        .map(|unit| pack_unit(args, &objects, &sources, unit))
+        .map(|unit| {
+            let key = unit.key(level);
+            if let Some(entry) = kept_entry(store, &objects, &key) {
+                return Ok(entry);
+            }
+            let entry = pack_unit((capture, level), &objects, &sources, unit)?;
+            keep_entry(store, &key, &entry)?;
+            Ok(entry)
+        })
         .collect::<Result<Vec<Value>, String>>()?;
     let total = |field: &str| -> u64 {
         entries
@@ -27,42 +42,93 @@ pub(crate) fn pack(args: &CpgPackArgs) -> Result<(String, u8), String> {
     };
     let run = json!({"schema": MANIFEST_SCHEMA, "units": entries});
     let manifest = objects.put(canonical(&run).as_bytes())?;
-    let summary = json!({"manifest": manifest, "units": entries.len(), "functions": total("functions"), "pack_bytes": total("bytes")});
-    Ok((format!("{summary}\n"), 0))
+    Ok(
+        json!({"manifest": manifest, "units": entries.len(), "functions": total("functions"), "pack_bytes": total("bytes")}),
+    )
 }
 
-/// Each unit's documents, by position, in the order units first appear. Only each
-/// document's unit is read here, so a run never has to fit in memory at once.
-fn units(sources: &[Source], capture: &Path) -> Result<Vec<(String, Vec<usize>)>, String> {
-    let mut units: Vec<(String, Vec<usize>)> = Vec::new();
+/// One unit's documents, by position, and what keys its pack: the sha256 of each of its
+/// documents' text, in order.
+struct UnitDocuments {
+    id: String,
+    positions: Vec<usize>,
+    digests: Vec<String>,
+}
+
+impl UnitDocuments {
+    /// The key a unit's pack is kept under: its documents exactly, and the level they were
+    /// packed at.
+    fn key(&self, level: i32) -> String {
+        let text = format!("{MANIFEST_SCHEMA}\n{level}\n{}", self.digests.join("\n"));
+        store::sha256(text.as_bytes())
+    }
+}
+
+/// Each unit's documents, in the order units first appear. Only each document's unit is read
+/// here, so a run never has to fit in memory at once.
+fn units(sources: &[Source], capture: &Path) -> Result<Vec<UnitDocuments>, String> {
+    let mut units: Vec<UnitDocuments> = Vec::new();
     for (position, source) in sources.iter().enumerate() {
-        let named: Named = serde_json::from_str(&source.text(capture)?)
-            .map_err(|error| format!("{}: {error}", source.name()))?;
-        match units.iter_mut().find(|(unit, _)| *unit == named.unit.id) {
-            Some((_, positions)) => positions.push(position),
-            None => units.push((named.unit.id, vec![position])),
+        let text = source.text(capture)?;
+        let named: Named =
+            serde_json::from_str(&text).map_err(|error| format!("{}: {error}", source.name()))?;
+        let digest = store::sha256(text.as_bytes());
+        match units.iter_mut().find(|unit| unit.id == named.unit.id) {
+            Some(unit) => {
+                unit.positions.push(position);
+                unit.digests.push(digest);
+            }
+            None => units.push(UnitDocuments {
+                id: named.unit.id,
+                positions: vec![position],
+                digests: vec![digest],
+            }),
         }
     }
     Ok(units)
+}
+
+/// A unit's entry in the run's manifest, as it was kept the last time its documents were
+/// packed, if its pack is still in the store.
+fn kept_entry(store: &Path, objects: &Objects, key: &str) -> Option<Value> {
+    let entry: Value = serde_json::from_slice(&std::fs::read(map_path(store, key)).ok()?).ok()?;
+    let pack = entry["pack"].as_str()?;
+    objects.has(pack).then_some(entry)
+}
+
+fn map_path(store: &Path, key: &str) -> PathBuf {
+    store.join("maps").join("units").join(key)
+}
+
+// rstyle-allow(side_effect_density): IO boundary: records which pack a unit's documents made
+/// Records that the documents `key` names made the unit `entry`, so a later run of the same
+/// documents reuses it.
+fn keep_entry(store: &Path, key: &str, entry: &Value) -> Result<(), String> {
+    let path = map_path(store, key);
+    let directory = path.parent().expect("a map entry has a directory");
+    std::fs::create_dir_all(directory).map_err(|error| error.to_string())?;
+    let staged = directory.join(format!(".{key}.{}", std::process::id()));
+    std::fs::write(&staged, canonical(entry)).map_err(|error| error.to_string())?;
+    std::fs::rename(&staged, &path).map_err(|error| error.to_string())
 }
 
 /// Packs one unit and keeps its pack: its tables first, with every function left out, then
 /// each document again, one function at a time, so no more than one document's functions
 /// is ever held. Returns the unit's entry in the run's manifest.
 fn pack_unit(
-    args: &CpgPackArgs,
+    (capture, level): (&Path, i32),
     objects: &Objects,
     sources: &[Source],
-    (id, positions): (String, Vec<usize>),
+    UnitDocuments { id, positions, .. }: UnitDocuments,
 ) -> Result<Value, String> {
-    let text = |position: usize| sources[position].text(&args.capture);
+    let text = |position: usize| sources[position].text(capture);
     let mut documents = Vec::with_capacity(positions.len());
     for &position in &positions {
         documents.push(tables_only(&text(position)?)?);
     }
     let merged = store::merge_unit(documents)?;
-    let mut packer = store::Packer::new(&merged, args.level)?;
-    for framed in framed_in_parallel(&positions, &text, &merged, args.level)? {
+    let mut packer = store::Packer::new(&merged, level)?;
+    for framed in framed_in_parallel(&positions, &text, &merged, level)? {
         packer.add_framed(framed);
     }
     let packed = packer.finish()?;

@@ -50,6 +50,10 @@ pub(crate) struct RunArgs {
     /// Analyze a saved run without running the frontend; saves only with --out.
     #[arg(long)]
     from: Option<PathBuf>,
+    /// Keep the saved run's documents in this local store too, one pack per unit, as `rstyle
+    /// cpg pack` does, and say the manifest that names them.
+    #[arg(long, conflicts_with = "from")]
+    store: Option<PathBuf>,
     /// Exit 1 when any candidate is left after the ignore ledger (for CI).
     #[arg(long)]
     fail_on_candidates: bool,
@@ -675,7 +679,13 @@ impl Plan<'_> {
             exclude: Some(self.config.exclude.0.clone()),
         };
         transport::write_json(&staged.path().join(RUN_FILE), Encoding::Json, &record)?;
-        staged.publish()
+        let run = staged.publish()?;
+        if let Some(store) = &self.args.store {
+            let kept = crate::cpg::pack::pack_run(&run.join(DOCUMENTS_FOLDER), store, 3)?;
+            let manifest = kept["manifest"].as_str().unwrap_or_default();
+            eprintln!("rstyle: run kept in {} as {manifest}", store.display());
+        }
+        Ok(run)
     }
 
     fn output(&self, unified: &Unified, run: Option<&Path>) -> Result<(String, u8), String> {
@@ -832,6 +842,7 @@ mod tests {
                 filter: Vec::new(),
                 out: None,
                 from: None,
+                store: None,
                 fail_on_candidates: false,
                 no_ignore: false,
                 excludes: Vec::new(),
@@ -888,6 +899,7 @@ mod tests {
                 filter: Vec::new(),
                 out: None,
                 from: None,
+                store: None,
                 fail_on_candidates: false,
                 no_ignore: false,
                 excludes: Vec::new(),

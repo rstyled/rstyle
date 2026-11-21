@@ -232,6 +232,9 @@ fn objects_are_named_by_their_bytes_and_checked_when_read() {
         "an object is kept once"
     );
     assert_eq!(objects.get(&name).unwrap(), b"a pack");
+    assert!(objects.has(&name));
+    assert!(!objects.has(&sha256(b"never kept")));
+    assert!(!objects.has("not a name"));
     std::fs::write(objects.path(&name).unwrap(), b"another").unwrap();
     assert!(objects.get(&name).unwrap_err().contains("no longer match"));
     assert!(objects.get("../outside").is_err());

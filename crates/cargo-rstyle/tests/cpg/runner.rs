@@ -3060,3 +3060,51 @@ fn two_crates_with_build_scripts_make_one_run() {
         "{flow:?}"
     );
 }
+
+#[test]
+fn a_run_with_a_store_keeps_its_documents_there_too() {
+    let project = Project::new();
+    let store = project.root().join("store");
+    let output = project.go(&["--format", "json", "--store", store.to_str().unwrap()]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let stderr = stderr(&output);
+    let manifest = stderr
+        .lines()
+        .find_map(|line| {
+            line.split(" as ")
+                .nth(1)
+                .filter(|_| line.contains("run kept in"))
+        })
+        .unwrap_or_else(|| panic!("no manifest named: {stderr}"))
+        .trim()
+        .to_owned();
+
+    // The stored run unpacks to the documents the run saved.
+    let run = saved_run(&output);
+    let out = project.root().join("unpacked");
+    let arguments = [
+        "cpg",
+        "unpack",
+        "--store",
+        store.to_str().unwrap(),
+        "--manifest",
+        &manifest,
+        "--out",
+        out.to_str().unwrap(),
+    ];
+    let unpack = project.command(NO_ANALYSES, &arguments).output().unwrap();
+    assert_eq!(unpack.status.code(), Some(0), "{unpack:?}");
+    let documents = |directory: &Path| -> Vec<Value> {
+        let mut paths: Vec<PathBuf> = std::fs::read_dir(directory)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.to_string_lossy().ends_with(".cpg.json.zst"))
+            .collect();
+        paths.sort();
+        paths
+            .iter()
+            .map(|path| read_json::<Value>(path).unwrap())
+            .collect()
+    };
+    assert_eq!(documents(&out), documents(&run.join("documents")));
+}

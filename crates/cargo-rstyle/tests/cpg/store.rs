@@ -261,3 +261,48 @@ fn pack_names_a_sealed_document_without_its_unit() {
     ];
     assert!(failed(dir.path(), &arguments).contains("document-000000.cpg.json.zst"));
 }
+
+#[test]
+fn a_unit_whose_documents_are_unchanged_reuses_its_pack() {
+    let dir = tempfile::tempdir().unwrap();
+    let emitted = emitted_crate(dir.path());
+    let store = dir.path().join("store");
+    let (capture, kept) = (emitted.display().to_string(), store.display().to_string());
+    let arguments = [
+        "rstyle",
+        "cpg",
+        "pack",
+        "--capture",
+        &capture,
+        "--store",
+        &kept,
+    ];
+    let first: Value = serde_json::from_slice(&succeeded(dir.path(), &arguments).stdout).unwrap();
+    let objects = || -> usize { walk(&store.join("objects")).len() };
+    let before = objects();
+    let second: Value = serde_json::from_slice(&succeeded(dir.path(), &arguments).stdout).unwrap();
+    assert_eq!(second["manifest"], first["manifest"]);
+    assert_eq!(objects(), before, "the second pack wrote nothing new");
+
+    // A unit whose pack is gone from the store is packed again.
+    for object in walk(&store.join("objects")) {
+        std::fs::remove_file(object).unwrap();
+    }
+    let third: Value = serde_json::from_slice(&succeeded(dir.path(), &arguments).stdout).unwrap();
+    assert_eq!(third["manifest"], first["manifest"]);
+    assert_eq!(objects(), before);
+}
+
+/// Every file under `directory`.
+fn walk(directory: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return Vec::new();
+    };
+    entries
+        .map(|entry| entry.unwrap().path())
+        .flat_map(|path| match path.is_dir() {
+            true => walk(&path),
+            false => vec![path],
+        })
+        .collect()
+}
