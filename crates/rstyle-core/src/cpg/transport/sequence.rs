@@ -158,7 +158,7 @@ impl<R: BufRead> SequenceReader<R> {
             record
                 .read_to_end(&mut bytes)
                 .map_err(|error| error.to_string())?;
-            String::from_utf8(bytes).map_err(|error| error.to_string())
+            super::read::text(bytes)
         })
     }
 

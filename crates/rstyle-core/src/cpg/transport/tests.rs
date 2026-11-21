@@ -221,7 +221,7 @@ fn decoding_stops_past_the_sealed_size_and_names_the_file() {
 }
 
 /// Text that isn't UTF-8 fails the read, as it did when a document was parsed as it was read,
-/// whether it is sealed or not.
+/// whether it is sealed or not, and text that stops partway through a character says so.
 #[test]
 fn text_that_is_not_utf8_fails_its_read() {
     let directory = tempfile::tempdir().unwrap();
@@ -252,6 +252,15 @@ fn text_that_is_not_utf8_fails_its_read() {
             expected
         );
     }
+
+    let cut = directory.path().join("cut.cpg.json");
+    fs::write(&cut, b"{\"a\":1,\n\"x\":\"\xf0\x9f").unwrap();
+    let expected = format!(
+        "{}: Incomplete UTF-8 in CPG JSON at line 2 column 7",
+        cut.display()
+    );
+    assert_eq!(read_json_text(&cut).unwrap_err(), expected);
+    assert_eq!(validate_object(&cut, Encoding::Json).unwrap_err(), expected);
 }
 
 /// A file that opens but can't be read, as a directory on Unix, fails its read and names it.
