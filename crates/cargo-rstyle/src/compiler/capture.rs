@@ -3,6 +3,7 @@ pub(super) mod associations;
 mod build_lane;
 pub(super) mod ledger;
 mod owner_reuse;
+mod relocation;
 mod retention;
 mod saved;
 pub(in crate::compiler) use retention::{LIMIT_VARIABLE, hold};
@@ -68,6 +69,7 @@ impl Plan {
 
     /// Whether another capture's documents serve this one. What each route then reads of them
     /// doesn't matter: the driver writes the same documents for every route, on any threads.
+    /// Where the driver is installed doesn't either: the owner index compares its bytes.
     fn same_capture(&self, other: &Self) -> bool {
         self.captured() == other.captured()
     }
@@ -77,6 +79,7 @@ impl Plan {
             compiler_patterns: false,
             compiler_runtime_bounds: false,
             driver_threads: one_thread(),
+            driver: PathBuf::new(),
             ..self.clone()
         }
     }
@@ -364,14 +367,47 @@ fn command(capture: &Capture, cli: &Cli, args: &Args) -> Result<Command, String>
         .env("CARGO_INCREMENTAL", "0")
         .env("RSTYLE_CAPTURE_PLAN", capture.directory.join("plan.json"));
     command
-        .env(
-            "RUSTC_WORKSPACE_WRAPPER",
-            std::env::current_exe().map_err(|e| e.to_string())?,
-        )
+        .env("RUSTC_WORKSPACE_WRAPPER", WRAPPER)
+        .env("PATH", wrapper_search_path(capture)?)
         .args(selection_args(cli))
         .args(build_args(args));
 
     Ok(command)
+}
+
+/// The name Cargo runs this program by as the workspace wrapper. Cargo hashes the wrapper as it's
+/// named into each workspace crate's `-C metadata`, which every definition's identity in a
+/// document carries; named by where this program is installed, the same source would give other
+/// documents, and another build directory, on each machine that installs it elsewhere.
+const WRAPPER: &str = "rstyle-capture-wrapper";
+
+// rstyle-allow(side_effect_density): links the wrapper's name to this program for Cargo to find.
+/// The `PATH` Cargo runs with: a directory beside the runs, where `WRAPPER` names this program,
+/// ahead of everything else.
+fn wrapper_search_path(capture: &Capture) -> Result<std::ffi::OsString, String> {
+    let directory = capture.directory.with_file_name("wrapper");
+    std::fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+    let program = std::env::current_exe().map_err(|e| e.to_string())?;
+    // Replace whatever an earlier program left under the name in one step.
+    let staged = directory.join(format!("{WRAPPER}.{}", std::process::id()));
+    let _ = std::fs::remove_file(&staged);
+    link_program(&program, &staged)?;
+    std::fs::rename(&staged, directory.join(WRAPPER)).map_err(|e| e.to_string())?;
+    let inherited = std::env::var_os("PATH").unwrap_or_default();
+    std::env::join_paths(std::iter::once(directory).chain(std::env::split_paths(&inherited)))
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(unix)]
+fn link_program(program: &Path, link: &Path) -> Result<(), String> {
+    std::os::unix::fs::symlink(program, link).map_err(|e| e.to_string())
+}
+
+#[cfg(not(unix))]
+fn link_program(program: &Path, link: &Path) -> Result<(), String> {
+    std::fs::copy(program, link)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
 fn selection_args(cli: &Cli) -> Vec<std::ffi::OsString> {

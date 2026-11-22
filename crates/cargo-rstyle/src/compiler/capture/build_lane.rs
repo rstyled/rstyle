@@ -8,10 +8,12 @@ use std::{
 };
 
 const LOCK_FILE: &str = "advisory-build.lock";
+/// The build directory's name in the runs directory, beside the runs that share it.
+pub(super) const NAME: &str = "advisory-build";
 
 /// Runs are immediate children of the workspace's private runs directory.
 pub(super) fn directory(capture: &Capture) -> PathBuf {
-    capture.directory.with_file_name("advisory-build")
+    capture.directory.with_file_name(NAME)
 }
 
 pub(super) fn acquire(capture: &Capture) -> Result<File, String> {

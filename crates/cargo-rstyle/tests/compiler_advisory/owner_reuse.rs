@@ -262,6 +262,28 @@ fn a_fresh_checkout_s_file_times_keep_the_owners_it_captured() {
 }
 
 #[test]
+fn a_build_directory_restored_at_another_path_keeps_the_owners_it_captured() {
+    let directory = clone_workspace();
+    let first = live(directory.path(), &[], 0);
+    let original = directory.path().to_str().unwrap().to_owned();
+    // What a CI cache or a fresh worker does: the same source at another path, with the build
+    // directory and its runs restored into it, and nothing left where they were made.
+    let elsewhere = tempfile::tempdir_in(std::env::temp_dir().canonicalize().unwrap()).unwrap();
+    let moved = elsewhere.path().join("checkout");
+    std::fs::create_dir(&moved).unwrap();
+    copy_dir(directory.path(), &moved);
+    drop(directory);
+
+    let second = live(&moved, &[], 0);
+    fresh(&second, "clone_fixture", true);
+    owned(&second, true);
+    let relocated = first["compiler_advisory"]
+        .to_string()
+        .replace(&original, moved.to_str().unwrap());
+    assert_eq!(relocated, second["compiler_advisory"].to_string());
+}
+
+#[test]
 fn an_index_from_another_build_of_the_tools_forces_recapture() {
     let directory = clone_workspace();
     let first = live(directory.path(), &[], 0);
