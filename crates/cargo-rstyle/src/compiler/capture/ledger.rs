@@ -65,6 +65,7 @@ mod tests {
             compiler_runtime_bounds: false,
             ledger_schema: SCHEMA.into(),
             root: "/run".into(),
+            sysroot: "/sysroot".into(),
             driver: "/driver".into(),
             targets,
             compiler_identity: "compiler".into(),
@@ -121,15 +122,16 @@ mod tests {
     }
 
     #[test]
-    fn a_capture_on_other_threads_serves_this_one() {
+    fn a_capture_on_other_threads_or_by_a_driver_elsewhere_serves_this_one() {
         let one = plan(vec![target("a")]);
         let many = Plan {
             driver_threads: std::num::NonZeroU8::new(8).unwrap(),
+            driver: "/elsewhere/driver".into(),
             ..one.clone()
         };
         assert!(one.same_capture(&many));
         let other = Plan {
-            driver: "/other-driver".into(),
+            compiler_identity: "another compiler".into(),
             ..many
         };
         assert!(!one.same_capture(&other));

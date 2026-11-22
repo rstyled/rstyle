@@ -13,6 +13,8 @@ use std::path::PathBuf;
 pub struct Unit<'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub root: PathBuf,
+    /// The machine's directories the unit's documents name by placeholder.
+    places: rstyle_capture::Places,
     files: BTreeMap<String, Value>,
     /// Each file's path as the compiler opened it, made absolute.
     local_paths: BTreeMap<String, String>,
@@ -28,6 +30,7 @@ impl<'tcx> Unit<'tcx> {
     pub fn new(tcx: TyCtxt<'tcx>, root: PathBuf) -> Self {
         Self {
             tcx,
+            places: crate::paths::places(tcx, &root),
             root,
             files: BTreeMap::new(),
             local_paths: BTreeMap::new(),
@@ -114,6 +117,11 @@ impl<'tcx> Unit<'tcx> {
     /// Each recorded file's absolute path, as the compiler opened it.
     pub fn local_paths(&self) -> BTreeMap<String, String> {
         self.local_paths.clone()
+    }
+
+    /// The machine's directories the unit's documents name by placeholder.
+    pub fn places(&self) -> &rstyle_capture::Places {
+        &self.places
     }
 
     /// Records every local source file the compiler loaded, as the unit's files.
@@ -433,12 +441,12 @@ impl<'tcx> Unit<'tcx> {
             .marks()
             .into_iter()
             .map(|(expansion, transparency)| {
-                json!({"expansion": format!("{:?}", expansion.expn_hash()),
+                json!({"expansion": super::expansions::identity(self.tcx, &self.root, expansion),
                        "transparency": format!("{transparency:?}")})
             })
             .collect();
         record["marks"] = json!(marks);
-        if let Some(root) = super::generated_root::generated_root(self.tcx, local) {
+        if let Some(root) = super::generated_root::generated_root(self.tcx, &self.root, local) {
             record["root"] = json!(root);
         }
 
@@ -511,7 +519,8 @@ impl<'tcx> Unit<'tcx> {
         for (field, value) in compiler_facts(tcx, def_id, kind) {
             record[field] = value;
         }
-        record["extensions"] = json!({"rust:compiler-identity": rust_identity(tcx, def_id, kind)});
+        record["extensions"] =
+            json!({"rust:compiler-identity": rust_identity(tcx, &self.places, def_id, kind)});
 
         record
     }
@@ -1159,7 +1168,12 @@ fn compiler_facts(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> Vec<(&'stati
 /// within one compilation and move whenever an item is added. Another crate's hash isn't
 /// recorded: any edit to that crate changes it, a comment included, so it would rewrite every
 /// document naming one of its definitions though nothing they record had changed.
-fn rust_identity(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> serde_json::Map<String, Value> {
+fn rust_identity(
+    tcx: TyCtxt<'_>,
+    places: &rstyle_capture::Places,
+    def_id: DefId,
+    kind: DefKind,
+) -> serde_json::Map<String, Value> {
     let mut identity = serde_json::Map::new();
     identity.insert("def_path".into(), json!(tcx.def_path_debug_str(def_id)));
     identity.insert("def_kind".into(), json!(format!("{kind:?}")));
@@ -1186,7 +1200,10 @@ fn rust_identity(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> serde_json::M
     if !def_id.is_local() {
         let rmeta = tcx.used_crate_source(def_id.krate).rmeta.clone();
         if let Some(rmeta) = rmeta {
-            identity.insert("rmeta".into(), json!(rmeta));
+            identity.insert(
+                "rmeta".into(),
+                json!(places.portable(&rmeta.to_string_lossy())),
+            );
         }
     }
     if let Some(generics) = generics(tcx, def_id, kind) {

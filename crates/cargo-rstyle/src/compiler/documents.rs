@@ -59,20 +59,29 @@ pub(super) fn manifest(unit: &capture::Unit) -> Result<DocumentManifest, String>
     DocumentManifest::read(&bytes)
 }
 
-/// Every function of a unit, in document order.
-pub(super) fn read(unit: &capture::Unit, demand: Demand) -> Result<Vec<DocumentFunction>, String> {
+/// Every function of a unit, in document order, with `places` in the paths its documents name
+/// by placeholder.
+pub(super) fn read(
+    unit: &capture::Unit,
+    places: &rstyle_capture::Places,
+    demand: Demand,
+) -> Result<Vec<DocumentFunction>, String> {
     let manifest = manifest(unit)?;
     let read = parallel(&manifest.documents, |sealed| {
         let document: Document = cpg::transport::read_sealed(&unit.directory, sealed)?;
         cpg::layout::identity(&document)?;
 
-        functions(&document, demand)
+        functions(&document, places, demand)
     })?;
     Ok(read.into_iter().flatten().collect())
 }
 
-fn functions(document: &Document, demand: Demand) -> Result<Vec<DocumentFunction>, String> {
-    let build = Arc::new(build::unit_build(document)?);
+fn functions(
+    document: &Document,
+    places: &rstyle_capture::Places,
+    demand: Demand,
+) -> Result<Vec<DocumentFunction>, String> {
+    let build = Arc::new(build::unit_build(document, places)?);
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
     let bodies = unit.functions.as_deref().unwrap_or_default();
 
@@ -82,7 +91,7 @@ fn functions(document: &Document, demand: Demand) -> Result<Vec<DocumentFunction
         .map(|(record, body)| DocumentFunction {
             digest: transport_checksum(record.source.as_bytes()),
             build: Arc::clone(&build),
-            source_file: build::session_path(unit, &record.located.file).map(str::to_owned),
+            source_file: build::session_path(unit, &record.located.file, places),
             generated: match record.measured {
                 Measured::Known(_) => false,
                 // Neither was written as a function, so neither is in an authored scope.

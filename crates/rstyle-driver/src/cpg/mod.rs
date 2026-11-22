@@ -4,6 +4,7 @@
 mod accesses;
 mod body;
 mod compiler;
+mod expansions;
 mod flow;
 mod generated_root;
 mod namespaces;
@@ -14,6 +15,7 @@ pub(crate) mod sysroot;
 mod unit;
 
 use rstyle_capture::PackageContext;
+use rstyle_capture::places::map_strings;
 use rustc_data_structures::sync::{DynSend, DynSync, par_map};
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
@@ -191,13 +193,17 @@ fn batch_document(
     }
 
     let paths = unit.local_paths();
+    // The package and the session name the machine's directories by placeholder, so the same
+    // source gives the same document in any checkout.
+    let places = unit.places().clone();
     let mut document = document(tcx, (unit, whole), recorded, &unit_name(tcx));
+    let portable = |value: &Value| map_strings(value, &|text| places.portable(text));
     if let Some(package) = package {
-        document["unit"]["extensions"]["rust:cargo-package"] = package;
+        document["unit"]["extensions"]["rust:cargo-package"] = portable(&package);
     }
     if let Some(mut session) = session {
         session["files"] = json!(paths);
-        document["unit"]["extensions"]["rust:compiler-session"] = session;
+        document["unit"]["extensions"]["rust:compiler-session"] = portable(&session);
     }
 
     (document, unrecorded)

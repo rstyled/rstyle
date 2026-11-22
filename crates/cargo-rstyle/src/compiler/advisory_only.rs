@@ -13,7 +13,7 @@ pub(super) fn consume(request: &UnitRequest<'_>, result: &mut Handoff) -> Result
         defects: false,
     };
     let functions = Stage::new("cli.documents.read", &unit.target.package, None)
-        .observe(|| documents::read(unit, demand))?;
+        .observe(|| documents::read(unit, &request.capture.places(), demand))?;
     let context = Stage::new("cli.documents.context", &unit.target.package, None).enter();
     let builds = document_builds(&functions, request)?;
     result.build_contexts.push(UnitBuildContexts {
