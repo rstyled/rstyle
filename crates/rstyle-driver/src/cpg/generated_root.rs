@@ -3,16 +3,13 @@ use rustc_hir::def_id::{CRATE_DEF_ID, LocalDefId};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::ExpnId;
 use rustc_span::hygiene::{ExpnKind, MacroKind};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
 
 /// The unique original local bang expansion a generated definition comes from.
-pub(super) fn generated_root(tcx: TyCtxt<'_>, id: LocalDefId) -> Option<String> {
-    Roots::new(tcx).definition(id).ok().flatten().map(identity)
-}
-
-fn identity(expansion: ExpnId) -> String {
-    // Read rustc's existing stable identity; do not hash or serialize source.
-    format!("{:?}", expansion.expn_hash())
+pub(super) fn generated_root(tcx: TyCtxt<'_>, root: &Path, id: LocalDefId) -> Option<String> {
+    let expansion = Roots::new(tcx).definition(id).ok().flatten()?;
+    Some(super::expansions::identity(tcx, root, expansion))
 }
 
 struct Roots<'tcx> {
@@ -63,12 +60,12 @@ impl<'tcx> Roots<'tcx> {
         }
 
         let mut seen = HashSet::new();
-        let mut roots = BTreeMap::new();
+        let mut roots = Vec::new();
         let result = self.collect(id, &mut seen, &mut roots).and_then(|()| {
             if roots.len() > 1 {
                 return Err("Generated origin has multiple original local bang roots".into());
             }
-            Ok(roots.into_values().next())
+            Ok(roots.into_iter().next())
         });
 
         self.expansions.insert(id, result.clone());
@@ -79,7 +76,7 @@ impl<'tcx> Roots<'tcx> {
         &self,
         id: ExpnId,
         seen: &mut HashSet<ExpnId>,
-        roots: &mut BTreeMap<String, ExpnId>,
+        roots: &mut Vec<ExpnId>,
     ) -> Result<(), String> {
         if id == ExpnId::root() || !seen.insert(id) {
             return Ok(());
@@ -95,7 +92,7 @@ impl<'tcx> Roots<'tcx> {
                 .is_some_and(|definition| definition.is_local())
             && !data.call_site.from_expansion()
         {
-            roots.insert(identity(id), id);
+            roots.push(id);
         }
 
         self.collect(data.parent, seen, roots)?;

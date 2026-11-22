@@ -47,6 +47,9 @@ pub struct Plan {
     pub compiler_runtime_bounds: bool,
     pub ledger_schema: String,
     pub root: PathBuf,
+    /// The pinned toolchain's sysroot, which documents name as `$SYSROOT`.
+    #[serde(default)]
+    pub sysroot: PathBuf,
     pub driver: PathBuf,
     pub targets: Vec<Target>,
     pub compiler_identity: String,
@@ -106,6 +109,16 @@ pub struct Capture {
     pub units: Vec<Unit>,
     pub failures: Vec<String>,
     pub expected_unit_graph: Value,
+}
+
+impl Capture {
+    /// The machine's directories this capture's documents name by placeholder: the source root,
+    /// the build directory Cargo writes to and the pinned toolchain's sysroot.
+    pub fn places(&self) -> rstyle_capture::Places {
+        let sysroot =
+            (!self.plan.sysroot.as_os_str().is_empty()).then_some(self.plan.sysroot.as_path());
+        rstyle_capture::Places::new(&self.plan.root, Some(&build_lane::directory(self)), sysroot)
+    }
 }
 
 pub fn prepare(cli: &Cli, args: &Args) -> Result<Capture, String> {
@@ -198,6 +211,7 @@ fn plan(root: PathBuf, targets: Vec<Target>, environment: CaptureEnvironment) ->
         compiler_runtime_bounds: false,
         ledger_schema: ledger::SCHEMA.into(),
         root,
+        sysroot: environment.sysroot,
         compiler_identity: environment.compiler_identity,
         cargo_identity: environment.cargo_identity,
         driver: environment.driver,
@@ -208,6 +222,7 @@ fn plan(root: PathBuf, targets: Vec<Target>, environment: CaptureEnvironment) ->
 
 struct CaptureEnvironment {
     driver: PathBuf,
+    sysroot: PathBuf,
     driver_threads: NonZeroU8,
     compiler_identity: String,
     cargo_identity: String,
@@ -216,6 +231,7 @@ struct CaptureEnvironment {
 fn capture_environment() -> Result<CaptureEnvironment, String> {
     Ok(CaptureEnvironment {
         driver: run::canonical(&run::driver_path()?).map_err(|e| e.to_string())?,
+        sysroot: tool_identity("rustc", "--print=sysroot")?.into(),
         driver_threads: rstyle_capture::threads::from_environment()?,
         compiler_identity: tool_identity("rustc", "-vV")?,
         cargo_identity: tool_identity("cargo", "--version")?,

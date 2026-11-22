@@ -3153,3 +3153,72 @@ fn a_run_with_a_store_keeps_its_documents_there_too() {
     };
     assert_eq!(documents(&out), documents(&run.join("documents")));
 }
+
+/// A Rust run's documents, by file name, after a check of `root`.
+fn rust_documents(root: &Path) -> Vec<(String, Value)> {
+    let output = rust_run(root, &["--filter", "check", "--format", "json"]);
+    assert_ne!(output.status.code(), Some(2), "{output:?}");
+    let directory = saved_run(&output).join("documents");
+    let mut documents: Vec<(String, Value)> = std::fs::read_dir(&directory)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.to_string_lossy().ends_with(".cpg.json.zst"))
+        .map(|path| {
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            (name, read_json::<Value>(&path).unwrap())
+        })
+        .collect();
+    documents.sort_by(|left, right| left.0.cmp(&right.0));
+    documents
+}
+
+#[test]
+fn a_rust_run_s_documents_hold_no_path_of_the_machine() {
+    // A macro's struct records the expansions it comes from, and std's definitions the
+    // metadata they were read from.
+    let source = "macro_rules! point { ($name:ident) => { pub struct $name { pub x: u32 } } }\n\
+                  point!(Point);\n\
+                  pub fn total(points: Vec<Point>) -> u32 { points.iter().map(|point| point.x).sum() }\n";
+    let checkouts = [tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap()];
+    let roots: Vec<PathBuf> = checkouts
+        .iter()
+        .enumerate()
+        .map(|(index, checkout)| {
+            // One checkout a level deeper than the other, so the paths differ in length too.
+            let root = checkout.path().join("nested".repeat(index)).join("app");
+            std::fs::create_dir_all(&root).unwrap();
+            a_package_in(&root);
+            std::fs::write(root.join("src/lib.rs"), source).unwrap();
+            root.canonicalize().unwrap()
+        })
+        .collect();
+    let sysroot = Command::new("rustc")
+        .args(["--print", "sysroot"])
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .output()
+        .unwrap();
+    let sysroot = String::from_utf8(sysroot.stdout).unwrap();
+
+    let documents: Vec<_> = roots.iter().map(|root| rust_documents(root)).collect();
+    assert!(!documents[0].is_empty());
+    let text = serde_json::to_string(&documents[0]).unwrap();
+    for (machine, what) in [
+        (roots[0].to_str().unwrap(), "the checkout"),
+        (sysroot.trim(), "the sysroot"),
+        ("ExpnHash", "the compiler's expansion hash"),
+    ] {
+        assert!(
+            !text.contains(machine),
+            "a document names {what}: {machine}"
+        );
+    }
+    assert!(
+        text.contains("$SYSROOT/"),
+        "std's metadata is named from the sysroot"
+    );
+    assert!(
+        text.contains("\"expansion\":\"expansion:"),
+        "the macro's expansion is named"
+    );
+    assert_eq!(documents[0], documents[1]);
+}

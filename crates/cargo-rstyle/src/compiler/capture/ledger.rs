@@ -65,6 +65,7 @@ mod tests {
             compiler_runtime_bounds: false,
             ledger_schema: SCHEMA.into(),
             root: "/run".into(),
+            sysroot: "/sysroot".into(),
             driver: "/driver".into(),
             targets,
             compiler_identity: "compiler".into(),

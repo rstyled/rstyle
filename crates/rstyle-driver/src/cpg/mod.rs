@@ -4,6 +4,7 @@
 mod accesses;
 mod body;
 mod compiler;
+mod expansions;
 mod flow;
 mod generated_root;
 mod namespaces;
@@ -191,12 +192,17 @@ fn batch_document(
     }
 
     let paths = unit.local_paths();
+    // The package and the session name the machine's directories by placeholder, so the same
+    // source gives the same document in any checkout.
+    let places = unit.places().clone();
     let mut document = document(tcx, (unit, whole), recorded, &unit_name(tcx));
-    if let Some(package) = package {
+    if let Some(mut package) = package {
+        places.portable_value(&mut package);
         document["unit"]["extensions"]["rust:cargo-package"] = package;
     }
     if let Some(mut session) = session {
         session["files"] = json!(paths);
+        places.portable_value(&mut session);
         document["unit"]["extensions"]["rust:compiler-session"] = session;
     }
 

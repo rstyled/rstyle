@@ -1,5 +1,5 @@
 //! The build settings a document's unit records, and the navigation types reports share.
-use rstyle_capture::CONTEXT_KEY;
+use rstyle_capture::{CONTEXT_KEY, Places};
 use rstyle_core::cpg::model::{Document, Producer, Unit};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -107,27 +107,34 @@ impl BuildContexts {
     }
 }
 
-/// The build settings a document's unit records.
-pub fn unit_build(document: &Document) -> Result<BuildFacts, String> {
+/// The build settings a document's unit records, with this machine's directories in the paths
+/// the document names by placeholder.
+pub fn unit_build(document: &Document, places: &Places) -> Result<BuildFacts, String> {
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
     let mut facts = facts(unit, &document.producer);
     let session = unit
         .extensions
         .as_ref()
-        .and_then(|extensions| extensions.get("rust:compiler-session"));
+        .and_then(|extensions| extensions.get("rust:compiler-session"))
+        .map(|session| {
+            let mut session = session.clone();
+            places.local_value(&mut session);
+            session
+        });
 
-    session_options(unit, session, &mut facts.frontend_options);
+    session_options(unit, session.as_ref(), &mut facts.frontend_options);
     Ok(facts)
 }
 
-/// The absolute path a unit's capture session records of a file.
-pub fn session_path<'u>(unit: &'u Unit, file: &str) -> Option<&'u str> {
+/// The absolute path on this machine of a file a unit's capture session records.
+pub fn session_path(unit: &Unit, file: &str, places: &Places) -> Option<String> {
     let extensions = unit.extensions.as_ref()?;
-    extensions
+    let path = extensions
         .get("rust:compiler-session")?
         .get("files")?
         .get(file)?
-        .as_str()
+        .as_str()?;
+    Some(places.local(path))
 }
 
 fn facts(unit: &Unit, producer: &Producer) -> BuildFacts {

@@ -34,6 +34,7 @@ impl Fixture {
             compiler_runtime_bounds: false,
             ledger_schema: ledger::SCHEMA.into(),
             root: "/sample".into(),
+            sysroot: "/sysroot".into(),
             driver: "/unavailable/driver".into(),
             compiler_identity: "saved rustc".into(),
             cargo_identity: "saved cargo".into(),
