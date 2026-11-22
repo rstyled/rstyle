@@ -48,15 +48,18 @@ impl Places {
         }
         text
     }
+}
 
-    /// Every string in the value, made portable.
-    pub fn portable_value(&self, value: &mut Value) {
-        each_string(value, &|text| self.portable(text));
-    }
-
-    /// Every string in the value, made local.
-    pub fn local_value(&self, value: &mut Value) {
-        each_string(value, &|text| self.local(text));
+/// The value with each of its strings changed, as a document's fields are made portable or local.
+pub fn map_strings(value: &Value, change: &impl Fn(&str) -> String) -> Value {
+    match value {
+        Value::String(text) => Value::String(change(text)),
+        Value::Array(items) => items.iter().map(|item| map_strings(item, change)).collect(),
+        Value::Object(fields) => fields
+            .iter()
+            .map(|(key, item)| (key.clone(), map_strings(item, change)))
+            .collect(),
+        Value::Null | Value::Bool(_) | Value::Number(_) => value.clone(),
     }
 }
 
@@ -84,17 +87,6 @@ fn replace_directory(text: &str, directory: &str, name: &str) -> String {
     }
     out.push_str(rest);
     out
-}
-
-fn each_string(value: &mut Value, change: &dyn Fn(&str) -> String) {
-    match value {
-        Value::String(text) => *text = change(text),
-        Value::Array(items) => items.iter_mut().for_each(|item| each_string(item, change)),
-        Value::Object(fields) => fields
-            .values_mut()
-            .for_each(|item| each_string(item, change)),
-        Value::Null | Value::Bool(_) | Value::Number(_) => {}
-    }
 }
 
 #[cfg(test)]
@@ -154,16 +146,15 @@ mod tests {
     #[test]
     fn values_are_changed_in_every_string() {
         let places = places();
-        let mut value = json!({"files": {"file:src/lib.rs": "/work/repo/src/lib.rs"},
-                               "invocation": ["rustc", "/work/repo/src/lib.rs"], "count": 3});
-        places.portable_value(&mut value);
+        let value = json!({"files": {"file:src/lib.rs": "/work/repo/src/lib.rs"},
+                           "invocation": ["rustc", "/work/repo/src/lib.rs"], "count": 3});
+        let portable = map_strings(&value, &|text| places.portable(text));
         assert_eq!(
-            value,
+            portable,
             json!({"files": {"file:src/lib.rs": "$ROOT/src/lib.rs"},
                    "invocation": ["rustc", "$ROOT/src/lib.rs"], "count": 3})
         );
-        places.local_value(&mut value);
-        assert_eq!(value["files"]["file:src/lib.rs"], "/work/repo/src/lib.rs");
+        assert_eq!(map_strings(&portable, &|text| places.local(text)), value);
     }
 
     #[test]

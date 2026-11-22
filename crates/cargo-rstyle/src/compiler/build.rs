@@ -1,4 +1,5 @@
 //! The build settings a document's unit records, and the navigation types reports share.
+use rstyle_capture::places::map_strings;
 use rstyle_capture::{CONTEXT_KEY, Places};
 use rstyle_core::cpg::model::{Document, Producer, Unit};
 use serde::{Deserialize, Serialize};
@@ -116,11 +117,7 @@ pub fn unit_build(document: &Document, places: &Places) -> Result<BuildFacts, St
         .extensions
         .as_ref()
         .and_then(|extensions| extensions.get("rust:compiler-session"))
-        .map(|session| {
-            let mut session = session.clone();
-            places.local_value(&mut session);
-            session
-        });
+        .map(|session| map_strings(session, &|text| places.local(text)));
 
     session_options(unit, session.as_ref(), &mut facts.frontend_options);
     Ok(facts)
