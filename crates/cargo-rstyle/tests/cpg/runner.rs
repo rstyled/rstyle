@@ -22,6 +22,23 @@ cpg)
         # Only a stop from the runner can end this, and it still holds the pipe open.
         exec sleep 300
     fi
+    if [ -n "${FAKE_REUSE_KEY:-}" ]; then
+        # A frontend that takes --reuse: the unit's record, then its document unless the store holds it.
+        held="" previous=""
+        for argument in "$@"; do
+            if [ "$previous" = --reuse ]; then held=$(cat "$argument"); fi
+            previous=$argument
+        done
+        if [ -n "${FAKE_HELD:-}" ]; then printf '%s' "$held" > "$FAKE_HELD"; fi
+        case "$held" in
+        *"$FAKE_REUSE_KEY"*)
+            printf '\036{"schema":"rstyle.unit-input/1","unit":"%s","key":"%s","reused":true}\n\036null\n' \
+                "$FAKE_REUSE_UNIT" "$FAKE_REUSE_KEY" > "/dev/fd/$5"
+            exit 0 ;;
+        esac
+        printf '\036{"schema":"rstyle.unit-input/1","unit":"%s","key":"%s","reused":false}\n' \
+            "$FAKE_REUSE_UNIT" "$FAKE_REUSE_KEY" > "/dev/fd/$5"
+    fi
     {
         printf '\036'
         cat "$FAKE_DOCUMENT"
@@ -69,6 +86,7 @@ const CXX: &str = r#"{"schema":"rstyle.frontend-description/1","language":"cxx",
 const CXX_EXCLUDING: &str = r#"{"schema":"rstyle.frontend-description/1","language":"cxx","analyses":[],"options":["exclude"]}"#;
 const PY: &str = r#"{"schema":"rstyle.frontend-description/1","language":"py","analyses":[],"options":["exclude"]}"#;
 const CACHING: &str = r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[],"options":["cache"]}"#;
+const REUSING: &str = r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[],"options":["reuse"]}"#;
 const CXX_READERS: &str = r#"{"schema":"rstyle.frontend-description/1","language":"cxx","analyses":[{"name":"reader","input":"documents"},{"name":"calls","input":"source"}]}"#;
 
 /// A Go module and a frontend to run over it.
@@ -3159,6 +3177,81 @@ fn a_rust_run_with_a_store_keeps_what_packing_its_saved_run_keeps() {
     // Nothing changed: the run names the same units, by their seals.
     let second = rust_run(&root, &args);
     assert_eq!(kept_manifest(&second), manifest, "{second:?}");
+}
+
+/// A run of the fake frontend that names its unit's input as `key`, kept in `store` if given.
+fn reusing_run(project: &Project, description: &str, key: &str, store: Option<&Path>) -> Output {
+    let unit = example()["unit"]["id"].as_str().unwrap().to_owned();
+    let mut arguments = vec!["go", "--format", "json"];
+    if let Some(store) = store {
+        arguments.extend(["--store", store.to_str().unwrap()]);
+    }
+    project
+        .command(description, &arguments)
+        .env("FAKE_REUSE_KEY", key)
+        .env("FAKE_REUSE_UNIT", unit)
+        .env("FAKE_HELD", project.root().join("held"))
+        .env("FAKE_ARGUMENTS", project.root().join("arguments"))
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn a_unit_the_store_holds_is_left_to_it_by_a_frontend_that_takes_reuse() {
+    let project = Project::new();
+    let store = project.root().join("store");
+    let key = "ab".repeat(32);
+    let held = || std::fs::read_to_string(project.root().join("held")).unwrap();
+
+    let first = reusing_run(&project, REUSING, &key, Some(&store));
+    assert_eq!(first.status.code(), Some(0), "{first:?}");
+    assert_eq!(held(), "[]", "an empty store holds nothing");
+    let manifest = kept_manifest(&first);
+
+    let second = reusing_run(&project, REUSING, &key, Some(&store));
+    assert_eq!(second.status.code(), Some(0), "{second:?}");
+    assert_eq!(held(), format!(r#"["{key}"]"#));
+    assert_eq!(
+        kept_manifest(&second),
+        manifest,
+        "the same units, kept once"
+    );
+    assert_eq!(without_run(report(&second)), without_run(report(&first)));
+    let documents = |output: &Output| -> Vec<Value> {
+        let directory = saved_run(output).join("documents");
+        let manifest: Value = read_json(&directory.join("documents.manifest.json")).unwrap();
+        manifest["documents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|seal| read_json(&directory.join(seal["file"].as_str().unwrap())).unwrap())
+            .collect()
+    };
+    assert_eq!(
+        documents(&second),
+        documents(&first),
+        "the store gave back the document"
+    );
+}
+
+#[test]
+fn only_a_run_kept_in_a_store_and_a_frontend_that_takes_reuse_hear_of_it() {
+    let project = Project::new();
+    let key = "cd".repeat(32);
+    let arguments = || std::fs::read_to_string(project.root().join("arguments")).unwrap();
+    let store = project.root().join("store");
+    let output = reusing_run(&project, NO_ANALYSES, &key, Some(&store));
+    assert!(!arguments().contains("--reuse"), "{}", arguments());
+    // A frontend that names a unit's input anyway, with no store to keep it, fails the run.
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let output = reusing_run(&project, REUSING, &key, None);
+    assert!(!arguments().contains("--reuse"));
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(stderr(&output).contains("no store was given"), "{output:?}");
+    // A key that isn't a sha256 never names a file in the store.
+    let output = reusing_run(&project, REUSING, "../../escape", Some(&store));
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(stderr(&output).contains("isn't a sha256"), "{output:?}");
 }
 
 #[test]

@@ -347,8 +347,14 @@ fn from_frontend(
         results: &results,
         documents: &kept,
     };
-    // A run kept in a store packs each unit as its document arrives.
+    // A run kept in a store packs each unit as its document arrives, and a frontend that can
+    // leaves the units the store already holds to it.
     let emitted = plan.emitted();
+    let held = held_keys(emitted.as_ref())?;
+    let frontend = match &held {
+        Some(keys) => frontend.reusing(keys.path()),
+        None => frontend,
+    };
 
     let (unified, documents) = std::thread::scope(|scope| {
         // An analysis of the source needs nothing the stream brings, so it runs beside it. A run
@@ -368,6 +374,20 @@ fn from_frontend(
     let run = plan.save(&unified, staged, documents)?;
     let output = plan.output(&unified, Some(&run))?;
     plan.reported(&run, output, (emitted, documents))
+}
+
+// rstyle-allow(side_effect_density): IO boundary: writes the keys a frontend is told the store holds
+/// The input keys of the units the store holds, as the JSON array `--reuse` reads.
+fn held_keys(
+    emitted: Option<&crate::cpg::pack::Emitted>,
+) -> Result<Option<tempfile::NamedTempFile>, String> {
+    let Some(emitted) = emitted else {
+        return Ok(None);
+    };
+    let file = tempfile::NamedTempFile::new().map_err(|error| error.to_string())?;
+    let keys = serde_json::to_vec(&emitted.held_keys()).expect("a list of keys serializes");
+    std::fs::write(file.path(), keys).map_err(|error| error.to_string())?;
+    Ok(Some(file))
 }
 
 // rstyle-allow(side_effect_density): process boundary: reads the frontend's stream

@@ -58,7 +58,7 @@ struct File {
 }
 
 fn valid_id(id: &str) -> bool {
-    id.len() == ID_LEN && id.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+    crate::hex::is_lowercase(id, ID_LEN)
 }
 
 fn check(id: &str, entry: &Entry) -> Result<(), String> {
