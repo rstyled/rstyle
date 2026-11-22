@@ -21,13 +21,19 @@ pub(crate) fn pack(args: &CpgPackArgs) -> Result<(String, u8), String> {
 /// Keeps the run whose documents are in `capture` in `store`, one pack per unit at zstd
 /// `level`, and says what it kept: the manifest naming the run, and its size.
 pub(crate) fn pack_run(capture: &Path, store: &Path, level: i32) -> Result<Value, String> {
+    let entries = run_entries(capture, store, level)?;
+    manifest(&Objects::new(&store.join("objects")), entries)
+}
+
+// rstyle-allow(side_effect_density): IO boundary: reads a run and writes its packs
+/// The manifest entries of the run whose documents are in `capture`, each unit kept in `store`.
+fn run_entries(capture: &Path, store: &Path, level: i32) -> Result<Vec<Value>, String> {
     let objects = Objects::new(&store.join("objects"));
     let sources = sources(capture)?;
-    let entries = units(&sources, capture)?
+    units(&sources, capture)?
         .into_iter()
         .map(|unit| reused_or_packed((capture, store, level), &objects, &sources, &unit))
-        .collect::<Result<Vec<Value>, String>>()?;
-    manifest(&objects, entries)
+        .collect()
 }
 
 /// A unit's entry in the run's manifest: as it was kept the last time its documents were
@@ -91,20 +97,42 @@ fn units(sources: &[Source], capture: &Path) -> Result<Vec<UnitDocuments>, Strin
 /// A unit's entry in the run's manifest, as it was kept the last time its documents were
 /// packed, if its pack is still in the store.
 fn kept_entry(store: &Path, objects: &Objects, key: &str) -> Option<Value> {
-    let entry: Value = serde_json::from_slice(&std::fs::read(map_path(store, key)).ok()?).ok()?;
+    kept_in(UNITS, store, objects, key)
+}
+
+/// The map from the sha256 of a unit's documents' text to its entry.
+const UNITS: &str = "units";
+/// The map from a unit's input key, as its frontend works it out, to its entry.
+const INPUTS: &str = "inputs";
+
+/// The entry `map` keeps under `key`, if its pack is still in the store.
+fn kept_in(map: &str, store: &Path, objects: &Objects, key: &str) -> Option<Value> {
+    let entry: Value =
+        serde_json::from_slice(&std::fs::read(map_path(map, store, key)).ok()?).ok()?;
     let pack = entry["pack"].as_str()?;
     objects.has(pack).then_some(entry)
 }
 
-fn map_path(store: &Path, key: &str) -> PathBuf {
-    store.join("maps").join("units").join(key)
+fn map_path(map: &str, store: &Path, key: &str) -> PathBuf {
+    store.join("maps").join(map).join(key)
+}
+
+/// Whether `key` can name a map entry: a sha256 in lowercase hex, and so never a path.
+fn is_key(key: &str) -> bool {
+    rstyle_core::hex::is_lowercase(key, 64)
 }
 
 // rstyle-allow(side_effect_density): IO boundary: records which pack a unit's documents made
 /// Records that the documents `key` names made the unit `entry`, so a later run of the same
 /// documents reuses it.
 fn keep_entry(store: &Path, key: &str, entry: &Value) -> Result<(), String> {
-    let path = map_path(store, key);
+    keep_in(UNITS, store, key, entry)
+}
+
+// rstyle-allow(side_effect_density): IO boundary: records a map entry
+/// Records `entry` under `key` in `map`, replacing any entry there at once.
+fn keep_in(map: &str, store: &Path, key: &str, entry: &Value) -> Result<(), String> {
+    let path = map_path(map, store, key);
     let directory = path.parent().expect("a map entry has a directory");
     std::fs::create_dir_all(directory).map_err(|error| error.to_string())?;
     let staged = directory.join(format!(".{key}.{}", std::process::id()));
@@ -166,6 +194,10 @@ pub(crate) struct Emitted {
     /// Units whose documents' seals say what text they hold: for each, the sha256 of its
     /// documents' text, in the run's order.
     sealed: Mutex<Vec<Vec<String>>>,
+    /// Each unit's input key, as its frontend named it, recorded with its entry once kept.
+    inputs: Mutex<Vec<(String, String)>>,
+    /// The stream's documents the frontend left to the store, which are kept already.
+    reused: Mutex<std::collections::BTreeSet<usize>>,
 }
 
 impl Emitted {
@@ -175,13 +207,79 @@ impl Emitted {
             level,
             units: Default::default(),
             sealed: Default::default(),
+            inputs: Default::default(),
+            reused: Default::default(),
         }
+    }
+
+    // rstyle-allow(side_effect_density): IO boundary: lists the store's input map
+    /// The input keys of the units the store holds, for a frontend to leave to it.
+    pub(crate) fn held_keys(&self) -> Vec<String> {
+        let objects = Objects::new(&self.store.join("objects"));
+        let Ok(listing) = std::fs::read_dir(self.store.join("maps").join(INPUTS)) else {
+            return Vec::new();
+        };
+        let mut keys: Vec<String> = listing
+            .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
+            .filter(|key| is_key(key) && kept_in(INPUTS, &self.store, &objects, key).is_some())
+            .collect();
+        keys.sort();
+        keys
+    }
+
+    /// Notes that the frontend worked out `key` as `unit`'s input key.
+    pub(crate) fn input(&self, unit: &str, key: &str) -> Result<(), String> {
+        if !is_key(key) {
+            return Err(format!("{unit}'s input key {key:?} isn't a sha256 in hex"));
+        }
+        let mut inputs = self.inputs.lock().expect("no panic while packing");
+        inputs.push((unit.to_owned(), key.to_owned()));
+        Ok(())
+    }
+
+    // rstyle-allow(side_effect_density): IO boundary: reads a kept unit's document back
+    /// The stream's document `index`, which the frontend left to the store: `unit`'s document
+    /// as the pack kept under input `key` holds it. Its entry stands as it is.
+    pub(crate) fn reused_document(
+        &self,
+        index: usize,
+        unit: &str,
+        key: &str,
+    ) -> Result<String, String> {
+        let objects = Objects::new(&self.store.join("objects"));
+        let entry = kept_in(INPUTS, &self.store, &objects, key).ok_or_else(|| {
+            format!("{unit} was left to the store under {key}, which no longer holds it")
+        })?;
+        if entry["unit"] != unit {
+            return Err(format!(
+                "the store keeps {key} for {}, not {unit}",
+                entry["unit"]
+            ));
+        }
+        let pack = objects.get(entry["pack"].as_str().ok_or("an entry names its pack")?)?;
+        let mut text = Vec::new();
+        store::write_unpacked(&pack, &mut text).map_err(|error| error.to_string())?;
+        self.reused
+            .lock()
+            .expect("no panic while packing")
+            .insert(index);
+        let mut units = self.units.lock().expect("no panic while packing");
+        units.push((index, unit.to_owned(), entry));
+        String::from_utf8(text).map_err(|error| error.to_string())
     }
 
     // rstyle-allow(side_effect_density): IO boundary: packs a document as it arrives
     /// Packs the stream's document `index`, whose `text` is a unit's bundled document, unless
     /// the store already holds a pack of exactly this document.
     pub(crate) fn document(&self, index: usize, text: &str) -> Result<(), String> {
+        if self
+            .reused
+            .lock()
+            .expect("no panic while packing")
+            .contains(&index)
+        {
+            return Ok(());
+        }
         let objects = Objects::new(&self.store.join("objects"));
         let document = parse(text)?;
         let id = document["unit"]["id"]
@@ -226,32 +324,51 @@ impl Emitted {
     /// else packed from the saved documents, as a run whose documents didn't stream, or whose
     /// unit came in several, is.
     pub(crate) fn finish(self, capture: &Path, documents: usize) -> Result<Value, String> {
+        let store = self.store.clone();
+        let inputs = std::mem::take(&mut *self.inputs.lock().expect("no panic while packing"));
+        let entries = self.entries(capture, documents)?;
+        keep_inputs(&store, &inputs, &entries)?;
+        manifest(&Objects::new(&store.join("objects")), entries)
+    }
+
+    fn entries(self, capture: &Path, documents: usize) -> Result<Vec<Value>, String> {
         let sealed = self.sealed.into_inner().expect("no panic while packing");
         if !sealed.is_empty() {
             return match sealed.iter().map(Vec::len).sum::<usize>() == documents {
-                true => sealed_run((capture, &self.store, self.level), sealed),
-                false => pack_run(capture, &self.store, self.level),
+                true => sealed_entries((capture, &self.store, self.level), sealed),
+                false => run_entries(capture, &self.store, self.level),
             };
         }
         let mut units = self.units.into_inner().expect("no panic while packing");
         units.sort_by_key(|(index, ..)| *index);
         let ids: std::collections::BTreeSet<&String> = units.iter().map(|(_, id, _)| id).collect();
         if ids.len() != units.len() || units.len() != documents {
-            return pack_run(capture, &self.store, self.level);
+            return run_entries(capture, &self.store, self.level);
         }
-        let entries: Vec<Value> = units.into_iter().map(|(_, _, entry)| entry).collect();
-        manifest(&Objects::new(&self.store.join("objects")), entries)
+        Ok(units.into_iter().map(|(_, _, entry)| entry).collect())
     }
 }
 
+// rstyle-allow(side_effect_density): IO boundary: records each unit's input key
+/// Records each unit's entry under the input key its frontend named, so a later run whose
+/// frontend works out the same key leaves the unit to the store.
+fn keep_inputs(store: &Path, inputs: &[(String, String)], entries: &[Value]) -> Result<(), String> {
+    for (unit, key) in inputs {
+        if let Some(entry) = entries.iter().find(|entry| entry["unit"] == unit.as_str()) {
+            keep_in(INPUTS, store, key, entry)?;
+        }
+    }
+    Ok(())
+}
+
 // rstyle-allow(side_effect_density): IO boundary: reads a run's changed units and writes their packs
-/// Keeps the run saved in `capture` whose units' documents, in order, hold the text `sealed`
-/// names: a unit kept before is named, not read. Units that turn out to share an ID are
-/// packed as one, as [`pack_run`] does.
-fn sealed_run(
+/// The entries of the run saved in `capture` whose units' documents, in order, hold the text
+/// `sealed` names: a unit kept before is named, not read. Units that turn out to share an ID
+/// are packed as one, as [`pack_run`] does.
+fn sealed_entries(
     (capture, store, level): (&Path, &Path, i32),
     sealed: Vec<Vec<String>>,
-) -> Result<Value, String> {
+) -> Result<Vec<Value>, String> {
     let objects = Objects::new(&store.join("objects"));
     let sources = sources(capture)?;
     let mut next = 0;
@@ -276,9 +393,9 @@ fn sealed_run(
         .filter_map(|entry| entry["unit"].as_str())
         .collect();
     if ids.len() != entries.len() {
-        return pack_run(capture, store, level);
+        return run_entries(capture, store, level);
     }
-    manifest(&objects, entries)
+    Ok(entries)
 }
 
 /// Names the run whose units are `entries`, and says what it kept.
@@ -592,5 +709,64 @@ mod tests {
                 (Some(1), Some(2))
             );
         }
+    }
+
+    #[test]
+    fn a_unit_kept_under_an_input_key_is_held_and_given_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = dir.path().join("store");
+        let text = document(&["fn:a"]);
+        let key = "0f".repeat(32);
+        let first = Emitted::new(&store, 3);
+        assert_eq!(
+            first.held_keys(),
+            Vec::<String>::new(),
+            "nothing is kept yet"
+        );
+        first.input("unit:t", &key).unwrap();
+        first.input("unit:gone", &"1e".repeat(32)).unwrap();
+        first.document(0, &text).unwrap();
+        let kept = first.finish(dir.path(), 1).unwrap();
+        assert_eq!(
+            Emitted::new(&store, 3).held_keys(),
+            std::slice::from_ref(&key),
+            "a unit with no entry isn't held"
+        );
+
+        let second = Emitted::new(&store, 3);
+        let given = second.reused_document(0, "unit:t", &key).unwrap();
+        assert_eq!(parse(&given).unwrap(), parse(&text).unwrap());
+        second.document(0, "not even a document").unwrap();
+        assert_eq!(
+            second.finish(dir.path(), 1).unwrap(),
+            kept,
+            "nothing is packed again"
+        );
+
+        let third = Emitted::new(&store, 3);
+        let error = third.reused_document(0, "unit:other", &key).unwrap_err();
+        assert!(error.contains("not unit:other"), "{error}");
+        let error = third
+            .reused_document(0, "unit:t", &"2d".repeat(32))
+            .unwrap_err();
+        assert!(error.contains("no longer holds it"), "{error}");
+        assert!(
+            third
+                .input("unit:t", "../escape")
+                .unwrap_err()
+                .contains("isn't a sha256")
+        );
+    }
+
+    #[test]
+    fn only_keys_whose_packs_are_still_kept_are_held() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = dir.path().join("store");
+        let inputs = store.join("maps").join(INPUTS);
+        std::fs::create_dir_all(&inputs).unwrap();
+        std::fs::write(inputs.join("not-a-key"), "{}").unwrap();
+        let entry = json!({"unit": "unit:t", "pack": store::sha256(b"never kept")});
+        std::fs::write(inputs.join("3c".repeat(32)), entry.to_string()).unwrap();
+        assert_eq!(Emitted::new(&store, 3).held_keys(), Vec::<String>::new());
     }
 }

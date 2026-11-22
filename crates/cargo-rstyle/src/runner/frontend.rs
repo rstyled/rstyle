@@ -185,6 +185,16 @@ impl Frontend {
         self
     }
 
+    /// The same frontend, told which units' documents the store holds if it takes `--reuse`, in
+    /// the JSON array at `keys`.
+    pub(super) fn reusing(mut self, keys: &Path) -> Self {
+        if self.options.iter().any(|option| option == "reuse") {
+            let arguments = [OsString::from("--reuse"), keys.as_os_str().to_owned()];
+            self.stream_arguments.extend(arguments);
+        }
+        self
+    }
+
     fn name(&self) -> std::path::Display<'_> {
         self.program.display()
     }
@@ -236,10 +246,13 @@ impl Frontend {
                 directory: saving.directory,
                 encoding: saving.encoding,
                 emitted: saving.emitted,
+                documents: Default::default(),
             }),
         };
         let records = input::stream_records(&mut sequence, &stream);
-        let documents = sequence.progress().received_documents;
+        let documents = stream.store.as_ref().map_or(0, |store| {
+            store.documents.load(std::sync::atomic::Ordering::Relaxed)
+        });
         let status = wait(child)?;
         self.outcome(records, status)
             .map(|records| Streamed { records, documents })

@@ -96,6 +96,9 @@ pub(crate) struct Store<'a> {
     pub encoding: Encoding,
     /// Where each document is also packed as it arrives, for a run kept in a local store.
     pub emitted: Option<&'a crate::cpg::pack::Emitted>,
+    /// How many documents the stream held, counting each the frontend left to the store, and
+    /// none of its unit records.
+    pub documents: std::sync::atomic::AtomicUsize,
 }
 
 impl Store<'_> {
@@ -154,14 +157,71 @@ fn pooled_stream<R: BufRead>(
         }
         Ok(document)
     };
-    let jobs = std::iter::from_fn(|| reader.next_text().transpose());
+    let emitted = store.and_then(|store| store.emitted);
+    let mut documents = 0;
+    let jobs = std::iter::from_fn(|| next_document(reader, emitted, &mut documents).transpose());
     let records = cpg::pooled_records(jobs, load, pool)?;
+    if let Some(store) = store {
+        store
+            .documents
+            .store(documents, std::sync::atomic::Ordering::Relaxed);
+    }
 
     reader.complete()?;
     if let Some(store) = store {
         store.seal(seals.into_inner().expect("no panic while keeping"))?;
     }
     Ok(records)
+}
+
+/// What a frontend that was passed `--reuse` says of a unit before its document, or instead of it
+/// when it left the document to the store.
+#[derive(serde::Deserialize)]
+struct UnitInput {
+    schema: String,
+    unit: String,
+    key: String,
+    reused: bool,
+}
+
+const UNIT_INPUT: &str = "rstyle.unit-input/1";
+
+impl UnitInput {
+    /// The record `text` is, if it's one: a document is far longer, and has no `schema`.
+    fn of(text: &str) -> Option<Self> {
+        if text.len() > 4096 || !text.contains(UNIT_INPUT) {
+            return None;
+        }
+        serde_json::from_str::<Self>(text)
+            .ok()
+            .filter(|input| input.schema == UNIT_INPUT)
+    }
+}
+
+/// The stream's next document, `documents` of them so far. A unit record is noted, and a unit
+/// the frontend left to the store takes its document from there.
+fn next_document<R: BufRead>(
+    reader: &mut SequenceReader<R>,
+    emitted: Option<&crate::cpg::pack::Emitted>,
+    documents: &mut usize,
+) -> Result<Option<String>, String> {
+    loop {
+        let Some(text) = reader.next_text()? else {
+            return Ok(None);
+        };
+        let Some(input) = UnitInput::of(&text) else {
+            *documents += 1;
+            return Ok(Some(text));
+        };
+        let emitted =
+            emitted.ok_or("the frontend named a unit's input, though no store was given")?;
+        emitted.input(&input.unit, &input.key)?;
+        if input.reused {
+            let text = emitted.reused_document(*documents, &input.unit, &input.key)?;
+            *documents += 1;
+            return Ok(Some(text));
+        }
+    }
 }
 
 /// The `number`th document of a stream, counting from 1.
