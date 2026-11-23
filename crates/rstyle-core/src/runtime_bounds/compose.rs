@@ -18,7 +18,7 @@ use super::*;
 use crate::wording::{Message, Wording};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::rc::Rc;
 
 pub const COST_SCOPE: &str = "workspace-loop-body-entries-and-invocations-through-resolved-calls";
@@ -106,11 +106,6 @@ struct Evidence {
 // Reasons for opaque factors, by kind and site.
 type Opaques = BTreeMap<(OpaqueKind, String), String>;
 
-enum State {
-    Active,
-    Done(Box<Result<Summary, Failure>>),
-}
-
 #[derive(Clone)]
 enum Failure {
     Unknown(String),
@@ -146,7 +141,10 @@ fn composition(summary: Summary, wording: Wording) -> Composition {
     }
 }
 
-/// Memoized bottom-up composition; owners are looked up and analyzed on demand.
+/// Memoized bottom-up composition; owners are looked up and analyzed on demand. Each owner is
+/// composed as if composition started from it, so what it composes to never depends on which
+/// owner was composed first: a call back into the walk that reached a callee is a recursive
+/// cycle, and the owners of a cycle are walked through again for each owner in it.
 pub struct Composer<F> {
     lookup: F,
     limits: Limits,
@@ -157,7 +155,30 @@ pub struct Composer<F> {
 #[derive(Default)]
 struct Memo {
     owners: BTreeMap<String, Option<Rc<Analyzed>>>,
-    states: BTreeMap<String, State>,
+    /// What each owner composes to, composed from it.
+    summaries: BTreeMap<String, Result<Summary, Failure>>,
+    /// The cycle each owner lies in: owners that call each other, directly or through others,
+    /// share a number, and any other owner has one of its own.
+    cycles: HashMap<String, usize>,
+}
+
+/// One owner's composition: the owners its cycle has walked through to the one being composed,
+/// in order, and how many it has walked through in all.
+struct Walk {
+    path: Vec<String>,
+    steps: usize,
+}
+
+impl Walk {
+    /// Walks on into `target`, unless that makes `limit` owners walked through.
+    fn enter(&mut self, target: &str, limit: usize) -> Result<(), Failure> {
+        self.steps += 1;
+        if self.steps >= limit {
+            return Err(Failure::Budget("Composition owner budget exceeded".into()));
+        }
+        self.path.push(target.into());
+        Ok(())
+    }
 }
 
 impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
@@ -189,24 +210,33 @@ impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
     }
 
     fn summary(&mut self, id: &str) -> Result<Summary, Failure> {
-        match self.memo.states.get(id) {
-            Some(State::Done(result)) => return (**result).clone(),
-            Some(State::Active) => {
-                return Err(Failure::Unknown(format!(
-                    "Recursive call cycle through {id}"
-                )));
-            }
-            None => {}
+        if let Some(result) = self.memo.summaries.get(id) {
+            return result.clone();
         }
-        if self.memo.states.len() >= self.limits.nodes.saturating_mul(16) {
-            return Err(Failure::Budget("Composition owner budget exceeded".into()));
-        }
+        let mut walk = Walk {
+            path: vec![id.into()],
+            steps: 0,
+        };
+        let result = self.build(id, &mut walk);
+        self.memo.summaries.insert(id.into(), result.clone());
+        result
+    }
 
-        self.memo.states.insert(id.into(), State::Active);
-        let result = self.build(id);
-        self.memo
-            .states
-            .insert(id.into(), State::Done(Box::new(result.clone())));
+    /// What `target` composes to where the owner last in `walk` calls it: what it composes to
+    /// from itself when it lies outside that owner's cycle, else a walk on through it.
+    fn callee(&mut self, walk: &mut Walk, target: &str) -> Result<Summary, Failure> {
+        if walk.path.iter().any(|on| on == target) {
+            return Err(Failure::Unknown(format!(
+                "Recursive call cycle through {target}"
+            )));
+        }
+        let caller = walk.path.last().expect("a walk starts at its owner");
+        if !self.cycled(target, caller) {
+            return self.summary(target);
+        }
+        walk.enter(target, self.limits.nodes.saturating_mul(16))?;
+        let result = self.build(target, walk);
+        walk.path.pop();
         result
     }
 
@@ -218,7 +248,44 @@ impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
         self.memo.owners[id].clone()
     }
 
-    fn build(&mut self, id: &str) -> Result<Summary, Failure> {
+    /// The owners `id`'s calls resolve to, when its local bounds are known.
+    fn callees(&mut self, id: &str) -> Vec<String> {
+        let Some(owner) = self.owner(id) else {
+            return Vec::new();
+        };
+        let (Outcome::Proven(assessment) | Outcome::Partial(assessment)) = &owner.outcome else {
+            return Vec::new();
+        };
+        let resolved = assessment
+            .calls
+            .iter()
+            .filter_map(|call| match &call.target {
+                Callee::Resolved(target) => Some(target.clone()),
+                _ => None,
+            });
+        resolved.collect()
+    }
+
+    /// Whether `a` and `b` lie in one cycle.
+    fn cycled(&mut self, a: &str, b: &str) -> bool {
+        self.cycle(a) == self.cycle(b)
+    }
+
+    /// The number of the cycle `id` lies in, numbering first each one it reaches.
+    fn cycle(&mut self, id: &str) -> usize {
+        if let Some(&cycle) = self.memo.cycles.get(id) {
+            return cycle;
+        }
+        let mut cycles = Cycles::default();
+        cycles.visit(id, self.callees(id));
+        while let Some(next) = cycles.next(&mut self.memo.cycles) {
+            let callees = self.callees(&next);
+            cycles.visit(&next, callees);
+        }
+        self.memo.cycles[id]
+    }
+
+    fn build(&mut self, id: &str, walk: &mut Walk) -> Result<Summary, Failure> {
         let owner = self
             .owner(id)
             .ok_or_else(|| Failure::Unknown(format!("No captured summary for callee {id}")))?;
@@ -243,19 +310,19 @@ impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
             },
         };
         for call in &assessment.calls {
-            self.call(&owner.program, call, &mut summary)?;
+            self.call((&owner.program, walk), call, &mut summary)?;
         }
         Ok(summary)
     }
 
     fn call(
         &mut self,
-        caller: &Program,
+        (caller, walk): (&Program, &mut Walk),
         call: &CallBound,
         summary: &mut Summary,
     ) -> Result<(), Failure> {
         let contribution = match &call.target {
-            Callee::Resolved(target) => self.contribution(caller, call, target),
+            Callee::Resolved(target) => self.contribution((caller, walk), call, target),
             Callee::Constructor => return Ok(()),
             Callee::Library(identity) => {
                 return self.library(Site::new(caller, call), identity, summary);
@@ -272,11 +339,11 @@ impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
     // The callee summary at this site, with its inputs replaced by caller bounds.
     fn contribution(
         &mut self,
-        caller: &Program,
+        (caller, walk): (&Program, &mut Walk),
         call: &CallBound,
         target: &str,
     ) -> Result<Contribution, Failure> {
-        let callee = self.summary(target)?;
+        let callee = self.callee(walk, target)?;
         let owner = self
             .owner(target)
             .expect("summarized owners were looked up");
@@ -338,6 +405,74 @@ impl<F: FnMut(&str) -> Option<Analyzed>> Composer<F> {
             ..Evidence::default()
         });
         summary.within(self.limits)
+    }
+}
+
+/// Tarjan's strongly connected components over the call graph, walked without recursion, for
+/// owners no earlier walk numbered.
+#[derive(Default)]
+struct Cycles {
+    /// When each owner this walk reached was reached, and the earliest one it reaches back to.
+    reached: HashMap<String, (usize, usize)>,
+    /// Owners reached whose cycle isn't numbered yet.
+    open: Vec<String>,
+    /// Each owner being walked from, with its callees and how many of them it has walked to.
+    frames: Vec<(String, Vec<String>, usize)>,
+}
+
+impl Cycles {
+    fn visit(&mut self, id: &str, callees: Vec<String>) {
+        let at = self.reached.len();
+        self.reached.insert(id.into(), (at, at));
+        self.open.push(id.into());
+        self.frames.push((id.into(), callees, 0));
+    }
+
+    /// The next owner to visit, numbering each cycle whose owners have all been walked from.
+    fn next(&mut self, numbered: &mut HashMap<String, usize>) -> Option<String> {
+        while let Some((id, callees, walked)) = self.frames.last_mut() {
+            let Some(callee) = callees.get(*walked).cloned() else {
+                self.close(numbered);
+                continue;
+            };
+            *walked += 1;
+            let id = id.clone();
+            if numbered.contains_key(&callee) {
+                continue;
+            }
+            let Some(&(at, _)) = self.reached.get(&callee) else {
+                return Some(callee);
+            };
+            self.lower(&id, at);
+        }
+        None
+    }
+
+    /// Finishes the owner last walked from: when it reaches back to no earlier owner still open,
+    /// it and every owner opened after it are one cycle.
+    fn close(&mut self, numbered: &mut HashMap<String, usize>) {
+        let (id, ..) = self.frames.pop().expect("an owner is being walked from");
+        let (at, back) = self.reached[&id];
+        if at == back {
+            let number = numbered.len();
+            let start = self.open.iter().rposition(|open| *open == id);
+            let members = self
+                .open
+                .split_off(start.expect("an owner stays open until numbered"));
+            numbered.extend(members.into_iter().map(|member| (member, number)));
+        }
+        if let Some((parent, ..)) = self.frames.last() {
+            let parent = parent.clone();
+            self.lower(&parent, back);
+        }
+    }
+
+    fn lower(&mut self, id: &str, to: usize) {
+        let entry = self
+            .reached
+            .get_mut(id)
+            .expect("a walked owner was reached");
+        entry.1 = entry.1.min(to);
     }
 }
 
