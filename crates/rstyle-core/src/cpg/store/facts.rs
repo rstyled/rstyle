@@ -157,20 +157,21 @@ impl FunctionFacts {
         let mut records = Vec::with_capacity(keys.len());
         let mut frames = Vec::new();
         for (at, (key, found)) in keys.into_iter().zip(found).enumerate() {
-            let (record, frame) = match (found, derived.remove(&at), key) {
-                (Some((kept, frame)), fresh, Some(key)) => {
+            let fresh = derived.remove(&at);
+            let (record, frame) = match (found, key) {
+                (Some((kept, frame)), Some(key)) => {
                     if let Some(fresh) = &fresh {
                         same(&kept, fresh, &key)?;
                     }
                     self.reused.fetch_add(1, Ordering::Relaxed);
                     (kept, Some((key, frame)))
                 }
-                (None, Some(fresh), key) => {
+                (_, key) => {
+                    let fresh = fresh.ok_or("a function was neither kept nor derived")?;
                     let frame = key.map(|key| Ok::<_, String>((key, frame(&fresh)?)));
                     self.derived.fetch_add(1, Ordering::Relaxed);
                     (fresh, frame.transpose()?)
                 }
-                _ => return Err("a function was neither kept nor derived".into()),
             };
             records.push(record);
             frames.extend(frame);
@@ -306,11 +307,12 @@ pub(crate) fn encoded(record: &Record) -> Result<Vec<u8>, String> {
 /// `text` compressed into a frame that checks itself when it's read.
 fn compressed(text: &[u8]) -> Result<Vec<u8>, String> {
     let checked = zstd::zstd_safe::CParameter::ChecksumFlag(true);
-    let mut compressor = zstd::bulk::Compressor::new(LEVEL).map_err(|error| error.to_string())?;
-    compressor
-        .set_parameter(checked)
-        .map_err(|error| error.to_string())?;
-    compressor.compress(text).map_err(|error| error.to_string())
+    let compress = || -> std::io::Result<Vec<u8>> {
+        let mut compressor = zstd::bulk::Compressor::new(LEVEL)?;
+        compressor.set_parameter(checked)?;
+        compressor.compress(text)
+    };
+    compress().map_err(|error| error.to_string())
 }
 
 /// A record as a frame of a facts pack.

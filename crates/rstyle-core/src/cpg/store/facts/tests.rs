@@ -160,6 +160,80 @@ fn a_store_that_lost_or_spoiled_its_packs_derives_again() {
     }
 }
 
+#[test]
+fn a_changed_document_over_a_spoiled_pack_keeps_a_pack_of_its_own() {
+    let store = tempfile::tempdir().unwrap();
+    let kept = |document: &Document| {
+        let facts = FunctionFacts::new(store.path(), "build", ALL, false);
+        let records = facts.records(document).unwrap();
+        (texts(&records), facts.finish().unwrap())
+    };
+    kept(&document(&example()));
+    let packs = walk(&store.path().join("objects"));
+    let mut bytes = std::fs::read(&packs[0]).unwrap();
+    bytes[MAGIC.len() + FORMAT.len() + 8] ^= 0xff;
+    std::fs::write(&packs[0], &bytes).unwrap();
+
+    // The first function's frame no longer reads and the last one changed, so the pack the
+    // document makes is another than the spoiled one, which the map no longer names.
+    let mut value = example();
+    value["unit"]["functions"][2]["nodes"][0]["original_kind"] = "Changed".into();
+    let changed = document(&value);
+    let (records, counts) = kept(&changed);
+    assert_eq!(records, texts(&records::records(&changed, ALL).unwrap()));
+    assert_eq!((counts.reused, counts.derived), (1, 2));
+    assert_eq!(walk(&store.path().join("objects")).len(), 2);
+    assert_eq!(kept(&changed).1.reused, 3);
+}
+
+#[test]
+fn a_document_with_no_function_to_keep_writes_no_pack() {
+    let mut value = example();
+    let functions = value["unit"]["functions"].as_array_mut().unwrap();
+    functions.truncate(1);
+    let mut twin = functions[0].clone();
+    twin["id"] = "fn:twin".into();
+    functions.push(twin);
+    let document = document(&value);
+    let derived = texts(&records::records(&document, ALL).unwrap());
+    let store = tempfile::tempdir().unwrap();
+    for _ in 0..2 {
+        let facts = FunctionFacts::new(store.path(), "build", ALL, false);
+        assert_eq!(texts(&facts.records(&document).unwrap()), derived);
+        let counts = facts.finish().unwrap();
+        assert_eq!((counts.reused, counts.derived), (0, 2));
+    }
+    assert!(!store.path().join("objects").exists());
+}
+
+#[test]
+fn a_function_short_of_its_syntax_reads_back_with_why() {
+    let mut value = example();
+    let nodes = value["unit"]["functions"][2]["nodes"]
+        .as_array_mut()
+        .unwrap();
+    let ten = nodes
+        .iter_mut()
+        .find(|node| node["id"] == "count.ten")
+        .unwrap();
+    ten["kind"] = "unsupported".into();
+    let document = document(&value);
+    let record = records::records(&document, ALL).unwrap().remove(2);
+    assert!(record.syntax_gap.is_some());
+    let text = encoded(&record).unwrap();
+    let back = decoded(&text, record.wording).unwrap();
+    assert_eq!(format!("{back:?}"), format!("{record:?}"));
+
+    // A reason this build doesn't give doesn't read.
+    let mut unknown: Value = serde_json::from_slice(&text).unwrap();
+    unknown["syntax_gap"] = "A reason no build gives".into();
+    let error = decoded(unknown.to_string().as_bytes(), record.wording).unwrap_err();
+    assert!(
+        error.contains("no syntax gap reads A reason no build gives"),
+        "{error}"
+    );
+}
+
 fn walk(directory: &Path) -> Vec<PathBuf> {
     let mut found = Vec::new();
     for entry in std::fs::read_dir(directory).unwrap() {
@@ -263,6 +337,16 @@ fn a_file_with_no_text_is_read_as_having_none() {
         keys.window("file:lib", None, (0, 1))
             .contains("has no content")
     );
+}
+
+#[test]
+fn a_span_in_a_file_the_document_does_not_hold_reads_no_text() {
+    let mut value = example();
+    value["unit"]["functions"][2]["nodes"][0]["span"]["file"] = "file:elsewhere".into();
+    let (before, after) = (keys(&example()), keys(&value));
+    assert_eq!(before[..2], after[..2]);
+    assert!(after[2].is_some());
+    assert_ne!(before[2], after[2]);
 }
 
 #[test]
