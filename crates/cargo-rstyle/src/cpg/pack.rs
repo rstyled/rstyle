@@ -132,12 +132,7 @@ fn keep_entry(store: &Path, key: &str, entry: &Value) -> Result<(), String> {
 // rstyle-allow(side_effect_density): IO boundary: records a map entry
 /// Records `entry` under `key` in `map`, replacing any entry there at once.
 fn keep_in(map: &str, store: &Path, key: &str, entry: &Value) -> Result<(), String> {
-    let path = map_path(map, store, key);
-    let directory = path.parent().expect("a map entry has a directory");
-    std::fs::create_dir_all(directory).map_err(|error| error.to_string())?;
-    let staged = directory.join(format!(".{key}.{}", std::process::id()));
-    std::fs::write(&staged, canonical(entry)).map_err(|error| error.to_string())?;
-    std::fs::rename(&staged, &path).map_err(|error| error.to_string())
+    store::replace(&map_path(map, store, key), canonical(entry).as_bytes())
 }
 
 /// Packs one unit and keeps its pack: its tables first, with every function left out, then

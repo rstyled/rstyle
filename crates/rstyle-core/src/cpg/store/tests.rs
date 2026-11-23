@@ -453,3 +453,15 @@ fn a_span_past_i64_s_range_is_rebased_without_wrapping() {
         )
     );
 }
+
+#[test]
+fn a_replaced_file_is_written_whole_with_its_directory() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("maps/facts/entry");
+    replace(&path, b"one").unwrap();
+    replace(&path, b"two").unwrap();
+    assert_eq!(std::fs::read(&path).unwrap(), b"two");
+    let left: Vec<_> = std::fs::read_dir(path.parent().unwrap()).unwrap().collect();
+    assert_eq!(left.len(), 1, "nothing staged is left behind");
+    assert!(replace(Path::new("/"), b"").is_err());
+}

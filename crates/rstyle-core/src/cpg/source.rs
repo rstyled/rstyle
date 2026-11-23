@@ -7,7 +7,7 @@ use crate::lines::preceding_comment_line;
 use std::collections::BTreeMap;
 
 /// Lines above a signature that are searched for its comment, as the rustc frontend does.
-const LOOKBACK_LINES: usize = 40;
+pub(crate) const LOOKBACK_LINES: usize = 40;
 
 /// What a document says of a file beyond its text.
 #[derive(Clone, Copy, Default)]

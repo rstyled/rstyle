@@ -5,6 +5,7 @@ use rstyle_core::cpg::{
     self, OnRecords, Order, Pool, keep_records,
     layout::{self, Parsed},
     records::{Demand, Record},
+    store::facts::FunctionFacts,
     transport::{
         self, CaptureReader, Captured, DocumentManifest, Encoding, SealedDocument, SequenceReader,
     },
@@ -38,13 +39,30 @@ impl InputError {
     }
 }
 
+/// What a pool derives of each function, and the store that keeps each function's records between
+/// runs, if any.
+#[derive(Clone, Copy)]
+pub(crate) struct Derivation<'a> {
+    pub demand: Demand,
+    pub facts: Option<&'a FunctionFacts>,
+}
+
+impl From<Demand> for Derivation<'_> {
+    fn from(demand: Demand) -> Self {
+        Derivation {
+            demand,
+            facts: None,
+        }
+    }
+}
+
 /// The records of whichever input was selected, read and derived on a pool, in `order`.
 pub(super) fn read(
     args: &CpgInputArgs,
     demand: Demand,
     order: Order,
 ) -> Result<Received, InputError> {
-    let pool = pool(demand, order, (&|_| {}, &keep_records));
+    let pool = pool(demand.into(), order, (&|_| {}, &keep_records));
     if args.stdin || args.input_fd.is_some() || args.capture.is_some() {
         return Request {
             directory: args.capture.as_deref(),
@@ -70,20 +88,25 @@ fn workers() -> usize {
 }
 
 /// A pool that stops nothing on a failure: whatever it reads has already been written.
-fn pool<'a>(demand: Demand, order: Order, (see, take): (See<'a>, OnRecords<'a>)) -> Pool<'a> {
+fn pool<'a>(
+    derivation: Derivation<'a>,
+    order: Order,
+    (see, take): (See<'a>, OnRecords<'a>),
+) -> Pool<'a> {
     Pool {
         workers: workers(),
-        demand,
+        demand: derivation.demand,
         on_failure: &|| {},
         on_document: see,
         on_records: take,
         order,
+        facts: derivation.facts,
     }
 }
 
 /// A frontend's stream, read by one thread and derived by a pool.
 pub(crate) struct Stream<'a> {
-    pub demand: Demand,
+    pub derivation: Derivation<'a>,
     pub on_failure: &'a (dyn Fn() + Sync),
     pub store: Option<Store<'a>>,
     /// Given each document's records as the pool derives them.
@@ -127,7 +150,7 @@ pub(crate) fn stream_records<R: BufRead>(
     let pool = Pool {
         on_failure: stream.on_failure,
         ..pool(
-            stream.demand,
+            stream.derivation,
             Order::Canonical,
             (&|_| {}, stream.on_records),
         )
@@ -245,10 +268,10 @@ pub(crate) type See<'a> = &'a (dyn Fn(&rstyle_core::cpg::model::Document) + Sync
 /// Every record of explicitly listed documents, each one shown to `see` and handed to `take`.
 pub(crate) fn seen_file_records(
     paths: &[PathBuf],
-    demand: Demand,
+    derivation: Derivation<'_>,
     hooks: (See<'_>, OnRecords<'_>),
 ) -> Result<Vec<Record>, String> {
-    let pool = pool(demand, Order::Canonical, hooks);
+    let pool = pool(derivation, Order::Canonical, hooks);
     records_on_disk(listed(paths)?, Listed::read, &pool)
 }
 
@@ -326,7 +349,7 @@ impl Seals {
 // rstyle-allow(side_effect_density): IO boundary: reads a capture's manifest
 pub(crate) fn seen_capture_records(
     directory: &Path,
-    demand: Demand,
+    derivation: Derivation<'_>,
     (see, take): (See<'_>, OnRecords<'_>),
 ) -> Result<Vec<Record>, String> {
     let manifest = DocumentManifest::read(&transport::read_manifest_bytes(directory)?)?;
@@ -334,22 +357,22 @@ pub(crate) fn seen_capture_records(
         return Err("A completed capture must contain at least one document".into());
     }
     let seals = manifest.documents.iter().map(|seal| (directory, seal));
-    seen_sealed_records(seals, demand, (see, take))
+    seen_sealed_records(seals, derivation, (see, take))
 }
 
 /// Every record of these sealed documents, wherever each one is, read on one pool.
 pub(crate) fn sealed_records<'a>(
     seals: impl IntoIterator<Item = (&'a Path, &'a SealedDocument)>,
-    demand: Demand,
+    derivation: Derivation<'_>,
     take: OnRecords<'_>,
 ) -> Result<Vec<Record>, String> {
-    seen_sealed_records(seals, demand, (&|_| {}, take))
+    seen_sealed_records(seals, derivation, (&|_| {}, take))
 }
 
 // rstyle-allow(side_effect_density): IO boundary: reads each sealed document on a worker
 fn seen_sealed_records<'a>(
     seals: impl IntoIterator<Item = (&'a Path, &'a SealedDocument)>,
-    demand: Demand,
+    derivation: Derivation<'_>,
     hooks: (See<'_>, OnRecords<'_>),
 ) -> Result<Vec<Record>, String> {
     let read = |(directory, seal): (&Path, &SealedDocument)| {
@@ -357,14 +380,18 @@ fn seen_sealed_records<'a>(
             .and_then(|text| layout::parse(&text))
             .map_err(|error| format!("{}: {error}", seal.file))
     };
-    records_on_disk(seals, read, &pool(demand, Order::Canonical, hooks))
+    records_on_disk(seals, read, &pool(derivation, Order::Canonical, hooks))
 }
 
 pub(super) fn receive(args: &CpgReceiveArgs, format: Format) -> Result<(String, u8), String> {
     let outcome = Request {
         directory: args.capture.as_deref(),
         input_fd: args.input_fd,
-        pool: pool(Demand::default(), Order::Arrival, (&|_| {}, &discard)),
+        pool: pool(
+            Demand::default().into(),
+            Order::Arrival,
+            (&|_| {}, &discard),
+        ),
     }
     .receive();
     outcome.receipt.output(format)

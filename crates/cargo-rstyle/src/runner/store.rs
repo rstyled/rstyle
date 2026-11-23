@@ -325,6 +325,20 @@ fn civil_date(days: u64) -> (u64, u64, u64) {
     (year, month, day)
 }
 
+// rstyle-allow(side_effect_density): IO boundary: reads the running program once
+/// The sha256 of the running program, which names the build that derives a function's facts: a
+/// fact kept by another build is never read back.
+pub(super) fn build() -> Result<&'static str, String> {
+    static BUILD: std::sync::OnceLock<Result<String, String>> = std::sync::OnceLock::new();
+    let digest = BUILD.get_or_init(|| {
+        let program = std::env::current_exe().map_err(|error| error.to_string())?;
+        let bytes =
+            std::fs::read(&program).map_err(|error| format!("{}: {error}", program.display()))?;
+        Ok(rstyle_core::cpg::store::sha256(&bytes))
+    });
+    digest.as_deref().map_err(Clone::clone)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

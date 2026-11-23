@@ -56,6 +56,14 @@ fn arithmetic(overflow: &str) -> crate::runtime_bounds::Arithmetic {
 fn lowered(
     document: &model::Document,
 ) -> Result<Vec<(String, crate::advisory::runtime_bounds::Input)>, String> {
+    lowered_some(document, &|_| true)
+}
+
+/// As [`lowered`], for the functions whose place in the document is `wanted`.
+fn lowered_some(
+    document: &model::Document,
+    wanted: &dyn Fn(usize) -> bool,
+) -> Result<Vec<(String, crate::advisory::runtime_bounds::Input)>, String> {
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
     let sources = source::Sources::new(unit)?;
     let tables = tree::Tables::new(unit)?;
@@ -70,7 +78,9 @@ fn lowered(
 
     functions
         .iter()
-        .map(|function| {
+        .enumerate()
+        .filter(|(at, _)| wanted(*at))
+        .map(|(_, function)| {
             let identity = tables
                 .definition(&function.definition)?
                 .stable_identity

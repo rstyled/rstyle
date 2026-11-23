@@ -2,10 +2,10 @@
 //! documents and for its own analyses.
 use super::pipe;
 use crate::cpg::analyze::FrontendResult;
-use crate::cpg::input::{self, STREAM_BUFFER, Store, Stream};
+use crate::cpg::input::{self, Derivation, STREAM_BUFFER, Store, Stream};
 use rstyle_core::config::Excludes;
 use rstyle_core::cpg::OnRecords;
-use rstyle_core::cpg::records::{Demand, Record};
+use rstyle_core::cpg::records::Record;
 use rstyle_core::cpg::transport::{self, DocumentManifest, Encoding, SequenceReader};
 use rstyle_core::filter::valid_name;
 use rstyle_core::sarif;
@@ -224,7 +224,7 @@ impl Frontend {
     pub(super) fn stream(
         &self,
         source: &Path,
-        (demand, on_records): (Demand, OnRecords<'_>),
+        (derivation, on_records): (Derivation<'_>, OnRecords<'_>),
         saving: &Saving<'_>,
     ) -> Result<Streamed, String> {
         let alone = pipe::alone();
@@ -239,7 +239,7 @@ impl Frontend {
         let stop = || stop_child(&child);
         let mut sequence = SequenceReader::new(BufReader::with_capacity(STREAM_BUFFER, reader));
         let stream = Stream {
-            demand,
+            derivation,
             on_failure: &stop,
             on_records,
             store: Some(Store {

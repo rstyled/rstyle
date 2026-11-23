@@ -15,13 +15,14 @@ use crate::advisory::generated_effects::{self, CONNECTED_KEY, Connections};
 use crate::advisory::runtime_bounds::Input;
 use crate::facts::{FnFacts, Pdg, TyShape};
 use crate::wording::Wording;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// Why a function has no measured facts: nothing original was written to measure.
 pub const UNMEASURED: &str = "Existing compiler collector has no original function source";
 
 /// What a consumer asks of a document beyond each function's rule facts.
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Demand {
     pub graphs: bool,
     pub bounds: bool,
@@ -32,7 +33,7 @@ pub struct Demand {
 }
 
 /// A type as a signature declares it.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeclaredType {
     /// The scalar token of a scalar type, or `unit`.
     pub normalized: Option<String>,
@@ -42,7 +43,7 @@ pub struct DeclaredType {
 }
 
 /// What a function declares, the receiver among its parameters.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeclaredSignature {
     pub parameters: Vec<DeclaredType>,
     pub result: DeclaredType,
@@ -55,7 +56,7 @@ pub struct DeclaredSignature {
 }
 
 /// What can be measured of a function.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Measured {
     Known(Box<FnFacts>),
     /// Code its author wrote, but not as a function: what a module or a type runs when it's
@@ -80,8 +81,9 @@ impl Measured {
     }
 }
 
-/// One function of a document, as the reports read it.
-#[derive(Clone, Debug)]
+/// One function of a document, as the reports read it. It serializes as a store keeps it: its
+/// wording is the unit's, which reading it back takes from the document again.
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Record {
     /// The function's document id.
     pub function: String,
@@ -106,8 +108,10 @@ pub struct Record {
     /// The language says the function's file holds tests.
     pub test: bool,
     /// Why the function's tree isn't all of it, when it isn't.
-    pub syntax_gap: Option<&'static str>,
+    #[serde(with = "super::flow::syntax_gap_text")]
+    pub syntax_gap: super::flow::SyntaxGap,
     /// The terms its language's messages use.
+    #[serde(skip)]
     pub wording: Wording,
     /// With graphs: what its receiver, parameters and result are, whatever spells them.
     pub signature_shapes: Vec<Option<TyShape>>,
@@ -227,25 +231,32 @@ pub fn records_with_gaps(document: &Document, demand: Demand) -> Result<Vec<Reco
 }
 
 /// Why each function whose facts failed could not be derived, by its document ID.
-type Failed = BTreeMap<String, String>;
+pub(super) type Failed = BTreeMap<String, String>;
 
 /// The records of a document, and why each function's facts that failed could not be derived.
 fn read(document: &Document, demand: Demand) -> Result<(Vec<Record>, Failed), String> {
+    read_some(document, demand, &|_| true)
+}
+
+/// The records of the functions whose place in a document is `wanted`, in document order, and
+/// why each one's facts that failed could not be derived. The document is checked whole, and a
+/// body's own text leaves out every function written in it, wanted or not.
+pub(super) fn read_some(
+    document: &Document,
+    demand: Demand,
+    wanted: &dyn Fn(usize) -> bool,
+) -> Result<(Vec<Record>, Failed), String> {
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
     let sources = Sources::new(unit)?;
     let tables = Tables::new(unit)?;
-    let (mut measured, failed) = measured_and_failed(document, demand)?;
+    let (mut measured, failed) = measured_and_failed(document, demand, wanted)?;
     let functions = unit.functions.as_deref().unwrap_or_default();
-    let mut bounds = match demand.bounds {
-        true => super::lowered(document)?
-            .into_iter()
-            .map(|(_, input)| Some(input))
-            .collect(),
-        false => vec![None; functions.len()],
-    };
+    let places: Vec<usize> = (0..functions.len()).filter(|at| wanted(*at)).collect();
+    let mut bounds = bounds_of(document, demand, (wanted, places.len()))?;
 
-    let records = functions
+    let records = places
         .iter()
+        .map(|at| &functions[*at])
         .zip(bounds.drain(..))
         .map(|(function, bounds)| {
             let definition = tables.definition(&function.definition)?;
@@ -274,19 +285,33 @@ fn read(document: &Document, demand: Demand) -> Result<(Vec<Record>, Failed), St
             .map_err(|reason| format!("{}: {reason}", function.name))
         })
         .collect::<Result<Vec<_>, String>>()?;
-    let records = with_own_text(records, functions, &sources)?;
+    let records = with_own_text(records, (functions, &places), &sources)?;
     Ok((records, failed))
+}
+
+/// The runtime-bound program of each of the `count` functions `wanted`, when the demand asks.
+fn bounds_of(
+    document: &Document,
+    demand: Demand,
+    (wanted, count): (&dyn Fn(usize) -> bool, usize),
+) -> Result<Vec<Option<Input>>, String> {
+    if !demand.bounds {
+        return Ok(vec![None; count]);
+    }
+    let lowered = super::lowered_some(document, wanted)?;
+    Ok(lowered.into_iter().map(|(_, input)| Some(input)).collect())
 }
 
 /// Each body with only its own text: its span, less the functions written in it. Each of
 /// those is compared as itself, so a change to one isn't a change to the module that holds it.
+/// Each record is of the function at its place in `functions`.
 fn with_own_text(
     mut records: Vec<Record>,
-    functions: &[Function],
+    (functions, places): (&[Function], &[usize]),
     sources: &Sources<'_>,
 ) -> Result<Vec<Record>, String> {
     let spans: Vec<&FileSpan> = functions.iter().map(located).collect();
-    for (at, record) in records.iter_mut().enumerate() {
+    for (record, &at) in records.iter_mut().zip(places) {
         let Measured::Body(facts) = &mut record.measured else {
             continue;
         };
@@ -330,14 +355,15 @@ fn own_text<'s>(
     Ok(text)
 }
 
-/// Each function's facts by identity, and why each one's that failed could not be derived.
+/// Each wanted function's facts by identity, and why each one's that failed could not be derived.
 fn measured_and_failed(
     document: &Document,
     demand: Demand,
+    wanted: &dyn Fn(usize) -> bool,
 ) -> Result<(BTreeMap<String, FnFacts>, Failed), String> {
     let mut failed = BTreeMap::new();
     let mut measured = BTreeMap::new();
-    for (function, facts) in super::facts::derive_each(document, demand.graphs)? {
+    for (function, facts) in super::facts::derive_some(document, demand.graphs, wanted)? {
         match facts {
             Ok(facts) => {
                 measured.insert(facts.id.clone(), facts);
