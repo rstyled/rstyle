@@ -5,6 +5,7 @@ use super::{
     layout::{self, Parsed},
     model::Document,
     records::{self, Demand, Record},
+    store::facts::FunctionFacts,
 };
 use serde_json::Value;
 use std::sync::{
@@ -25,6 +26,9 @@ pub struct Pool<'a> {
     /// what it returns, to take what needn't wait for the rest of the run.
     pub on_records: OnRecords<'a>,
     pub order: Order,
+    /// Where each function's records are kept between runs, if anywhere: a function the store
+    /// keeps isn't derived again. Its demand must be the pool's.
+    pub facts: Option<&'a FunctionFacts>,
 }
 
 /// The order records leave a pool in.
@@ -54,6 +58,13 @@ pub fn pooled_records<J: Send>(
     load: impl Fn(usize, J) -> Result<Parsed, String> + Sync,
     pool: &Pool<'_>,
 ) -> Result<Vec<Record>, String> {
+    if let Some(facts) = pool.facts.filter(|facts| facts.demand() != pool.demand) {
+        return Err(format!(
+            "the store's facts are for {:?}, not the run's {:?}",
+            facts.demand(),
+            pool.demand
+        ));
+    }
     let workers = pool.workers.max(1);
     let state = State::new(pool);
     let (sender, receiver) = sync_channel(workers);
@@ -116,6 +127,7 @@ struct State<'a> {
     on_failure: &'a (dyn Fn() + Sync),
     on_document: &'a (dyn Fn(&Document) + Sync),
     on_records: OnRecords<'a>,
+    facts: Option<&'a FunctionFacts>,
     failed: AtomicBool,
     failure: Mutex<Option<String>>,
     functions: Mutex<layout::FunctionIds>,
@@ -131,6 +143,7 @@ impl<'a> State<'a> {
             on_failure: pool.on_failure,
             on_document: pool.on_document,
             on_records: pool.on_records,
+            facts: pool.facts,
             failed: AtomicBool::new(false),
             failure: Mutex::default(),
             functions: Mutex::default(),
@@ -167,6 +180,7 @@ impl<'a> State<'a> {
         }
     }
 
+    // rstyle-allow(side_effect_density): IO boundary: a store's facts are read and kept here
     fn bundled(&self, index: usize, document: &Document) -> Result<(), String> {
         (self.on_document)(document);
 
@@ -174,7 +188,11 @@ impl<'a> State<'a> {
             .lock()
             .expect("no panic while including")
             .include(document)?;
-        let batch = (self.on_records)(records::records(document, self.demand)?)?;
+        let records = match self.facts {
+            Some(facts) => facts.records(document)?,
+            None => records::records(document, self.demand)?,
+        };
+        let batch = (self.on_records)(records)?;
         self.records
             .lock()
             .expect("no panic while extending")
@@ -224,6 +242,7 @@ mod tests {
             on_document: &|_| {},
             on_records: &keep_records,
             order: Order::Canonical,
+            facts: None,
         }
     }
 
@@ -336,6 +355,7 @@ mod tests {
             on_document: &|_| {},
             on_records: &keep_records,
             order: Order::Canonical,
+            facts: None,
         };
         let jobs = (0..100).map(|index| match index {
             3 => Err("broken pipe".to_string()),

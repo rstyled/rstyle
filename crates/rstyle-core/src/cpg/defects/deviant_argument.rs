@@ -32,7 +32,7 @@ pub const RULE: &str = "deviant_argument";
 const RECEIVER: &str = "self";
 
 /// One argument a call passes, and what its function knows at the call.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Argument {
     /// The callee's identity, which calls are compared by.
     pub callee: String,
@@ -61,7 +61,7 @@ pub struct Argument {
 }
 
 /// A method's arguments, and the callees it calls, which say how alike two methods are.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Arguments {
     /// The type the function is a method of; a free function has none and is never compared.
     pub owner: Option<String>,

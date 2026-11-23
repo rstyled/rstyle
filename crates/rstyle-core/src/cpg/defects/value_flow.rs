@@ -21,7 +21,7 @@ pub type WrittenList = (usize, Vec<Option<String>>);
 
 /// A call a flow can start or end at, or a library's variable one can start at: reading it is where
 /// its value comes from, as a call's result is, and it has no arguments.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct FlowCall {
     /// The callee as it's declared, which is what a contract names.
     pub identity: String,
@@ -42,7 +42,9 @@ pub struct FlowCall {
 }
 
 /// Where a value starts. Parameters number as a call's arguments do: a receiver is 0.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum Start {
     Result(usize),
     Parameter(usize),
@@ -50,7 +52,9 @@ pub enum Start {
 
 /// Where a step of a value ends: an argument, and which element of it when it's a list written out
 /// in the call, or an argument whose position isn't known, as a spread's isn't.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum End {
     Argument {
         call: usize,
@@ -64,14 +68,16 @@ pub enum End {
 }
 
 /// One step of a value.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub struct Hop {
     pub from: Start,
     pub to: End,
 }
 
 /// A library's named type, as a contract names it.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct NamedType {
     pub identity: String,
     pub name: String,
@@ -80,7 +86,7 @@ pub struct NamedType {
 
 /// A parameter declared as a library's named type, looked through pointers, which a contract can
 /// say is input, as Go's `*http.Request` is to a handler.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TypedParameter {
     /// Numbered as a call's arguments are: a receiver is 0.
     pub position: usize,
@@ -91,7 +97,7 @@ pub struct TypedParameter {
 }
 
 /// Where a function's values go, in its frontend's namespace.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ValueFlows {
     /// The function, as a call to it names it.
     pub identity: String,

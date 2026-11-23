@@ -3360,3 +3360,62 @@ fn a_rust_run_s_documents_hold_no_path_of_the_machine() {
     );
     assert_eq!(documents[0], documents[1]);
 }
+
+/// How many functions' facts a run with `--store` says it reused, and of how many.
+fn reused_facts(output: &Output) -> (usize, usize) {
+    let stderr = stderr(output);
+    let line = stderr
+        .lines()
+        .find(|line| line.contains("functions' facts from"))
+        .unwrap_or_else(|| panic!("no facts reused: {stderr}"));
+    let words: Vec<&str> = line.split_whitespace().collect();
+    (words[2].parse().unwrap(), words[4].parse().unwrap())
+}
+
+#[test]
+fn a_store_keeps_each_function_s_facts_for_the_runs_after() {
+    let project = Project::new();
+    let store = project.root().join("store");
+    let store = store.to_str().unwrap();
+    let first = project.go(&["--format", "json", "--store", store]);
+    assert!(
+        first.status.code().is_some_and(|code| code < 2),
+        "{first:?}"
+    );
+    let (reused, functions) = reused_facts(&first);
+    assert_eq!(reused, 0);
+    assert!(functions > 0, "{first:?}");
+    let expected = without_run(report(&first));
+
+    let verified = project.go(&["--format", "json", "--store", store, "--verify-incremental"]);
+    assert_eq!(
+        reused_facts(&verified),
+        (functions, functions),
+        "{verified:?}"
+    );
+    assert_eq!(without_run(report(&verified)), expected);
+
+    // A saved run read back reads the same facts, though nothing else is kept.
+    let replayed = Command::new(cargo_bin("rstyle"))
+        .args(["go", "--format", "json", "--store", store, "--from"])
+        .arg(saved_run(&first))
+        .current_dir(project.root())
+        .env("RSTYLE_GO", "/nonexistent/frontend")
+        .output()
+        .unwrap();
+    assert_eq!(
+        reused_facts(&replayed),
+        (functions, functions),
+        "{replayed:?}"
+    );
+    assert_eq!(report(&replayed), expected);
+    assert!(!stderr(&replayed).contains("run kept in"), "{replayed:?}");
+}
+
+#[test]
+fn verifying_facts_needs_a_store_to_read_them_from() {
+    let project = Project::new();
+    let output = project.go(&["--verify-incremental"]);
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(stderr(&output).contains("--store"), "{output:?}");
+}

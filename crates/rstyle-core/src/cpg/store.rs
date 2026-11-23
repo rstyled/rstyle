@@ -689,6 +689,18 @@ pub fn document_text(path: &Path) -> Result<String, String> {
     String::from_utf8(text).map_err(|error| format!("{}: {error}", path.display()))
 }
 
+// rstyle-allow(side_effect_density): IO boundary: writes a file through a rename
+/// Writes `bytes` to `path`, and its directory if need be, through a rename: a reader finds the
+/// file as it was or as it is now, never part of it.
+pub fn replace(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let directory = path.parent().ok_or("a file to replace has a directory")?;
+    std::fs::create_dir_all(directory).map_err(|error| error.to_string())?;
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let staged = directory.join(format!(".{name}.{}", std::process::id()));
+    std::fs::write(&staged, bytes).map_err(|error| error.to_string())?;
+    std::fs::rename(&staged, path).map_err(|error| error.to_string())
+}
+
 /// Objects named by the sha256 of their bytes, in a directory.
 pub struct Objects {
     root: PathBuf,
@@ -739,6 +751,8 @@ impl Objects {
         }
     }
 }
+
+pub mod facts;
 
 #[cfg(test)]
 mod tests;

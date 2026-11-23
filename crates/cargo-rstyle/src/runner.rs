@@ -7,14 +7,15 @@ mod risk;
 mod store;
 
 use crate::cpg::analyze::{self, FrontendResult, Unified};
-use crate::cpg::{self, input};
+use crate::cpg::{self, input, input::Derivation};
 use crate::{Cli, Format, MineArgs, PatternDisplayArgs, compiler, ignore, workspace};
 use clap::Args;
 use frontend::{AnalysisPaths, Frontend, Input, Saving, Started};
 pub(crate) use risk::{RiskArgs, risk};
 use rstyle_core::config::{Config, Excludes};
 use rstyle_core::cpg::OnRecords;
-use rstyle_core::cpg::records::{Demand, Record};
+use rstyle_core::cpg::records::Record;
+use rstyle_core::cpg::store::facts::FunctionFacts;
 use rstyle_core::cpg::transport::{self, DOCUMENTS_MANIFEST, Encoding};
 use rstyle_core::exclusions;
 use rstyle_core::filter::{Analysis, Filter};
@@ -51,9 +52,14 @@ pub(crate) struct RunArgs {
     #[arg(long)]
     from: Option<PathBuf>,
     /// Keep the saved run's documents in this local store too, one pack per unit, as `rstyle
-    /// cpg pack` does, and say the manifest that names them.
-    #[arg(long, conflicts_with = "from")]
+    /// cpg pack` does, and say the manifest that names them. Each function's facts are kept there
+    /// too, so a later run derives only the functions that changed. With --from, only the facts
+    /// are kept.
+    #[arg(long)]
     store: Option<PathBuf>,
+    /// Derive every function whose facts --store keeps again, and fail when any differ.
+    #[arg(long, requires = "store")]
+    verify_incremental: bool,
     /// Exit 1 when any candidate is left after the ignore ledger (for CI).
     #[arg(long)]
     fail_on_candidates: bool,
@@ -398,13 +404,16 @@ fn frontend_records(
     early: &Early,
 ) -> Result<(Vec<Record>, usize), String> {
     let directory = staged.folder(DOCUMENTS_FOLDER)?;
+    let facts = plan.facts()?;
     let saving = Saving {
         directory: &directory,
         encoding: plan.cli.cpg_compression,
         emitted,
     };
     let take = |records: Vec<Record>| early.take(records);
-    let streamed = frontend.stream(&plan.source, (plan.filter.demand(), &take), &saving)?;
+    let derivation = plan.derivation(facts.as_ref());
+    let streamed = frontend.stream(&plan.source, (derivation, &take), &saving)?;
+    plan.kept_facts(facts.as_ref())?;
     Ok((streamed.records, streamed.documents))
 }
 
@@ -458,8 +467,10 @@ fn rust_records(
             .iter()
             .map(|seal| (unit.directory.as_path(), seal))
     });
-    let records =
-        input::sealed_records(seals, plan.filter.demand(), &|records| early.take(records))?;
+    let facts = plan.facts()?;
+    let derivation = plan.derivation(facts.as_ref());
+    let records = input::sealed_records(seals, derivation, &|records| early.take(records))?;
+    plan.kept_facts(facts.as_ref())?;
     Ok((records, documents))
 }
 
@@ -502,7 +513,10 @@ fn saved(
     let early = Early::new(&plan.filter, &plan.config)?;
 
     let take = |records: Vec<Record>| early.take(records);
-    let records = saved_records(from, record.as_ref(), (plan.filter.demand(), &take))?;
+    let facts = plan.facts()?;
+    let derivation = plan.derivation(facts.as_ref());
+    let records = saved_records(from, record.as_ref(), (derivation, &take))?;
+    plan.kept_facts(facts.as_ref())?;
     let mut unified = plan.analyzed(records, Some(early))?;
     let documents = documents_folder(from);
     match &args.out {
@@ -617,9 +631,9 @@ fn read_any_record(from: &Path) -> Result<Option<RunRecord>, String> {
 fn saved_records(
     from: &Path,
     record: Option<&RunRecord>,
-    (demand, take): (Demand, OnRecords<'_>),
+    (derivation, take): (Derivation<'_>, OnRecords<'_>),
 ) -> Result<Vec<Record>, String> {
-    seen_saved_records((from, record), demand, (&|_| {}, take))
+    seen_saved_records((from, record), derivation, (&|_| {}, take))
 }
 
 /// A saved run's records, with each document shown to `see` as it's read and its records handed
@@ -627,12 +641,12 @@ fn saved_records(
 // rstyle-allow(side_effect_density): IO boundary: reads a saved run's documents
 fn seen_saved_records(
     (from, record): (&Path, Option<&RunRecord>),
-    demand: Demand,
+    derivation: Derivation<'_>,
     (see, take): (input::See<'_>, OnRecords<'_>),
 ) -> Result<Vec<Record>, String> {
     let directory = documents_folder(from);
     if directory.join(DOCUMENTS_MANIFEST).exists() {
-        return input::seen_capture_records(&directory, demand, (see, take));
+        return input::seen_capture_records(&directory, derivation, (see, take));
     }
 
     let paths = cpg::documents(&directory)?;
@@ -647,7 +661,7 @@ fn seen_saved_records(
     if paths.is_empty() {
         return Err(format!("{} holds no documents", from.display()));
     }
-    input::seen_file_records(&paths, demand, (see, take))
+    input::seen_file_records(&paths, derivation, (see, take))
 }
 
 /// Where a saved run keeps its documents, or the folder itself if it holds them directly.
@@ -731,6 +745,43 @@ impl Plan<'_> {
         };
         transport::write_json(&staged.path().join(RUN_FILE), Encoding::Json, &record)?;
         staged.publish()
+    }
+
+    /// Where each function's facts are kept between runs of this build of rstyle, in `--store`,
+    /// if there is one.
+    fn facts(&self) -> Result<Option<FunctionFacts>, String> {
+        let Some(store) = self.args.store.as_deref() else {
+            return Ok(None);
+        };
+        let demand = self.filter.demand();
+        let verify = self.args.verify_incremental;
+        Ok(Some(FunctionFacts::new(
+            store,
+            store::build()?,
+            demand,
+            verify,
+        )))
+    }
+
+    /// What the run derives of each function, and where it keeps it.
+    fn derivation<'f>(&self, facts: Option<&'f FunctionFacts>) -> Derivation<'f> {
+        Derivation {
+            demand: self.filter.demand(),
+            facts,
+        }
+    }
+
+    // rstyle-allow(side_effect_density): IO boundary: records which facts the store keeps
+    /// Records where the store keeps each unit's function facts now, and says how many it reused.
+    fn kept_facts(&self, facts: Option<&FunctionFacts>) -> Result<(), String> {
+        let Some((facts, store)) = facts.zip(self.args.store.as_deref()) else {
+            return Ok(());
+        };
+        let counts = facts.finish()?;
+        let (reused, total) = (counts.reused, counts.reused + counts.derived);
+        let store = store.display();
+        eprintln!("rstyle: reused {reused} of {total} functions' facts from {store}");
+        Ok(())
     }
 
     /// What keeps the run in `--store`, if there is one: units packed as they arrive, or named
@@ -953,6 +1004,7 @@ mod tests {
                 out: None,
                 from: None,
                 store: None,
+                verify_incremental: false,
                 fail_on_candidates: false,
                 no_ignore: false,
                 excludes: Vec::new(),
@@ -1010,6 +1062,7 @@ mod tests {
                 out: None,
                 from: None,
                 store: None,
+                verify_incremental: false,
                 fail_on_candidates: false,
                 no_ignore: false,
                 excludes: Vec::new(),

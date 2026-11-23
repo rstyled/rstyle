@@ -16,21 +16,54 @@ use super::flow::{self, Flow, Reaching, Vertex};
 use super::model::{Coverage, Function, Node};
 use super::source::Sources;
 use super::tree::{Body, Tables};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::rc::Rc;
 
 /// One thing a rule found in a function.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Defect {
-    pub rule: &'static str,
+    #[serde(with = "rule_text")]
+    pub rule: Rule,
     pub severity: crate::config::Level,
     pub line: usize,
     pub message: String,
 }
 
+/// A rule's name, written as the rule's own text. Spelled as an alias, so deriving
+/// `Deserialize` doesn't borrow from what's read.
+pub type Rule = &'static str;
+
+/// Every rule a defect can name.
+const RULES: [&str; 5] = [
+    dead_store::RULE,
+    identical_branches::RULE,
+    taint::RULE,
+    ignored_result::RULE,
+    deviant_argument::RULE,
+];
+
+/// A defect's rule as a store keeps it: by name, read back as the rule's own text.
+mod rule_text {
+    use serde::{Deserialize, Deserializer, Serializer, de::Error};
+
+    pub fn serialize<S: Serializer>(rule: &&'static str, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(rule)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<&'static str, D::Error> {
+        let name = String::deserialize(deserializer)?;
+        let known = super::RULES.iter().find(|rule| **rule == name);
+        known
+            .copied()
+            .ok_or_else(|| D::Error::custom(format!("no defect rule is named {name}")))
+    }
+}
+
 /// What the rules could say of a function.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Examined {
     Read {
         defects: Vec<Defect>,

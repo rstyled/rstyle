@@ -85,7 +85,7 @@ fn snapshot(run: &Path, record: Option<&RunRecord>, config: &Config) -> Result<S
     let files = SourceFiles::default();
     // A comparison reads every field, so records are kept whole.
     let see = |document: &rstyle_core::cpg::model::Document| files.see(document);
-    let records = seen_saved_records((run, record), DEMAND, (&see, &keep_records))?;
+    let records = seen_saved_records((run, record), DEMAND.into(), (&see, &keep_records))?;
     Snapshot::of(records, files, config)
 }
 
