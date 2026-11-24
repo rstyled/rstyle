@@ -74,13 +74,19 @@ fn a_second_run_reads_every_record_back() {
     let derived = records::records(&document, ALL).unwrap();
 
     let first = FunctionFacts::new(store.path(), "build", ALL, false);
-    assert_eq!(texts(&first.records(&document).unwrap()), texts(&derived));
+    assert_eq!(
+        texts(&first.records(&document, None).unwrap()),
+        texts(&derived)
+    );
     let counts = first.finish().unwrap();
     assert_eq!((counts.reused, counts.derived), (0, derived.len()));
 
     for verify in [false, true] {
         let again = FunctionFacts::new(store.path(), "build", ALL, verify);
-        assert_eq!(texts(&again.records(&document).unwrap()), texts(&derived));
+        assert_eq!(
+            texts(&again.records(&document, None).unwrap()),
+            texts(&derived)
+        );
         assert_eq!(again.finish().unwrap().reused, derived.len());
     }
 }
@@ -90,7 +96,7 @@ fn another_build_or_demand_reads_none_of_them() {
     let store = tempfile::tempdir().unwrap();
     let document = document(&example());
     let first = FunctionFacts::new(store.path(), "build", ALL, false);
-    first.records(&document).unwrap();
+    first.records(&document, None).unwrap();
     first.finish().unwrap();
 
     let fewer = Demand {
@@ -99,7 +105,7 @@ fn another_build_or_demand_reads_none_of_them() {
     };
     for (build, demand) in [("another", ALL), ("build", fewer)] {
         let other = FunctionFacts::new(store.path(), build, demand, false);
-        let records = other.records(&document).unwrap();
+        let records = other.records(&document, None).unwrap();
         assert_eq!(
             texts(&records),
             texts(&records::records(&document, demand).unwrap())
@@ -118,7 +124,7 @@ fn a_function_whose_facts_fail_fails_its_document_as_deriving_it_does() {
     let facts = FunctionFacts::new(store.path(), "build", Demand::default(), false);
 
     let expected = records::records(&document, Demand::default()).unwrap_err();
-    assert_eq!(facts.records(&document).unwrap_err(), expected);
+    assert_eq!(facts.records(&document, None).unwrap_err(), expected);
 }
 
 #[test]
@@ -128,7 +134,7 @@ fn a_store_that_lost_or_spoiled_its_packs_derives_again() {
     let derived = texts(&records::records(&document, ALL).unwrap());
     let kept = |store: &Path| {
         let facts = FunctionFacts::new(store, "build", ALL, false);
-        let records = facts.records(&document).unwrap();
+        let records = facts.records(&document, None).unwrap();
         (texts(&records), facts.finish().unwrap())
     };
     kept(store.path());
@@ -165,7 +171,7 @@ fn a_changed_document_over_a_spoiled_pack_keeps_a_pack_of_its_own() {
     let store = tempfile::tempdir().unwrap();
     let kept = |document: &Document| {
         let facts = FunctionFacts::new(store.path(), "build", ALL, false);
-        let records = facts.records(document).unwrap();
+        let records = facts.records(document, None).unwrap();
         (texts(&records), facts.finish().unwrap())
     };
     kept(&document(&example()));
@@ -187,7 +193,7 @@ fn a_changed_document_over_a_spoiled_pack_keeps_a_pack_of_its_own() {
 }
 
 #[test]
-fn a_document_with_no_function_to_keep_writes_no_pack() {
+fn a_document_with_no_function_to_keep_writes_no_pack_unless_kept_whole() {
     let mut value = example();
     let functions = value["unit"]["functions"].as_array_mut().unwrap();
     functions.truncate(1);
@@ -199,11 +205,19 @@ fn a_document_with_no_function_to_keep_writes_no_pack() {
     let store = tempfile::tempdir().unwrap();
     for _ in 0..2 {
         let facts = FunctionFacts::new(store.path(), "build", ALL, false);
-        assert_eq!(texts(&facts.records(&document).unwrap()), derived);
+        assert_eq!(texts(&facts.records(&document, None).unwrap()), derived);
         let counts = facts.finish().unwrap();
         assert_eq!((counts.reused, counts.derived), (0, 2));
     }
     assert!(!store.path().join("objects").exists());
+
+    // Kept whole, the document's pack holds both, to read back without deriving either.
+    let facts = FunctionFacts::new(store.path(), "build", ALL, false);
+    facts.records(&document, Some("sha256:twins")).unwrap();
+    facts.finish().unwrap();
+    let again = FunctionFacts::new(store.path(), "build", ALL, false);
+    let kept = again.kept_document("sha256:twins").unwrap();
+    assert_eq!(texts(&kept.records), derived);
 }
 
 #[test]
@@ -371,13 +385,22 @@ fn functions_that_share_an_identity_are_never_kept() {
 
 #[test]
 fn a_facts_pack_lists_where_each_key_s_frame_lies() {
-    let frames = vec![("a".to_owned(), vec![1, 2, 3]), ("b".to_owned(), vec![4])];
+    let frames = vec![
+        (Some("a".to_owned()), vec![1, 2, 3]),
+        (None, vec![5, 6]),
+        (Some("b".to_owned()), vec![4]),
+    ];
     let bytes = pack("unit:t", frames).unwrap();
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("pack");
     std::fs::write(&path, &bytes).unwrap();
     let index = pack_index(&path).unwrap();
-    assert_eq!(index, [("a".to_owned(), [8, 3]), ("b".to_owned(), [11, 1])]);
+    let expected = [
+        (Some("a".to_owned()), [8, 3]),
+        (None, [11, 2]),
+        (Some("b".to_owned()), [13, 1]),
+    ];
+    assert_eq!(index, expected);
 
     let mut unended = bytes.clone();
     let at = unended.len() - 1;
@@ -436,4 +459,148 @@ fn a_pool_with_a_store_gives_what_one_without_gives() {
         assert_eq!(pooled(Some(&facts)), expected);
         assert_eq!(facts.finish().unwrap().reused, reused);
     }
+}
+
+/// The example with a twin of its first function, which shares its identity, so neither has a
+/// key and both are derived every time a document is read by function.
+fn with_a_twin() -> Value {
+    let mut value = example();
+    let functions = value["unit"]["functions"].as_array_mut().unwrap();
+    let mut twin = functions[0].clone();
+    twin["id"] = "fn:twin".into();
+    functions.push(twin);
+    value
+}
+
+#[test]
+fn a_document_kept_whole_reads_back_as_deriving_it_gives() {
+    let store = tempfile::tempdir().unwrap();
+    let document = document(&with_a_twin());
+    let derived = texts(&records::records(&document, ALL).unwrap());
+    let first = FunctionFacts::new(store.path(), "build", ALL, false);
+    assert!(first.kept_document("sha256:a").is_none());
+    assert_eq!(
+        texts(&first.records(&document, Some("sha256:a")).unwrap()),
+        derived
+    );
+    first.finish().unwrap();
+
+    let again = FunctionFacts::new(store.path(), "build", ALL, false);
+    let kept = again.kept_document("sha256:a").unwrap();
+    assert_eq!(kept.unit, document.unit.as_ref().unwrap().id);
+    assert_eq!(texts(&kept.records), derived);
+    assert!(again.kept_document("sha256:b").is_none());
+    assert_eq!(again.finish().unwrap().reused, derived.len());
+
+    // Another build reads none of it, and a run that verifies derives every document again.
+    for (build, verify) in [("another", false), ("build", true)] {
+        let other = FunctionFacts::new(store.path(), build, ALL, verify);
+        assert!(other.kept_document("sha256:a").is_none());
+    }
+}
+
+#[test]
+fn a_run_that_reads_a_document_whole_still_lists_its_pack_for_its_unit() {
+    let store = tempfile::tempdir().unwrap();
+    let document = document(&with_a_twin());
+    let derived = records::records(&document, ALL).unwrap();
+    let first = FunctionFacts::new(store.path(), "build", ALL, false);
+    first.records(&document, Some("sha256:a")).unwrap();
+    first.finish().unwrap();
+    let whole = FunctionFacts::new(store.path(), "build", ALL, false);
+    whole.kept_document("sha256:a").unwrap();
+    whole.finish().unwrap();
+
+    // Read by function, as when its bytes changed, the document reuses every keyed function.
+    let by_function = FunctionFacts::new(store.path(), "build", ALL, false);
+    let records = by_function.records(&document, None).unwrap();
+    assert_eq!(texts(&records), texts(&derived));
+    let counts = by_function.finish().unwrap();
+    assert_eq!((counts.reused, counts.derived), (derived.len() - 2, 2));
+}
+
+#[test]
+fn a_kept_document_reads_only_when_its_entry_and_pack_do() {
+    let store = tempfile::tempdir().unwrap();
+    let facts = || FunctionFacts::new(store.path(), "build", ALL, false);
+    let mut empty = example();
+    empty["unit"]["functions"] = json!([]);
+    let keep = |value: &Value, digest: &str| {
+        let kept = facts();
+        kept.records(&document(value), Some(digest)).unwrap();
+        kept.finish().unwrap();
+    };
+    keep(&empty, "sha256:empty");
+    let none = facts().kept_document("sha256:empty").unwrap();
+    assert!(none.records.is_empty());
+
+    keep(&example(), "sha256:a");
+    let entry = facts().document_path("sha256:a");
+    let written = std::fs::read(&entry).unwrap();
+    let mut other = serde_json::from_slice::<Value>(&written).unwrap();
+    for (field, value) in [
+        ("schema", json!("another")),
+        ("pack", json!(7)),
+        ("unit", Value::Null),
+    ] {
+        let mut changed = other.clone();
+        changed[field] = value;
+        std::fs::write(&entry, changed.to_string()).unwrap();
+        assert!(facts().kept_document("sha256:a").is_none(), "{field}");
+    }
+    other["pack"] = json!("0".repeat(64));
+    std::fs::write(&entry, other.to_string()).unwrap();
+    assert!(facts().kept_document("sha256:a").is_none());
+    std::fs::write(&entry, b"not an entry").unwrap();
+    assert!(facts().kept_document("sha256:a").is_none());
+}
+
+/// Each job read as stored under one digest, counting how many were parsed.
+fn stored_jobs(
+    jobs: Vec<Value>,
+    facts: Option<&FunctionFacts>,
+    parsed: &std::sync::Arc<AtomicUsize>,
+) -> Result<Vec<Record>, String> {
+    let pool = crate::cpg::Pool {
+        workers: 2,
+        demand: ALL,
+        on_failure: &|| {},
+        on_document: &|_| {},
+        on_records: &crate::cpg::keep_records,
+        order: crate::cpg::Order::Canonical,
+        facts,
+    };
+    let load = |_, value: Value| -> Result<crate::cpg::Loaded, String> {
+        let parsed = std::sync::Arc::clone(parsed);
+        let digest = format!("sha256:{}", value["unit"]["id"]);
+        let parse = Box::new(move || {
+            parsed.fetch_add(1, Ordering::Relaxed);
+            Parsed::from_json(&value)
+        });
+        Ok(crate::cpg::Loaded::Stored { digest, parse })
+    };
+    crate::cpg::pooled_records(jobs.into_iter().map(Ok), load, &pool)
+}
+
+#[test]
+fn a_pool_takes_a_document_its_store_kept_whole_without_parsing_it() {
+    let store = tempfile::tempdir().unwrap();
+    let mut other = with_a_twin();
+    other["unit"]["id"] = "unit:other".into();
+    let jobs = vec![example(), other];
+    let parsed = std::sync::Arc::new(AtomicUsize::new(0));
+    let expected = texts(&stored_jobs(jobs.clone(), None, &parsed).unwrap());
+    for parses in [2, 0] {
+        parsed.store(0, Ordering::Relaxed);
+        let facts = FunctionFacts::new(store.path(), "build", ALL, false);
+        let records = stored_jobs(jobs.clone(), Some(&facts), &parsed).unwrap();
+        assert_eq!(texts(&records), expected);
+        assert_eq!(parsed.load(Ordering::Relaxed), parses);
+        facts.finish().unwrap();
+    }
+
+    // A document kept whole still counts its functions once in a run.
+    let facts = FunctionFacts::new(store.path(), "build", ALL, false);
+    let twice = stored_jobs(vec![example(), example()], Some(&facts), &parsed).unwrap_err();
+    assert!(twice.contains("appears more than once in a run"), "{twice}");
 }

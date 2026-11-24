@@ -7,7 +7,7 @@ use std::{
     fmt,
     fs::File,
     io::{self, BufReader, Read, Seek, Write},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 /// IgnoredAny skips string decoding, so syntax-only ingestion also validates UTF-8
@@ -140,7 +140,43 @@ pub fn read_json_text(path: &Path) -> Result<String, String> {
 
 /// A sealed document's JSON text, decoded and verified against its seal but not parsed.
 pub fn read_sealed_text(directory: &Path, seal: &SealedDocument) -> Result<String, String> {
-    sealed(&directory.join(&seal.file), seal).text()
+    read_sealed_stored(directory, seal)?.text()
+}
+
+/// A sealed document's bytes as they are stored, verified against its seal but not decoded.
+pub struct Stored {
+    path: PathBuf,
+    seal: SealedDocument,
+    bytes: Vec<u8>,
+    observed: Observed,
+}
+
+impl Stored {
+    /// The sha256 of the stored bytes, as a seal names one.
+    pub fn digest(&self) -> String {
+        self.observed.checksum()
+    }
+
+    /// The document's JSON text, decoded and verified against its seal but not parsed.
+    pub fn text(self) -> Result<String, String> {
+        let source = sealed(&self.path, &self.seal);
+        let decoded = source.decoded(self.bytes, Some(self.observed))?;
+        text(decoded).map_err(|error| source.context(error))
+    }
+}
+
+/// A sealed document's stored bytes, verified against its seal, for a reader that may not need
+/// them decoded.
+pub fn read_sealed_stored(directory: &Path, seal: &SealedDocument) -> Result<Stored, String> {
+    let path = directory.join(&seal.file);
+    let (bytes, observed) = sealed(&path, seal).stored_bytes()?;
+    let observed = observed.ok_or("a sealed document's bytes are observed as they are read")?;
+    Ok(Stored {
+        path,
+        seal: seal.clone(),
+        bytes,
+        observed,
+    })
 }
 
 fn unsealed(path: &Path, encoding: Encoding) -> Source<'_> {
@@ -204,6 +240,11 @@ impl Source<'_> {
     /// seal is checked on the stored bytes before they are decoded, then on the decoded ones.
     fn bytes(&self) -> Result<Vec<u8>, String> {
         let (stored, observed) = self.stored_bytes()?;
+        self.decoded(stored, observed)
+    }
+
+    /// The stored bytes decoded, and checked against the seal when there is one.
+    fn decoded(&self, stored: Vec<u8>, observed: Option<Observed>) -> Result<Vec<u8>, String> {
         let (decoded, observed) = match self.encoding {
             Encoding::Json => (stored, observed),
             Encoding::Zstd => self.decompressed(&stored).map_err(|e| self.context(e))?,
@@ -223,7 +264,7 @@ impl Source<'_> {
     /// Parsed as it is read, so neither the bytes nor a tree of them are held.
     fn streamed<T: DeserializeOwned>(&self) -> Result<T, String> {
         let mut stored = self.stored()?;
-        self.decoded(&mut stored)
+        self.decoded_from(&mut stored)
             .map_err(|error| self.context(error))
     }
 
@@ -277,7 +318,7 @@ impl Source<'_> {
         Ok(stored)
     }
 
-    fn decoded<T: DeserializeOwned>(&self, stored: &mut Counted<File>) -> Result<T, String> {
+    fn decoded_from<T: DeserializeOwned>(&self, stored: &mut Counted<File>) -> Result<T, String> {
         match self.encoding {
             Encoding::Json => parsed(BufReader::new(stored), self.seal),
             Encoding::Zstd => parsed(decoder(stored)?, self.seal),

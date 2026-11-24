@@ -5,7 +5,7 @@ use super::{
     layout::{self, Parsed},
     model::Document,
     records::{self, Demand, Record},
-    store::facts::FunctionFacts,
+    store::facts::{FunctionFacts, KeptDocument},
 };
 use serde_json::Value;
 use std::sync::{
@@ -20,7 +20,8 @@ pub struct Pool<'a> {
     pub workers: usize,
     pub demand: Demand,
     pub on_failure: &'a (dyn Fn() + Sync),
-    /// Shown each bundled document, on a worker, for what a run's records don't hold.
+    /// Shown each bundled document, on a worker, for what a run's records don't hold. A
+    /// document `facts` keeps whole is never parsed, so isn't shown.
     pub on_document: &'a (dyn Fn(&Document) + Sync),
     /// Given each document's records on the worker that derived them, before the pool keeps
     /// what it returns, to take what needn't wait for the rest of the run.
@@ -41,6 +42,23 @@ pub enum Order {
     Arrival,
 }
 
+/// A job's document as `load` reads it.
+pub enum Loaded {
+    Parsed(Parsed),
+    /// Not parsed yet: the sha256 its bytes were stored under, and how to parse them. A document
+    /// the pool's store keeps whole under that digest is never parsed.
+    Stored {
+        digest: String,
+        parse: Box<dyn FnOnce() -> Result<Parsed, String>>,
+    },
+}
+
+impl From<Parsed> for Loaded {
+    fn from(parsed: Parsed) -> Self {
+        Loaded::Parsed(parsed)
+    }
+}
+
 /// What a pool hands each document's records to. Its error fails the run.
 pub type OnRecords<'a> = &'a (dyn Fn(Vec<Record>) -> Result<Vec<Record>, String> + Sync);
 
@@ -53,9 +71,9 @@ pub fn keep_records(records: Vec<Record>) -> Result<Vec<Record>, String> {
 /// document on a worker thread. At most `workers` jobs wait in the queue, so a producer
 /// faster than the workers holds a bounded number of documents in memory. Split documents
 /// are retained until every job has arrived, since they can arrive in any order.
-pub fn pooled_records<J: Send>(
+pub fn pooled_records<J: Send, L: Into<Loaded>>(
     jobs: impl IntoIterator<Item = Result<J, String>>,
-    load: impl Fn(usize, J) -> Result<Parsed, String> + Sync,
+    load: impl Fn(usize, J) -> Result<L, String> + Sync,
     pool: &Pool<'_>,
 ) -> Result<Vec<Record>, String> {
     if let Some(facts) = pool.facts.filter(|facts| facts.demand() != pool.demand) {
@@ -102,17 +120,18 @@ fn produce<J>(
     }
 }
 
-fn work<J>(
+fn work<J, L: Into<Loaded>>(
     queue: Arc<Mutex<Receiver<(usize, J)>>>,
     state: &State<'_>,
-    load: &impl Fn(usize, J) -> Result<Parsed, String>,
+    load: &impl Fn(usize, J) -> Result<L, String>,
 ) {
     while let Some((index, job)) = next(&queue) {
         // After a failure, keep draining so the producer never waits on a full queue.
         if state.failed() {
             continue;
         }
-        if let Err(error) = load(index, job).and_then(|document| state.derive(index, document)) {
+        let loaded = load(index, job);
+        if let Err(error) = loaded.and_then(|loaded| state.derive(index, loaded.into())) {
             state.fail(error);
         }
     }
@@ -167,9 +186,18 @@ impl<'a> State<'a> {
         }
     }
 
-    fn derive(&self, index: usize, document: Parsed) -> Result<(), String> {
+    fn derive(&self, index: usize, loaded: Loaded) -> Result<(), String> {
+        let (document, digest) = match loaded {
+            Loaded::Parsed(document) => (document, None),
+            Loaded::Stored { digest, parse } => {
+                if let Some(kept) = self.facts.and_then(|facts| facts.kept_document(&digest)) {
+                    return self.kept(index, kept);
+                }
+                (parse()?, Some(digest))
+            }
+        };
         match document {
-            Parsed::Bundled(document) => self.bundled(index, &document),
+            Parsed::Bundled(document) => self.bundled(index, &document, digest.as_deref()),
             Parsed::Split(document) => {
                 self.split
                     .lock()
@@ -181,7 +209,14 @@ impl<'a> State<'a> {
     }
 
     // rstyle-allow(side_effect_density): IO boundary: a store's facts are read and kept here
-    fn bundled(&self, index: usize, document: &Document) -> Result<(), String> {
+    /// Derives a bundled document's records. With the `digest` its bytes were stored under, the
+    /// store also keeps them whole, for a later run to read without parsing the document.
+    fn bundled(
+        &self,
+        index: usize,
+        document: &Document,
+        digest: Option<&str>,
+    ) -> Result<(), String> {
         (self.on_document)(document);
 
         self.functions
@@ -189,9 +224,23 @@ impl<'a> State<'a> {
             .expect("no panic while including")
             .include(document)?;
         let records = match self.facts {
-            Some(facts) => facts.records(document)?,
+            Some(facts) => facts.records(document, digest)?,
             None => records::records(document, self.demand)?,
         };
+        self.extend(index, records)
+    }
+
+    /// The records of a document the store kept whole, as deriving it again would give them.
+    fn kept(&self, index: usize, kept: KeptDocument) -> Result<(), String> {
+        let functions = kept.records.iter().map(|record| record.function.as_str());
+        self.functions
+            .lock()
+            .expect("no panic while including")
+            .include_ids(&kept.unit, functions)?;
+        self.extend(index, kept.records)
+    }
+
+    fn extend(&self, index: usize, records: Vec<Record>) -> Result<(), String> {
         let batch = (self.on_records)(records)?;
         self.records
             .lock()
@@ -210,7 +259,7 @@ impl<'a> State<'a> {
 
         // After every document that arrived, in the order their groups are merged.
         for group in layout::split_runs(split) {
-            self.bundled(usize::MAX, &layout::bundle(group)?)?;
+            self.bundled(usize::MAX, &layout::bundle(group)?, None)?;
         }
         let mut batches = self.records.into_inner().expect("no panic");
         batches.sort_by_key(|(index, _)| *index);
@@ -378,7 +427,7 @@ mod tests {
         });
         let error = pooled_records(
             jobs,
-            |_, _| Err("worker failed".to_string()),
+            |_, _| Err::<Parsed, _>("worker failed".to_string()),
             &pool(2, Demand::default()),
         )
         .unwrap_err();

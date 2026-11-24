@@ -2,7 +2,7 @@
 use super::receipt::{Receipt, TransportProgress};
 use crate::{CpgInputArgs, CpgReceiveArgs, Format};
 use rstyle_core::cpg::{
-    self, OnRecords, Order, Pool, keep_records,
+    self, Loaded, OnRecords, Order, Pool, keep_records,
     layout::{self, Parsed},
     records::{Demand, Record},
     store::facts::FunctionFacts,
@@ -166,19 +166,21 @@ fn pooled_stream<R: BufRead>(
     pool: &Pool<'_>,
 ) -> Result<Vec<Record>, String> {
     let seals = Mutex::new(Vec::new());
-    let load = |index: usize, text: String| {
-        let document = streamed(index + 1, &text)?;
-        if let Some(store) = store {
-            let seal = store.save(index, text.as_bytes())?;
-            if let Some(emitted) = store.emitted {
-                emitted.document(index, &text)?;
-            }
-            seals
-                .lock()
-                .expect("no panic while keeping")
-                .push((index, seal));
+    let load = |index: usize, text: String| -> Result<Loaded, String> {
+        let Some(store) = store else {
+            return streamed(index + 1, &text).map(Loaded::from);
+        };
+        let seal = store.save(index, text.as_bytes())?;
+        if let Some(emitted) = store.emitted {
+            emitted.document(index, &text)?;
         }
-        Ok(document)
+        let digest = seal.checksum.clone();
+        seals
+            .lock()
+            .expect("no panic while keeping")
+            .push((index, seal));
+        let parse = Box::new(move || streamed(index + 1, &text));
+        Ok(Loaded::Stored { digest, parse })
     };
     let emitted = store.and_then(|store| store.emitted);
     let mut documents = 0;
@@ -253,9 +255,9 @@ fn streamed(number: usize, text: &str) -> Result<Parsed, String> {
 }
 
 /// Every record of documents already on disk, read and derived on `pool`.
-fn records_on_disk<J: Send>(
+fn records_on_disk<J: Send, L: Into<Loaded>>(
     jobs: impl IntoIterator<Item = J>,
-    read: impl Fn(J) -> Result<Parsed, String> + Sync,
+    read: impl Fn(J) -> Result<L, String> + Sync,
     pool: &Pool<'_>,
 ) -> Result<Vec<Record>, String> {
     let jobs = jobs.into_iter().map(Ok);
@@ -375,10 +377,17 @@ fn seen_sealed_records<'a>(
     derivation: Derivation<'_>,
     hooks: (See<'_>, OnRecords<'_>),
 ) -> Result<Vec<Record>, String> {
-    let read = |(directory, seal): (&Path, &SealedDocument)| {
-        transport::read_sealed_text(directory, seal)
-            .and_then(|text| layout::parse(&text))
-            .map_err(|error| format!("{}: {error}", seal.file))
+    let read = |(directory, seal): (&Path, &SealedDocument)| -> Result<Loaded, String> {
+        let failed = |file: &str, error: String| format!("{file}: {error}");
+        let stored =
+            transport::read_sealed_stored(directory, seal).map_err(|e| failed(&seal.file, e))?;
+        let (digest, file) = (stored.digest(), seal.file.clone());
+        let parse = move || {
+            let text = stored.text()?;
+            layout::parse(&text)
+        };
+        let parse = Box::new(move || parse().map_err(|error| failed(&file, error)));
+        Ok(Loaded::Stored { digest, parse })
     };
     records_on_disk(seals, read, &pool(derivation, Order::Canonical, hooks))
 }
