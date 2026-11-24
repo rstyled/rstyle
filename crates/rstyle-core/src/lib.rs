@@ -23,6 +23,7 @@ pub mod lines;
 pub mod locator;
 pub mod merge_risk;
 pub mod normalize;
+mod parallel;
 pub mod paths;
 pub mod patterns_report;
 pub mod pdg_builder;
