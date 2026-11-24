@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Bound {
     Const(u64),
     Input(String),
@@ -24,7 +24,7 @@ pub struct Order {
     pub logarithmic: usize,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Opaque {
     pub kind: OpaqueKind,
     /// Identity of the unknown: a loop location and header node, callee or callee
@@ -33,7 +33,7 @@ pub struct Opaque {
     pub site: String,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum OpaqueKind {
     /// Executions of an unproven loop's header (iterations of its cycle) per entry
     /// of its innermost enclosing loop; everything inside that cycle runs at most

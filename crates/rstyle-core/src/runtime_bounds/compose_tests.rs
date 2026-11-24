@@ -444,6 +444,122 @@ fn recursion_unresolved_dispatch_and_missing_bodies_are_opaque_calls() {
     assert!(reason.contains("No captured summary"), "{reason}");
 }
 
+/// An owner whose only work is calling `target`.
+fn calling(target: &str) -> Program {
+    Shape::new(&[])
+        .calls(vec![call(target, Vec::new())])
+        .program()
+}
+
+/// What each owner of `order` composes to when one composer composes them in that order.
+fn composed_in_turn(
+    owners: &[(String, Program)],
+    order: &[&str],
+    limits: Limits,
+) -> BTreeMap<String, Composed> {
+    let owners: BTreeMap<&str, &Program> = owners
+        .iter()
+        .map(|(id, program)| (id.as_str(), program))
+        .collect();
+    let mut composer = Composer::new(
+        |id: &str| {
+            owners.get(id).map(|program| Analyzed {
+                outcome: analyze(program),
+                program: (*program).clone(),
+            })
+        },
+        limits,
+    );
+    order
+        .iter()
+        .map(|id| (id.to_string(), composer.composed(id, Wording::of("rust"))))
+        .collect()
+}
+
+/// `w::0` calls `w::1` and so on to `w::{last}`, which calls `w::0` when `ring`.
+fn chain(last: usize, ring: bool) -> Vec<(String, Program)> {
+    (0..=last)
+        .map(|at| {
+            let program = match (at == last, ring) {
+                (false, _) => calling(&format!("w::{}", at + 1)),
+                (true, true) => calling("w::0"),
+                (true, false) => Shape::new(&[]).program(),
+            };
+            (format!("w::{at}"), program)
+        })
+        .collect()
+}
+
+#[test]
+fn an_owner_composes_alike_whichever_owner_was_composed_first() {
+    // `w::0`, `w::1` and `w::2` call each other in a ring, and `w::3` calls into it.
+    let mut owners = chain(2, true);
+    owners.push(("w::3".into(), calling("w::0")));
+    let forward = composed_in_turn(
+        &owners,
+        &["w::0", "w::1", "w::2", "w::3"],
+        Limits::default(),
+    );
+    // Other orders enter the ring at `w::2` and at `w::1`; `w::3` enters it at `w::0`.
+    for order in [
+        ["w::2", "w::1", "w::0", "w::3"],
+        ["w::3", "w::1", "w::2", "w::0"],
+    ] {
+        assert_eq!(
+            composed_in_turn(&owners, &order, Limits::default()),
+            forward
+        );
+    }
+
+    // Each owner of the ring walks round it, to the call back into itself.
+    for (id, others) in [
+        ("w::0", ["w::1", "w::2"]),
+        ("w::1", ["w::0", "w::2"]),
+        ("w::2", ["w::0", "w::1"]),
+    ] {
+        let composition = partial(forward[id].clone());
+        assert_eq!(composition.resolved_callees, others);
+        let (site, reason) = opaque(&composition, OpaqueKind::Call);
+        assert_eq!(site, id);
+        assert!(reason.contains("Recursive call cycle"), "{reason}");
+    }
+    let into = partial(forward["w::3"].clone());
+    assert_eq!(into.resolved_callees, ["w::0", "w::1", "w::2"]);
+}
+
+#[test]
+fn each_owner_has_a_budget_of_its_own_spent_walking_round_its_cycles() {
+    // 16 owners walked through in all.
+    let limits = Limits {
+        nodes: 1,
+        ..Limits::default()
+    };
+    // A chain has no cycle to walk round: however long, every owner of it composes in full.
+    let line = chain(39, false);
+    let ids: Vec<String> = (0..40).map(|at| format!("w::{at}")).collect();
+    let order: Vec<&str> = ids.iter().map(String::as_str).collect();
+    let composed = composed_in_turn(&line, &order, limits);
+    let first = proven(composed["w::0"].clone());
+    assert_eq!(first.resolved_callees.len(), 39);
+    assert!(
+        composed
+            .values()
+            .all(|it| matches!(it, Composed::Proven(_)))
+    );
+
+    // Round a ring longer than the budget, each owner's walk is cut where its budget runs out,
+    // whichever owner was composed first.
+    let ring = chain(19, true);
+    let reversed: Vec<&str> = order[..20].iter().rev().copied().collect();
+    let forward = composed_in_turn(&ring, &order[..20], limits);
+    assert_eq!(forward, composed_in_turn(&ring, &reversed, limits));
+    let cut = partial(forward["w::0"].clone());
+    assert_eq!(cut.resolved_callees.len(), 15);
+    let (site, reason) = opaque(&cut, OpaqueKind::Call);
+    assert_eq!(site, "w::16");
+    assert_eq!(reason, "Composition owner budget exceeded");
+}
+
 #[test]
 fn unknown_callees_multiply_their_opaque_work_by_the_call_count() {
     let mut unknown_local = Shape::new(&["n"]).scalars().scan("n").program();
@@ -537,22 +653,24 @@ fn lengths_under_unshared_formals_are_opaque() {
     assert!(reason.contains("not a shared reference"), "{reason}");
 }
 
-#[test]
-fn composed_expressions_respect_the_symbolic_budget() {
-    let caller = Shape::new(&["m"])
+/// A caller scanning `m` that calls `w::linear` once per item with each of `arguments`.
+fn calling_linear_with(inputs: &[&'static str], arguments: &[&str]) -> Program {
+    let calls = arguments.iter().map(|argument| {
+        let argument = Argument::Scalar(Value::Input((*argument).into()));
+        call("w::linear", vec![argument])
+    });
+    Shape::new(inputs)
         .scalars()
         .scan("m")
-        .calls(
-            (0..8)
-                .map(|_| {
-                    call(
-                        "w::linear",
-                        vec![Argument::Scalar(Value::Input("m".into()))],
-                    )
-                })
-                .collect(),
-        )
-        .program();
+        .calls(calls.collect())
+        .program()
+}
+
+#[test]
+fn composed_expressions_respect_the_symbolic_budget() {
+    // Each call passes another input, so no two calls' terms are alike.
+    let inputs = ["m", "a", "b", "c", "d", "e", "f", "g", "h"];
+    let caller = calling_linear_with(&inputs, &inputs[1..]);
     let limits = Limits {
         expression_nodes: 12,
         ..Limits::default()
@@ -566,6 +684,23 @@ fn composed_expressions_respect_the_symbolic_budget() {
         matches!(composed, Composed::BudgetExceeded { .. }),
         "{composed:?}"
     );
+}
+
+#[test]
+fn calls_alike_compose_to_one_term_scaled_by_how_many_there_are() {
+    let caller = calling_linear_with(&["m"], &["m"; 8]);
+    let limits = Limits {
+        expression_nodes: 12,
+        ..Limits::default()
+    };
+    let composed = proven(compose_with(
+        vec![("w::linear", linear()), ("w::caller", caller)],
+        "w::caller",
+        limits,
+    ));
+    assert_eq!(composed.loop_body_entries.to_string(), "m + 8 * m * m");
+    assert_eq!(composed.workspace_invocations.to_string(), "8 * m");
+    assert_eq!(eval(&composed.loop_body_entries, &[("m", 3)]), 3 + 8 * 9);
 }
 
 /// `fn lookup(n: usize, map: &BTreeMap<..>) { for _ in 0..n { map.get(..); } }`

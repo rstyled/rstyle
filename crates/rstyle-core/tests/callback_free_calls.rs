@@ -675,7 +675,12 @@ fn exact_agreed_capture_gains_composition_without_promoting_its_local_collection
     let Composed::Proven(composed) = result else {
         panic!("{result:?}")
     };
-    assert_eq!(composed.loop_body_entries, local.loop_body_entries);
+    // The same bound, its repeated term counted once: `3 * len(peers) + len(others)`.
+    let collected = Bound::Add(vec![
+        Bound::Mul(vec![Bound::Const(3), Bound::Input(peers.input.clone())]),
+        Bound::Input(others.input.clone()),
+    ]);
+    assert_eq!(composed.loop_body_entries, collected);
     assert_eq!(
         composed
             .loop_body_entries
