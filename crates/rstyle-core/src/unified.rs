@@ -2,11 +2,11 @@
 //! completed to the next, so core derives facts and effects once however many analyses read them.
 
 use crate::config::Config;
-use crate::cpg::bounds::report::{DocumentReport, from_records};
+use crate::cpg::bounds::report::{self as bounds_report, DocumentReport};
 use crate::cpg::flow::{Derived, Standing};
 use crate::cpg::records::{self, Measured, Record};
 use crate::cpg::{self, RunInputs};
-use crate::defects_report::{self, DefectsReport};
+use crate::defects_report::{DefectsFold, DefectsReport};
 use crate::filter::{Analysis, Filter};
 use crate::patterns_report::{self, PatternsReport};
 use crate::report::{self, Report};
@@ -135,29 +135,26 @@ pub fn analyze_taking(
 ) -> Result<Analyses, String> {
     reject_a_run_outside_its_root(&records)?;
     records::canonical_order(&mut records);
-    let (spilled, folded) = match early {
+    let taken = match early {
         Some(early) => early.finish()?,
         None => (None, None),
     };
-    let runtime_bounds = filter
-        .core(Analysis::Bounds)
-        .then(|| from_records(&records, options.top));
-    let flow = filter.core(Analysis::Flow).then(|| match spilled {
-        Some(spilled) => FlowReport {
-            functions: Vec::new(),
-            spilled: Some(spilled),
-        },
-        None => FlowReport::held(take_flow(&mut records, None)),
-    });
-    let defects = filter
-        .core(Analysis::Defects)
-        .then(|| match folded {
-            Some(folded) => Ok(folded.into_report(config)),
-            None => defects_report::from_records(&mut records, config),
-        })
-        .transpose()?;
+    let Beside {
+        owners,
+        flow,
+        defects,
+    } = beside(&mut records, (filter, config), taken)?;
 
-    let (check, patterns) = checked_and_mined(records, filter, config, options)?;
+    // Bounds and defects have what they read out of the records, so they run beside check and
+    // patterns, which take the records.
+    let (runtime_bounds, defects, checked) = std::thread::scope(|scope| {
+        let bounds = owners
+            .map(|owners| scope.spawn(move || bounds_report::from_owners(owners, options.top)));
+        let defects = defects.map(|fold| scope.spawn(move || fold.into_report(config)));
+        let checked = checked_and_mined(records, filter, config, options);
+        (bounds.map(joined), defects.map(joined), checked)
+    });
+    let (check, patterns) = checked?;
     Ok(Analyses {
         check,
         patterns,
@@ -165,6 +162,54 @@ pub fn analyze_taking(
         flow,
         defects,
     })
+}
+
+/// What the analyses beside check and patterns read, out of the records.
+struct Beside {
+    owners: Option<Vec<bounds_report::Owner<'static>>>,
+    flow: Option<FlowReport>,
+    defects: Option<DefectsFold>,
+}
+
+/// Moves out of the records what bounds, flow and defects read, unless `early` took it as they
+/// were derived, so check and patterns can take the records while the others run beside them.
+fn beside(
+    records: &mut [Record],
+    (filter, config): (&Filter, &Config),
+    (spilled, folded): (Option<SpilledFlow>, Option<DefectsFold>),
+) -> Result<Beside, String> {
+    let owners = filter
+        .core(Analysis::Bounds)
+        .then(|| bounds_report::taken(records));
+    let flow = filter.core(Analysis::Flow).then(|| match spilled {
+        Some(spilled) => FlowReport {
+            functions: Vec::new(),
+            spilled: Some(spilled),
+        },
+        None => FlowReport::held(take_flow(records, None)),
+    });
+    let defects = filter
+        .core(Analysis::Defects)
+        .then(|| match folded {
+            Some(folded) => Ok(folded),
+            None => DefectsFold::new(config).map(|mut fold| {
+                fold.add(records);
+                fold
+            }),
+        })
+        .transpose()?;
+    Ok(Beside {
+        owners,
+        flow,
+        defects,
+    })
+}
+
+/// What a thread beside the run's own returned, or its panic, carried on.
+fn joined<T>(thread: std::thread::ScopedJoinHandle<'_, T>) -> T {
+    thread
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
 }
 
 /// Analyses read only what's under the source root. If nothing is, the root and the frontend
@@ -426,6 +471,35 @@ mod tests {
         assert_eq!(compact(&taken), compact(&held));
         assert_eq!(pretty(&taken), pretty(&held));
         assert_eq!(taken.text(), held.text());
+    }
+
+    #[test]
+    fn bounds_taken_out_of_the_records_report_what_reading_them_in_place_does() {
+        let filter = Filter::Everything;
+        let [mut records, _] = compiled_twice();
+        records::canonical_order(&mut records);
+        let in_place = serde_json::to_value(bounds_report::from_records(&records, None)).unwrap();
+        let options = patterns_report::Options::default();
+        let analyses = analyze(records, &filter, &Config::default(), &options).unwrap();
+
+        assert!(
+            in_place["rows"]
+                .as_array()
+                .is_some_and(|rows| !rows.is_empty())
+        );
+        assert_eq!(
+            serde_json::to_value(analyses.runtime_bounds).unwrap(),
+            in_place
+        );
+    }
+
+    #[test]
+    fn a_panic_beside_the_run_carries_on_into_it() {
+        let caught = std::panic::catch_unwind(|| {
+            std::thread::scope(|scope| joined(scope.spawn(|| panic!("beside"))))
+        });
+        let panic = caught.expect_err("the panic carried on");
+        assert_eq!(panic.downcast_ref::<&str>(), Some(&"beside"));
     }
 
     #[test]
