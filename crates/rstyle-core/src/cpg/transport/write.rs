@@ -40,6 +40,36 @@ pub fn write_json(
     })
 }
 
+// rstyle-allow(side_effect_density): IO boundary: stages and publishes a file
+/// As `write_json`, for a file nothing checks against a seal, such as a run's report: its bytes
+/// aren't hashed, and compressing them runs on other threads while the value serializes.
+pub fn write_json_unsealed(
+    path: &Path,
+    encoding: Encoding,
+    value: &impl Serialize,
+) -> Result<(), String> {
+    let mut temporary = temporary(path)?;
+    let file = BufWriter::new(temporary.as_file_mut());
+    unsealed(file, encoding, value).map_err(|error| error.to_string())?;
+    persist(temporary, path)
+}
+
+// rstyle-allow(side_effect_density): IO boundary: writes a value's JSON, compressed or not
+fn unsealed(file: impl Write, encoding: Encoding, value: &impl Serialize) -> io::Result<()> {
+    let serialize = |writer: &mut dyn Write| -> io::Result<()> {
+        serde_json::to_writer(writer, value).map_err(io::Error::other)
+    };
+    if encoding == Encoding::Json {
+        return buffered(file, serialize);
+    }
+    let workers = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
+    let mut encoder = zstd::stream::write::Encoder::new(file, 3)?;
+    encoder.include_checksum(true)?;
+    encoder.multithread(u32::try_from(workers).unwrap_or(u32::MAX))?;
+    buffered(&mut encoder, serialize)?;
+    encoder.finish()?.flush()
+}
+
 /// Streams a frontend's JSON bytes and validates their syntax before publication.
 pub fn publish(
     path: &Path,

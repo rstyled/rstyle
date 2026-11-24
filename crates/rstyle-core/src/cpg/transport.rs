@@ -12,7 +12,7 @@ pub use read::{
     read_sealed_text, validate_object,
 };
 pub use sequence::{SequenceProgress, SequenceReader, send_sealed};
-pub use write::{publish, publish_parsed, write_json};
+pub use write::{publish, publish_parsed, write_json, write_json_unsealed};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

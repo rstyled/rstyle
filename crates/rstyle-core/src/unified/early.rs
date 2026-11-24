@@ -184,14 +184,28 @@ impl SpilledFlow {
         &self.standings
     }
 
+    fn row(&self, place: (u64, usize)) -> Result<FlowRow, String> {
+        let bytes = self.bytes(place)?;
+        serde_json::from_slice(&bytes).map_err(|error| format!("Cannot read spilled flow: {error}"))
+    }
+
+    /// A row as it was spilled, checked to be JSON but not read.
+    fn raw(&self, place: (u64, usize)) -> Result<Box<serde_json::value::RawValue>, String> {
+        let text = String::from_utf8(self.bytes(place)?).map_err(|error| error.to_string());
+        let raw = text.and_then(|text| {
+            serde_json::value::RawValue::from_string(text).map_err(|error| error.to_string())
+        });
+        raw.map_err(|error| format!("Cannot read spilled flow: {error}"))
+    }
+
     // rstyle-allow(side_effect_density): IO boundary: reads one row back from the spill file
-    fn row(&self, (at, len): (u64, usize)) -> Result<FlowRow, String> {
+    fn bytes(&self, (at, len): (u64, usize)) -> Result<Vec<u8>, String> {
         let mut file = self.file.lock().map_err(|_| POISONED)?;
         let mut bytes = vec![0; len];
         file.seek(SeekFrom::Start(at))
             .and_then(|_| file.read_exact(&mut bytes))
             .map_err(|error| format!("Cannot read spilled flow: {error}"))?;
-        serde_json::from_slice(&bytes).map_err(|error| format!("Cannot read spilled flow: {error}"))
+        Ok(bytes)
     }
 }
 
@@ -199,8 +213,22 @@ impl serde::Serialize for SpilledFlow {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut sequence = serializer.serialize_seq(Some(self.rows.len()))?;
         for &place in &self.rows {
-            sequence.serialize_element(&self.row(place).map_err(S::Error::custom)?)?;
+            match VERBATIM.get() {
+                true => sequence.serialize_element(&self.raw(place).map_err(S::Error::custom)?)?,
+                false => sequence.serialize_element(&self.row(place).map_err(S::Error::custom)?)?,
+            }
         }
         sequence.end()
     }
+}
+
+thread_local! {
+    static VERBATIM: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// What `write` returns, with spilled flow rows written as the bytes they were spilled as, on
+/// this thread, instead of read back and serialized again. Compact JSON writes a row the same
+/// either way; pretty JSON would leave a verbatim row unindented, so only a compact writer may.
+pub fn verbatim<T>(write: impl FnOnce() -> T) -> T {
+    crate::raised::raised(&VERBATIM, write)
 }
