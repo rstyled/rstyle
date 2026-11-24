@@ -65,6 +65,16 @@ type EachFunction<'d> = Vec<(&'d Function, Result<FnFacts, String>)>;
 /// Each function's facts, or why they could not be derived, in document order. With `graphs`,
 /// each has its dependence graph.
 pub(super) fn derive_each(document: &Document, graphs: bool) -> Result<EachFunction<'_>, String> {
+    derive_some(document, graphs, &|_| true)
+}
+
+/// As [`derive_each`], for the functions whose place in the document is `wanted`. The document
+/// is checked whole, whichever are.
+pub(super) fn derive_some<'d>(
+    document: &'d Document,
+    graphs: bool,
+    wanted: &dyn Fn(usize) -> bool,
+) -> Result<EachFunction<'d>, String> {
     declared(&document.coverage)?;
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
     let sources = Sources::new(unit)?;
@@ -85,8 +95,9 @@ pub(super) fn derive_each(document: &Document, graphs: bool) -> Result<EachFunct
     };
     Ok(functions
         .iter()
-        .filter(inside)
-        .map(|function| {
+        .enumerate()
+        .filter(|(at, function)| wanted(*at) && inside(function))
+        .map(|(_, function)| {
             let facts = function_facts(
                 function,
                 (&tables, &sources, roles, classes),

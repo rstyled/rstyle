@@ -1,5 +1,7 @@
 //! A completed capture is read against one immutable manifest snapshot.
-use super::{DOCUMENTS_MANIFEST, DocumentManifest, Observed, SealedDocument, read_sealed};
+use super::{
+    DOCUMENTS_MANIFEST, DocumentManifest, Observed, SealedDocument, read_sealed, read_sealed_text,
+};
 use serde::{Serialize, de::DeserializeOwned};
 use std::path::{Path, PathBuf};
 
@@ -30,6 +32,13 @@ fn total(previous: u64, bytes: u64) -> Result<u64, String> {
     previous
         .checked_add(bytes)
         .ok_or_else(|| "Capture byte totals overflow u64".into())
+}
+
+/// One document of a capture, verified: the file its manifest names, and its JSON text.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Captured {
+    pub file: String,
+    pub text: String,
 }
 
 /// Opens the manifest once and verifies each document in its declared order.
@@ -76,21 +85,45 @@ impl CaptureReader {
 
     /// Typed callers can consume one document without constructing a generic JSON tree.
     pub fn next_document<T: DeserializeOwned>(&mut self) -> Result<Option<T>, String> {
+        self.next_read(read_sealed::<T>)
+    }
+
+    /// The next document's text, verified against its seal but not parsed, so a caller can
+    /// parse it where it likes. It counts as verified whatever that parse makes of it, since
+    /// that is no longer transport.
+    pub fn next_text(&mut self) -> Result<Option<Captured>, String> {
+        self.next_read(|directory, seal| {
+            let text = read_sealed_text(directory, seal)?;
+            Ok(Captured {
+                file: seal.file.clone(),
+                text,
+            })
+        })
+    }
+
+    fn next_read<T>(
+        &mut self,
+        read: impl FnOnce(&Path, &SealedDocument) -> Result<T, String>,
+    ) -> Result<Option<T>, String> {
         if self.failed {
             return Ok(None);
         }
 
-        let result = self.read_next();
+        let result = self.read_next(read);
         self.failed = result.is_err();
         result
     }
 
-    fn read_next<T: DeserializeOwned>(&mut self) -> Result<Option<T>, String> {
+    // rstyle-allow(side_effect_density): IO boundary: reads one sealed document and counts it
+    fn read_next<T>(
+        &mut self,
+        read: impl FnOnce(&Path, &SealedDocument) -> Result<T, String>,
+    ) -> Result<Option<T>, String> {
         let Some(seal) = self.manifest.documents.get(self.position) else {
             return Ok(None);
         };
-        let value = read_sealed(&self.directory, seal)
-            .map_err(|error| format!("{}: {error}", seal.file))?;
+        let value =
+            read(&self.directory, seal).map_err(|error| format!("{}: {error}", seal.file))?;
 
         self.progress = self.progress.recorded(seal)?;
         self.position += 1;

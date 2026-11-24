@@ -7,7 +7,7 @@ use crate::lines::preceding_comment_line;
 use std::collections::BTreeMap;
 
 /// Lines above a signature that are searched for its comment, as the rustc frontend does.
-const LOOKBACK_LINES: usize = 40;
+pub(crate) const LOOKBACK_LINES: usize = 40;
 
 /// What a document says of a file beyond its text.
 #[derive(Clone, Copy, Default)]
@@ -104,12 +104,26 @@ impl<'a> Sources<'a> {
     /// The comment line directly above `line` of the span's file, attributes skipped.
     pub fn preceding_line(&self, span: &FileSpan, line: usize) -> Result<String, String> {
         let (_, content) = self.file(&span.file)?;
-        let first = line.saturating_sub(1 + LOOKBACK_LINES);
-        let above: Vec<&str> = content
-            .lines()
-            .skip(first)
-            .take(line.saturating_sub(1) - first)
-            .collect();
-        Ok(preceding_comment_line(&above, above.len()))
+        Ok(comment_line_above(content, line))
     }
+}
+
+/// The comment line directly above 1-based `line` of `content`, attributes and doc
+/// comments skipped, within the lines a signature's comment is searched in.
+pub fn comment_line_above(content: &str, line: usize) -> String {
+    let first = line.saturating_sub(1 + LOOKBACK_LINES);
+    let above: Vec<&str> = content
+        .lines()
+        .skip(first)
+        .take(line.saturating_sub(1) - first)
+        .collect();
+    preceding_comment_line(&above, above.len())
+}
+
+/// As [`comment_line_above`], with `starts` where each line of `content` starts, so only the
+/// lines searched are read.
+pub fn comment_line_above_from(content: &str, starts: &[usize], line: usize) -> String {
+    let first = line.saturating_sub(1 + LOOKBACK_LINES);
+    let from = starts.get(first).copied().unwrap_or(content.len());
+    comment_line_above(&content[from..], line - first)
 }

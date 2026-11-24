@@ -82,6 +82,7 @@ fn control_environment(key: &OsStr) -> bool {
                 | "RSTYLE_CPG_COMPRESSION"
                 | "RSTYLE_DOCUMENT_DIR"
                 | "RSTYLE_DRIVER"
+                | "RSTYLE_DRIVER_THREADS"
                 | "RSTYLE_PERF"
         )
     })
@@ -106,6 +107,7 @@ mod tests {
             "RSTYLE_CAPTURE_PLAN",
             "RSTYLE_DOCUMENT_DIR",
             "RSTYLE_CPG_DIR",
+            "RSTYLE_DRIVER_THREADS",
             "RSTYLE_PERF",
         ] {
             assert!(control_environment(OsStr::new(name)), "{name}");

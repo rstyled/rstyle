@@ -8,7 +8,7 @@
 use super::flow::Derived;
 use super::model::{Dispatch, Function, Node, NodeKind, Ref, TargetKind, TypeKind};
 use super::tree::Tables;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 /// Calls that make an error from a message, its first string argument, by identity.
@@ -19,7 +19,7 @@ const NO_ERROR: &str = "go::nil";
 const WRAPS: &str = "%w";
 
 /// Where an error can come from.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind", content = "value")]
 pub enum Source {
     /// Made here, with this message; empty when the message is computed.
@@ -34,7 +34,7 @@ pub enum Source {
 }
 
 /// A source and how many messages wrap it on the way out.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Failure {
     pub source: Source,
     pub wrapped: usize,

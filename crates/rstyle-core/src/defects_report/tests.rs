@@ -60,7 +60,11 @@ fn integer_type() -> Value {
 }
 
 fn records(documents: Vec<Value>) -> Vec<Record> {
-    read_records(documents.into_iter().map(Ok), DEMAND).unwrap()
+    read_records(
+        documents.iter().map(crate::cpg::layout::Parsed::from_json),
+        DEMAND,
+    )
+    .unwrap()
 }
 
 fn report_of(documents: Vec<Value>, config: &Config) -> DefectsReport {

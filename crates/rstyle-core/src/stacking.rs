@@ -172,9 +172,10 @@ fn bundle<F: PlanningInput>(
 }
 
 /// Parameters of `facts[f]` whose every mention is a forward into `changed` callees.
+/// `sites` are `f`'s own calls into those callees.
 fn pass_through<F: PlanningInput>(f: usize, facts: &[F], sites: &[&Site<'_>]) -> Vec<String> {
     let mut forwarded: BTreeMap<usize, usize> = BTreeMap::new();
-    for site in sites.iter().filter(|s| s.caller == f) {
+    for site in sites {
         for (from, _) in forwards(site, facts) {
             *forwarded.entry(from).or_default() += 1;
         }
@@ -195,27 +196,25 @@ fn pass_through<F: PlanningInput>(f: usize, facts: &[F], sites: &[&Site<'_>]) ->
 struct Ctx<'a, F> {
     facts: &'a [F],
     sites: Vec<Site<'a>>,
+    /// How many sites call each function.
+    incoming: Vec<usize>,
 }
 
 impl<F: PlanningInput> Ctx<'_, F> {
-    fn step(&self, index: usize, signature: bool, changed: &BTreeSet<usize>) -> PlanStep {
+    /// `outgoing` holds `index`'s own calls into the group's re-signed functions.
+    fn step(&self, index: usize, signature: bool, outgoing: &[&Site<'_>]) -> PlanStep {
         let f = self.facts[index]
             .planning_owner()
             .facts
             .expect("Printed edit step has authored facts");
-        let into_changed: Vec<&Site<'_>> = self
-            .sites
-            .iter()
-            .filter(|s| changed.contains(&s.callee))
-            .collect();
         PlanStep {
             path: f.path.clone(),
             line: f.line,
             name: f.name.clone(),
             signature,
-            incoming_sites: self.sites.iter().filter(|s| s.callee == index).count(),
-            outgoing_sites: into_changed.iter().filter(|s| s.caller == index).count(),
-            pass_through: pass_through(index, self.facts, &into_changed),
+            incoming_sites: self.incoming[index],
+            outgoing_sites: outgoing.len(),
+            pass_through: pass_through(index, self.facts, outgoing),
         }
     }
 
@@ -257,12 +256,20 @@ impl<F: PlanningInput> Ctx<'_, F> {
             .chain(members.iter().copied())
             .filter(|c| !changed.contains(c))
             .collect();
+        // Split once per group, so no step rescans the run's call sites.
+        let mut by_caller: BTreeMap<usize, Vec<&Site<'_>>> = BTreeMap::new();
+        for &site in &feeding {
+            by_caller.entry(site.caller).or_default().push(site);
+        }
         let signatures = members.iter().copied().filter(|m| changed.contains(m));
         let (step_owners, steps) = signatures
             .map(|m| (m, true))
             .chain(touched.into_iter().map(|c| (c, false)))
             .filter(|(m, _)| self.facts[*m].planning_owner().facts.is_some())
-            .map(|(m, signature)| (m, self.step(m, signature, &changed)))
+            .map(|(m, signature)| {
+                let outgoing = by_caller.get(&m).map_or(&[][..], Vec::as_slice);
+                (m, self.step(m, signature, outgoing))
+            })
             .unzip();
         let unavailable_owners = self.unavailable(&feeding);
         let (bundles, bundle_owners) = bundles(&feeding, self.facts).into_iter().unzip();
@@ -319,9 +326,15 @@ pub fn plans_planning<F: PlanningInput>(
     facts: &[F],
     graph: &Graph,
 ) -> Vec<Option<IndexedPlan>> {
+    let sites = all_sites(graph);
+    let mut incoming = vec![0; facts.len()];
+    for site in &sites {
+        incoming[site.callee] += 1;
+    }
     let ctx = Ctx {
         facts,
-        sites: all_sites(graph),
+        sites,
+        incoming,
     };
     groups.iter().map(|g| ctx.plan(g, violators)).collect()
 }
@@ -535,6 +548,45 @@ mod tests {
             .collect();
         // `top` calls `mid`, not the re-signed `callee`: outside this plan.
         assert_eq!(steps, [("callee", true, 1, 0), ("mid", false, 2, 1)]);
+    }
+
+    #[test]
+    fn steps_count_only_calls_into_re_signed_members() {
+        let leaf = function("leaf", 1, abc(1));
+        let side = function("side", 5, abc(1));
+        let mut mid = function("mid", 10, abc(2));
+        call(&mut mid, "leaf", vec![Param(0), Param(1), Param(2)]);
+        call(&mut mid, "side", vec![Param(0), Param(1), Param(2)]);
+        let mut top = function("top", 20, vec![]);
+        call(&mut top, "mid", vec![Const, Const, Const]);
+        call(&mut top, "mid", vec![Const, Const, Const]);
+        call(&mut top, "leaf", vec![Const, Const, Const]);
+        let facts = [leaf, side, mid, top];
+        let graph = graph::build(&facts);
+        let flags = rules(&[(0, RULE), (2, RULE)]);
+        let p = one(&[0, 2], &flags, &facts, &graph).unwrap();
+        let steps: Vec<(&str, bool, usize, usize)> = p
+            .steps
+            .iter()
+            .map(|s| {
+                (
+                    s.name.as_str(),
+                    s.signature,
+                    s.incoming_sites,
+                    s.outgoing_sites,
+                )
+            })
+            .collect();
+        // `mid`'s call into `side` is not an edit, and its forwards there still count as uses.
+        assert_eq!(
+            steps,
+            [
+                ("leaf", true, 2, 0),
+                ("mid", true, 2, 1),
+                ("top", false, 0, 3)
+            ]
+        );
+        assert!(p.steps[1].pass_through.is_empty());
     }
 
     #[test]

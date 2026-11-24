@@ -3,6 +3,7 @@ pub(super) mod associations;
 mod build_lane;
 pub(super) mod ledger;
 mod owner_reuse;
+mod relocation;
 mod retention;
 mod saved;
 pub(in crate::compiler) use retention::{LIMIT_VARIABLE, hold};
@@ -14,6 +15,7 @@ use rstyle_core::cli_args::flag_value;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
+    num::NonZeroU8,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -34,6 +36,9 @@ pub struct Target {
 pub struct Plan {
     #[serde(default)]
     pub document_encoding: rstyle_core::cpg::transport::Encoding,
+    /// The threads each driver compiles and writes on, from `RSTYLE_DRIVER_THREADS`.
+    #[serde(default = "one_thread")]
+    pub driver_threads: NonZeroU8,
     /// Original Cargo selection covers every workspace package and all targets.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_all_targets: Option<bool>,
@@ -43,6 +48,9 @@ pub struct Plan {
     pub compiler_runtime_bounds: bool,
     pub ledger_schema: String,
     pub root: PathBuf,
+    /// The pinned toolchain's sysroot, which documents name as `$SYSROOT`.
+    #[serde(default)]
+    pub sysroot: PathBuf,
     pub driver: PathBuf,
     pub targets: Vec<Target>,
     pub compiler_identity: String,
@@ -60,7 +68,8 @@ impl Plan {
     }
 
     /// Whether another capture's documents serve this one. What each route then reads of them
-    /// doesn't matter: the driver writes the same documents for every route.
+    /// doesn't matter: the driver writes the same documents for every route, on any threads.
+    /// Where the driver is installed doesn't either: the owner index compares its bytes.
     fn same_capture(&self, other: &Self) -> bool {
         self.captured() == other.captured()
     }
@@ -69,6 +78,8 @@ impl Plan {
         Self {
             compiler_patterns: false,
             compiler_runtime_bounds: false,
+            driver_threads: one_thread(),
+            driver: PathBuf::new(),
             ..self.clone()
         }
     }
@@ -101,6 +112,16 @@ pub struct Capture {
     pub units: Vec<Unit>,
     pub failures: Vec<String>,
     pub expected_unit_graph: Value,
+}
+
+impl Capture {
+    /// The machine's directories this capture's documents name by placeholder: the source root,
+    /// the build directory Cargo writes to and the pinned toolchain's sysroot.
+    pub fn places(&self) -> rstyle_capture::Places {
+        let sysroot =
+            (!self.plan.sysroot.as_os_str().is_empty()).then_some(self.plan.sysroot.as_path());
+        rstyle_capture::Places::new(&self.plan.root, Some(&build_lane::directory(self)), sysroot)
+    }
 }
 
 pub fn prepare(cli: &Cli, args: &Args) -> Result<Capture, String> {
@@ -180,14 +201,20 @@ fn run_directory(target: &Path) -> Result<PathBuf, String> {
     Ok(directory)
 }
 
+fn one_thread() -> NonZeroU8 {
+    NonZeroU8::MIN
+}
+
 fn plan(root: PathBuf, targets: Vec<Target>, environment: CaptureEnvironment) -> Plan {
     Plan {
         document_encoding: Default::default(),
+        driver_threads: environment.driver_threads,
         workspace_all_targets: None,
         compiler_patterns: false,
         compiler_runtime_bounds: false,
         ledger_schema: ledger::SCHEMA.into(),
         root,
+        sysroot: environment.sysroot,
         compiler_identity: environment.compiler_identity,
         cargo_identity: environment.cargo_identity,
         driver: environment.driver,
@@ -198,6 +225,8 @@ fn plan(root: PathBuf, targets: Vec<Target>, environment: CaptureEnvironment) ->
 
 struct CaptureEnvironment {
     driver: PathBuf,
+    sysroot: PathBuf,
+    driver_threads: NonZeroU8,
     compiler_identity: String,
     cargo_identity: String,
 }
@@ -205,6 +234,8 @@ struct CaptureEnvironment {
 fn capture_environment() -> Result<CaptureEnvironment, String> {
     Ok(CaptureEnvironment {
         driver: run::canonical(&run::driver_path()?).map_err(|e| e.to_string())?,
+        sysroot: tool_identity("rustc", "--print=sysroot")?.into(),
+        driver_threads: rstyle_capture::threads::from_environment()?,
         compiler_identity: tool_identity("rustc", "-vV")?,
         cargo_identity: tool_identity("cargo", "--version")?,
     })
@@ -326,20 +357,57 @@ fn cargo_command() -> Command {
 
 fn command(capture: &Capture, cli: &Cli, args: &Args) -> Result<Command, String> {
     let mut command = cargo_command();
+    // Freshness by content, not file times: a fresh checkout, or a build directory restored onto
+    // one, leaves every source newer than its output, which would recapture every unit. Cargo
+    // takes the setting only with the unstable flag beside it.
     command
-        .args(["check", "--message-format=json"])
+        .args(["check", "-Zchecksum-freshness", "--message-format=json"])
+        .env("CARGO_BUILD_FINGERPRINT", "content")
         .env("CARGO_TARGET_DIR", build_lane::directory(capture))
         .env("CARGO_INCREMENTAL", "0")
         .env("RSTYLE_CAPTURE_PLAN", capture.directory.join("plan.json"));
     command
-        .env(
-            "RUSTC_WORKSPACE_WRAPPER",
-            std::env::current_exe().map_err(|e| e.to_string())?,
-        )
+        .env("RUSTC_WORKSPACE_WRAPPER", WRAPPER)
+        .env("PATH", wrapper_search_path(capture)?)
         .args(selection_args(cli))
         .args(build_args(args));
 
     Ok(command)
+}
+
+/// The name Cargo runs this program by as the workspace wrapper. Cargo hashes the wrapper as it's
+/// named into each workspace crate's `-C metadata`, which every definition's identity in a
+/// document carries; named by where this program is installed, the same source would give other
+/// documents, and another build directory, on each machine that installs it elsewhere.
+const WRAPPER: &str = "rstyle-capture-wrapper";
+
+// rstyle-allow(side_effect_density): links the wrapper's name to this program for Cargo to find.
+/// The `PATH` Cargo runs with: a directory beside the runs, where `WRAPPER` names this program,
+/// ahead of everything else.
+fn wrapper_search_path(capture: &Capture) -> Result<std::ffi::OsString, String> {
+    let directory = capture.directory.with_file_name("wrapper");
+    std::fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+    let program = std::env::current_exe().map_err(|e| e.to_string())?;
+    // Replace whatever an earlier program left under the name in one step.
+    let staged = directory.join(format!("{WRAPPER}.{}", std::process::id()));
+    let _ = std::fs::remove_file(&staged);
+    link_program(&program, &staged)?;
+    std::fs::rename(&staged, directory.join(WRAPPER)).map_err(|e| e.to_string())?;
+    let inherited = std::env::var_os("PATH").unwrap_or_default();
+    std::env::join_paths(std::iter::once(directory).chain(std::env::split_paths(&inherited)))
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(unix)]
+fn link_program(program: &Path, link: &Path) -> Result<(), String> {
+    std::os::unix::fs::symlink(program, link).map_err(|e| e.to_string())
+}
+
+#[cfg(not(unix))]
+fn link_program(program: &Path, link: &Path) -> Result<(), String> {
+    std::fs::copy(program, link)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
 fn selection_args(cli: &Cli) -> Vec<std::ffi::OsString> {
@@ -650,6 +718,10 @@ fn driver_command(
     }
     command
         .env("RSTYLE_CPG_COMPRESSION", plan.document_encoding.cli_name())
+        .env(
+            rstyle_capture::threads::VARIABLE,
+            plan.driver_threads.to_string(),
+        )
         .args(arguments);
     Ok(command)
 }
