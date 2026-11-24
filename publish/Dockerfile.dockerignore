@@ -1,2 +1,3 @@
-.git
+# .git stays: rstyle-driver's build.rs records the commit it was built from (git rev-parse HEAD) and whether the
+# worktree was clean (git status), as RSTYLE_PRODUCER_REVISION.
 /target
