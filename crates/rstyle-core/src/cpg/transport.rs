@@ -8,7 +8,8 @@ mod write;
 pub use capture::{CaptureProgress, CaptureReader, Captured, read_manifest_bytes};
 pub use manifest::{DOCUMENTS_MANIFEST, DocumentManifest, SealedDocument};
 pub use read::{
-    copy_sealed, read_json, read_json_text, read_sealed, read_sealed_text, validate_object,
+    Stored, copy_sealed, read_json, read_json_text, read_sealed, read_sealed_stored,
+    read_sealed_text, validate_object,
 };
 pub use sequence::{SequenceProgress, SequenceReader, send_sealed};
 pub use write::{publish, publish_parsed, write_json};

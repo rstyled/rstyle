@@ -159,6 +159,9 @@ fn text_reads_check_both_seals_and_say_which_one_failed() {
         let seal = write_json(&path, encoding, &example()).unwrap();
         assert_eq!(read_sealed_text(directory.path(), &seal).unwrap(), decoded);
         assert_eq!(read_json_text(&path).unwrap(), decoded);
+        let stored = read_sealed_stored(directory.path(), &seal).unwrap();
+        assert_eq!(stored.digest(), seal.checksum);
+        assert_eq!(stored.text().unwrap(), decoded);
 
         let failure = |seal: &SealedDocument| {
             let error = read_sealed_text(directory.path(), seal).unwrap_err();

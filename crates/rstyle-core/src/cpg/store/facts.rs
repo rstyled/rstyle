@@ -16,9 +16,16 @@
 //! A function whose identity another function of its document shares, or whose facts fail, is
 //! derived every time, since what it derives depends on more than itself.
 //!
-//! Each document's records are kept as one facts pack: a zstd frame per function and an index of
-//! their keys, named by the sha256 of its bytes like any object. A map entry per unit names the
-//! packs its documents made in the last run that kept it, and a run looks its keys up in those.
+//! Each document's records are kept as one facts pack: a zstd frame per function, in order, and an
+//! index of their keys, none for a function derived every time, named by the sha256 of its bytes
+//! like any object. A map entry per unit names the packs its documents made in the last run that
+//! kept it, and a run looks its keys up in those.
+//!
+//! A document read from stored bytes is also kept whole: an entry under the sha256 of those bytes
+//! names its unit, its language and its pack. A run that reads the same bytes again takes every
+//! record from the pack, in order, without decoding or parsing the document. Its functions' keys
+//! would all be the same, being read from the document alone, and a function derived every time
+//! derives the same record from the same document.
 
 use super::super::model::{Definition, Document, File, Function, Unit, spans_reached};
 use super::super::records::{self, Demand, Measured, Record};
@@ -44,6 +51,8 @@ const FOOTER: usize = 24;
 const LEVEL: i32 = 3;
 /// The map from a unit, under one build and demand, to the facts packs its documents made.
 const MAP: &str = "facts";
+/// The map from a document's stored bytes, under one build and demand, to its facts pack.
+const DOCUMENTS: &str = "facts-documents";
 /// How many lines above a signature core searches for its comment, as `source` does.
 const LOOKBACK_LINES: usize = super::super::source::LOOKBACK_LINES;
 
@@ -84,8 +93,17 @@ struct Index {
 /// A record read back from the store, and its frame as kept.
 type Found = Option<(Record, Vec<u8>)>;
 
-/// Frames of a facts pack, in order, each with the key it's kept under.
-type Frames = Vec<(String, Vec<u8>)>;
+/// Frames of a facts pack, in order, each with the key it's kept under, if any.
+type Frames = Vec<(Option<String>, Vec<u8>)>;
+
+/// Where each frame of a facts pack lies, in order, with the key it's kept under, if any.
+type Places = Vec<(Option<String>, [u64; 2])>;
+
+/// A document the store kept whole: its unit, and its records in document order.
+pub struct KeptDocument {
+    pub unit: String,
+    pub records: Vec<Record>,
+}
 
 impl FunctionFacts {
     /// The facts the store at `root` keeps for runs of the rstyle build named `build` asking
@@ -127,8 +145,13 @@ impl FunctionFacts {
 
     /// A bundled document's records, in document order, as [`records::records`] reads them: each
     /// function's as kept under its key when the store holds it, else derived. The document's
-    /// records are kept as a facts pack of their own.
-    pub fn records(&self, document: &Document) -> Result<Vec<Record>, String> {
+    /// records are kept as a facts pack of their own, and kept whole under `digest`, the sha256
+    /// its bytes were stored under, when there is one.
+    pub fn records(
+        &self,
+        document: &Document,
+        digest: Option<&str>,
+    ) -> Result<Vec<Record>, String> {
         let unit = document.unit.as_ref().ok_or("The document has no unit")?;
         let functions = unit.functions.as_deref().unwrap_or_default();
         let keys = Keys::new(document, unit, &self.scope).each(functions);
@@ -141,18 +164,88 @@ impl FunctionFacts {
         }
         let places = (0..functions.len()).filter(|at| wanted(*at));
         let derived: BTreeMap<usize, Record> = places.zip(derived).collect();
-        let (records, frames) = self.merged(keys, found, derived)?;
-        self.keep(&unit.id, frames, spoiled)?;
+        let (records, frames) = self.merged((keys, found), derived, digest.is_some())?;
+        let pack = self.keep(&unit.id, frames, spoiled)?;
+        if let Some(digest) = digest {
+            self.keep_document(digest, unit, pack.as_deref())?;
+        }
         Ok(records)
     }
 
+    // rstyle-allow(side_effect_density): IO boundary: reads a document's entry and facts pack
+    /// The records of the document whose bytes were stored under `digest`, when the store kept
+    /// it whole and its pack reads, as deriving it again would give them. A run that verifies
+    /// derives every document again instead.
+    pub fn kept_document(&self, digest: &str) -> Option<KeptDocument> {
+        if self.verify {
+            return None;
+        }
+        let entry = std::fs::read(self.document_path(digest)).ok()?;
+        let entry: Value = serde_json::from_slice(&entry).ok()?;
+        if entry["schema"] != FACTS_SCHEMA {
+            return None;
+        }
+        let unit = entry["unit"].as_str()?.to_owned();
+        let wording = Wording::of(entry["language"].as_str()?);
+        let records = match &entry["pack"] {
+            Value::Null => Vec::new(),
+            Value::String(pack) => {
+                let records = self.pack_records(pack, wording)?;
+                let mut written = self.written.lock().expect("no panic while keeping facts");
+                written
+                    .entry(unit.clone())
+                    .or_default()
+                    .insert(pack.clone());
+                records
+            }
+            _ => return None,
+        };
+        self.reused.fetch_add(records.len(), Ordering::Relaxed);
+        Some(KeptDocument { unit, records })
+    }
+
+    // rstyle-allow(side_effect_density): IO boundary: reads a facts pack whole
+    /// Every record a facts pack holds, in order, if each one reads.
+    fn pack_records(&self, pack: &str, wording: Wording) -> Option<Vec<Record>> {
+        let path = self.objects.path(pack).ok()?;
+        let entries = pack_index(&path).ok()?;
+        let bytes = std::fs::read(path).ok()?;
+        entries
+            .into_iter()
+            .map(|(_, [offset, length])| {
+                let offset = usize::try_from(offset).ok()?;
+                let end = offset.checked_add(usize::try_from(length).ok()?)?;
+                read(bytes.get(offset..end)?, wording).map(|(record, _)| record)
+            })
+            .collect()
+    }
+
+    // rstyle-allow(side_effect_density): IO boundary: keeps a document's entry
+    /// Keeps the document whose bytes were stored under `digest` whole: its unit, its language
+    /// and the pack its records are in, none when it has no functions.
+    fn keep_document(&self, digest: &str, unit: &Unit, pack: Option<&str>) -> Result<(), String> {
+        let entry = json!({
+            "schema": FACTS_SCHEMA,
+            "unit": unit.id,
+            "language": unit.language.name,
+            "pack": pack,
+        });
+        let bytes = serde_json::to_vec(&entry).expect("a document entry serializes");
+        super::replace(&self.document_path(digest), &bytes)
+    }
+
+    fn document_path(&self, digest: &str) -> PathBuf {
+        self.entry_path(DOCUMENTS, digest)
+    }
+
     /// Each function's record in document order, kept or derived, and the frame each one with a
-    /// key is kept in. A record both kept and derived, as verifying gives, must be the same.
+    /// key is kept in, or each one at all when the document is kept `whole`. A record both kept
+    /// and derived, as verifying gives, must be the same.
     fn merged(
         &self,
-        keys: Vec<Option<String>>,
-        found: Vec<Found>,
+        (keys, found): (Vec<Option<String>>, Vec<Found>),
         mut derived: BTreeMap<usize, Record>,
+        whole: bool,
     ) -> Result<(Vec<Record>, Frames), String> {
         let mut records = Vec::with_capacity(keys.len());
         let mut frames = Vec::new();
@@ -164,11 +257,12 @@ impl FunctionFacts {
                         same(&kept, fresh, &key)?;
                     }
                     self.reused.fetch_add(1, Ordering::Relaxed);
-                    (kept, Some((key, frame)))
+                    (kept, Some((Some(key), frame)))
                 }
                 (_, key) => {
                     let fresh = fresh.ok_or("a function was neither kept nor derived")?;
-                    let frame = key.map(|key| Ok::<_, String>((key, frame(&fresh)?)));
+                    let kept = key.is_some() || whole;
+                    let frame = kept.then(|| Ok::<_, String>((key, frame(&fresh)?)));
                     self.derived.fetch_add(1, Ordering::Relaxed);
                     (fresh, frame.transpose()?)
                 }
@@ -187,8 +281,13 @@ impl FunctionFacts {
     }
 
     fn map_path(&self, unit: &str) -> PathBuf {
-        let key = sha256(format!("{}\n{unit}", self.scope).as_bytes());
-        self.root.join("maps").join(MAP).join(key)
+        self.entry_path(MAP, unit)
+    }
+
+    /// Where `map` keeps the entry for `name` under this store's scope.
+    fn entry_path(&self, map: &str, name: &str) -> PathBuf {
+        let key = sha256(format!("{}\n{name}", self.scope).as_bytes());
+        self.root.join("maps").join(map).join(key)
     }
 
     // rstyle-allow(side_effect_density): IO boundary: reads the indexes of a unit's facts packs
@@ -206,9 +305,10 @@ impl FunctionFacts {
                 continue;
             };
             let at = index.packs.len();
-            index
-                .frames
-                .extend(frames.into_iter().map(|(key, place)| (key, (at, place))));
+            let keyed = frames
+                .into_iter()
+                .filter_map(|(key, place)| Some((key?, (at, place))));
+            index.frames.extend(keyed);
             index.packs.push(name.to_owned());
         }
         index
@@ -249,11 +349,12 @@ impl FunctionFacts {
     }
 
     // rstyle-allow(side_effect_density): IO boundary: keeps a document's facts pack
-    /// Keeps a document's frames as a facts pack of the unit's, unless it has none. When a pack
-    /// the store held didn't read, a pack of the same name is written again, not trusted.
-    fn keep(&self, unit: &str, frames: Frames, spoiled: bool) -> Result<(), String> {
+    /// Keeps a document's frames as a facts pack of the unit's, unless it has none, and says
+    /// which. When a pack the store held didn't read, a pack of the same name is written again,
+    /// not trusted.
+    fn keep(&self, unit: &str, frames: Frames, spoiled: bool) -> Result<Option<String>, String> {
         if frames.is_empty() {
-            return Ok(());
+            return Ok(None);
         }
         let bytes = pack(unit, frames)?;
         if spoiled {
@@ -264,8 +365,11 @@ impl FunctionFacts {
         }
         let name = self.objects.put(&bytes)?;
         let mut written = self.written.lock().expect("no panic while keeping facts");
-        written.entry(unit.to_owned()).or_default().insert(name);
-        Ok(())
+        written
+            .entry(unit.to_owned())
+            .or_default()
+            .insert(name.clone());
+        Ok(Some(name))
     }
 
     // rstyle-allow(side_effect_density): IO boundary: records each unit's facts packs
@@ -343,7 +447,7 @@ fn same(kept: &Record, fresh: &Record, key: &str) -> Result<(), String> {
 }
 
 /// A facts pack of `unit`'s functions: their frames in order, then an index saying which key
-/// each one is kept under, then where the index lies.
+/// each one is kept under, if any, then where the index lies.
 fn pack(unit: &str, frames: Frames) -> Result<Vec<u8>, String> {
     let header = [MAGIC.as_slice(), &FORMAT].concat();
     let mut at = header.len() as u64;
@@ -365,9 +469,9 @@ fn pack(unit: &str, frames: Frames) -> Result<Vec<u8>, String> {
 }
 
 // rstyle-allow(side_effect_density): IO boundary: reads a facts pack's header, footer and index
-/// Where each key's frame lies in the facts pack at `path`, as its index says, read without
-/// reading the frames.
-fn pack_index(path: &Path) -> Result<Vec<(String, [u64; 2])>, String> {
+/// Where each frame lies in the facts pack at `path`, in order, with its key if it has one, as its
+/// index says, read without reading the frames.
+fn pack_index(path: &Path) -> Result<Places, String> {
     let failed = |error: std::io::Error| format!("{}: {error}", path.display());
     let mut file = std::fs::File::open(path).map_err(failed)?;
     let header = read_at(&mut file, SeekFrom::Start(0), MAGIC.len() + FORMAT.len());
@@ -399,8 +503,8 @@ fn read_at(file: &mut std::fs::File, at: SeekFrom, length: usize) -> std::io::Re
     Ok(bytes)
 }
 
-/// The key and place of each frame a facts pack's index lists.
-fn index_entries(text: &[u8]) -> Result<Vec<(String, [u64; 2])>, String> {
+/// The key, if any, and place of each frame a facts pack's index lists.
+fn index_entries(text: &[u8]) -> Result<Places, String> {
     let index: Value = serde_json::from_slice(text).map_err(|error| error.to_string())?;
     if index["schema"] != FACTS_SCHEMA {
         return Err("a facts pack of another schema".into());
@@ -411,8 +515,11 @@ fn index_entries(text: &[u8]) -> Result<Vec<(String, [u64; 2])>, String> {
     entries
         .iter()
         .map(
-            |entry| match (entry[0].as_str(), entry[1].as_u64(), entry[2].as_u64()) {
-                (Some(key), Some(at), Some(length)) => Ok((key.to_owned(), [at, length])),
+            |entry| match (&entry[0], entry[1].as_u64(), entry[2].as_u64()) {
+                (Value::String(key), Some(at), Some(length)) => {
+                    Ok((Some(key.clone()), [at, length]))
+                }
+                (Value::Null, Some(at), Some(length)) => Ok((None, [at, length])),
                 _ => Err("an index names a frame by its key, offset and length".to_string()),
             },
         )

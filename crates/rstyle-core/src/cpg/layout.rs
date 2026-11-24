@@ -122,13 +122,21 @@ pub(super) struct FunctionIds(
 impl FunctionIds {
     pub(super) fn include(&mut self, document: &Document) -> Result<(), String> {
         let unit = document.unit.as_ref().ok_or("The document has no unit")?;
-        let seen = self.0.entry(unit.id.clone()).or_default();
+        let functions = unit.functions.iter().flatten();
+        self.include_ids(&unit.id, functions.map(|function| function.id.as_str()))
+    }
 
-        for function in unit.functions.iter().flatten() {
-            if !seen.insert(function.id.clone()) {
+    /// As `include`, for a unit's functions named by their ids.
+    pub(super) fn include_ids<'a>(
+        &mut self,
+        unit: &str,
+        functions: impl Iterator<Item = &'a str>,
+    ) -> Result<(), String> {
+        let seen = self.0.entry(unit.to_owned()).or_default();
+        for function in functions {
+            if !seen.insert(function.to_owned()) {
                 return Err(format!(
-                    "Function {} of unit {} appears more than once in a run",
-                    function.id, unit.id
+                    "Function {function} of unit {unit} appears more than once in a run"
                 ));
             }
         }
