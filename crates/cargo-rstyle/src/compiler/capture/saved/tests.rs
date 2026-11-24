@@ -28,11 +28,13 @@ impl Fixture {
 
         let plan = Plan {
             document_encoding: Default::default(),
+            driver_threads: std::num::NonZeroU8::MIN,
             workspace_all_targets: None,
             compiler_patterns: false,
             compiler_runtime_bounds: false,
             ledger_schema: ledger::SCHEMA.into(),
             root: "/sample".into(),
+            sysroot: "/sysroot".into(),
             driver: "/unavailable/driver".into(),
             compiler_identity: "saved rustc".into(),
             cargo_identity: "saved cargo".into(),

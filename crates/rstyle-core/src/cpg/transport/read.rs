@@ -64,10 +64,7 @@ impl<R> Utf8<R> {
 
     fn complete_read(&self, len: usize) -> io::Result<usize> {
         if len == 0 && self.len > 0 {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "Incomplete UTF-8 in CPG JSON",
-            ));
+            return Err(io::Error::new(io::ErrorKind::InvalidData, INCOMPLETE));
         }
         Ok(len)
     }
@@ -85,6 +82,29 @@ impl<R: Read> Read for Utf8<R> {
     }
 }
 
+const OVERSIZED: &str = "CPG transport exceeds its declared size";
+const INCOMPLETE: &str = "Incomplete UTF-8 in CPG JSON";
+
+/// A document's bytes as text, failing as a document parsed while it is read does: text that
+/// stops partway through a character is incomplete where it stops, and any other bad byte is
+/// named by where it is.
+pub(super) fn text(bytes: Vec<u8>) -> Result<String, String> {
+    String::from_utf8(bytes).map_err(|error| match error.utf8_error().error_len() {
+        Some(_) => error.to_string(),
+        None => incomplete(error.as_bytes()),
+    })
+}
+
+/// Where text stops, counted as the parser counts: lines from 1, and bytes since the last one.
+fn incomplete(bytes: &[u8]) -> String {
+    let line = 1 + bytes.iter().filter(|&&byte| byte == b'\n').count();
+    let start = bytes
+        .iter()
+        .rposition(|&byte| byte == b'\n')
+        .map_or(0, |at| at + 1);
+    format!("{INCOMPLETE} at line {line} column {}", bytes.len() - start)
+}
+
 struct Counted<R> {
     inner: R,
     observed: Observed,
@@ -96,21 +116,47 @@ impl<R: Read> Read for Counted<R> {
         let len = self.inner.read(bytes)?;
         self.observed.update(&bytes[..len])?;
         if self.limit.is_some_and(|limit| self.observed.bytes > limit) {
-            return Err(io::Error::other("CPG transport exceeds its declared size"));
+            return Err(io::Error::other(OVERSIZED));
         }
         Ok(len)
     }
 }
 
 pub fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T, String> {
-    read(path, Encoding::from_path(path), None)
+    unsealed(path, Encoding::from_path(path)).read()
 }
 
 pub fn read_sealed<T: DeserializeOwned>(
     directory: &Path,
     seal: &SealedDocument,
 ) -> Result<T, String> {
-    read(&directory.join(&seal.file), seal.encoding, Some(seal))
+    sealed(&directory.join(&seal.file), seal).read()
+}
+
+/// A document's JSON text, decoded but not parsed, so its caller reads it as it needs to.
+pub fn read_json_text(path: &Path) -> Result<String, String> {
+    unsealed(path, Encoding::from_path(path)).text()
+}
+
+/// A sealed document's JSON text, decoded and verified against its seal but not parsed.
+pub fn read_sealed_text(directory: &Path, seal: &SealedDocument) -> Result<String, String> {
+    sealed(&directory.join(&seal.file), seal).text()
+}
+
+fn unsealed(path: &Path, encoding: Encoding) -> Source<'_> {
+    Source {
+        path,
+        encoding,
+        seal: None,
+    }
+}
+
+fn sealed<'a>(path: &'a Path, seal: &'a SealedDocument) -> Source<'a> {
+    Source {
+        path,
+        encoding: seal.encoding,
+        seal: Some(seal),
+    }
 }
 
 /// Writes a sealed document's JSON to `output` as it was received. Bytes already written can't
@@ -126,19 +172,6 @@ pub fn copy_sealed(
         seal: Some(seal),
     }
     .copy(output)
-}
-
-fn read<T: DeserializeOwned>(
-    path: &Path,
-    encoding: Encoding,
-    seal: Option<&SealedDocument>,
-) -> Result<T, String> {
-    Source {
-        path,
-        encoding,
-        seal,
-    }
-    .read()
 }
 
 struct Source<'a> {
@@ -158,10 +191,72 @@ fn open(path: &Path) -> Result<File, String> {
 
 impl Source<'_> {
     fn read<T: DeserializeOwned>(&self) -> Result<T, String> {
+        let text = self.text()?;
+        serde_json::from_str(&text).map_err(|error| self.context(error.to_string()))
+    }
+
+    /// Checked as UTF-8 whole, so a parser needn't check each string again.
+    fn text(&self) -> Result<String, String> {
+        text(self.bytes()?).map_err(|error| self.context(error))
+    }
+
+    /// The decoded JSON, held whole: parsing a slice is much faster than parsing a reader. A
+    /// seal is checked on the stored bytes before they are decoded, then on the decoded ones.
+    fn bytes(&self) -> Result<Vec<u8>, String> {
+        let (stored, observed) = self.stored_bytes()?;
+        let (decoded, observed) = match self.encoding {
+            Encoding::Json => (stored, observed),
+            Encoding::Zstd => self.decompressed(&stored).map_err(|e| self.context(e))?,
+        };
+        self.verify_decoded(observed.as_ref()).map(|()| decoded)
+    }
+
+    fn verify_decoded(&self, observed: Option<&Observed>) -> Result<(), String> {
+        match (self.seal, observed) {
+            (Some(seal), Some(observed)) => seal
+                .verify_decoded(observed)
+                .map_err(|error| self.context(error)),
+            _ => Ok(()),
+        }
+    }
+
+    /// Parsed as it is read, so neither the bytes nor a tree of them are held.
+    fn streamed<T: DeserializeOwned>(&self) -> Result<T, String> {
         let mut stored = self.stored()?;
-        let value = self.decoded(&mut stored).map_err(|e| self.context(e))?;
-        self.verify(&stored.observed)?;
-        Ok(value)
+        self.decoded(&mut stored)
+            .map_err(|error| self.context(error))
+    }
+
+    /// The stored bytes, and what they were observed as when there is a seal to check them by.
+    // rstyle-allow(side_effect_density): IO boundary: reads a document's file whole
+    fn stored_bytes(&self) -> Result<(Vec<u8>, Option<Observed>), String> {
+        let failed = |error: io::Error| self.context(error.to_string());
+        let file = open(self.path)?;
+        let length = file.metadata().map_err(failed)?.len();
+        let Some(seal) = self.seal else {
+            return Ok((read_all(file, length).map_err(failed)?, None));
+        };
+        if length > seal.bytes {
+            return Err(OVERSIZED.into());
+        }
+        // Never more than the seal allows, should the file grow while it is read.
+        let limited = file.take(seal.bytes.saturating_add(1));
+        let bytes = read_all(limited, length).map_err(failed)?;
+        let observed = Observed::of(&bytes).map_err(|error| error.to_string())?;
+        seal.verify_stored(&observed)?;
+        Ok((bytes, Some(observed)))
+    }
+
+    fn decompressed(&self, stored: &[u8]) -> Result<(Vec<u8>, Option<Observed>), String> {
+        let decoder = windowed(zstd::stream::read::Decoder::with_buffer(stored))?;
+        let Some(seal) = self.seal else {
+            let bytes = read_all(decoder, 0).map_err(|error| error.to_string())?;
+            return Ok((bytes, None));
+        };
+        let expected = seal.decoded_bytes.unwrap_or(0);
+        let mut decoded = Counted::new(decoder, seal.decoded_bytes);
+        let bytes = read_all(&mut decoded, expected).map_err(|error| error.to_string())?;
+        Ok((bytes, Some(decoded.observed)))
     }
 
     fn copy(&self, output: &mut dyn Write) -> Result<(), String> {
@@ -223,12 +318,25 @@ impl Counted<File> {
 fn decoder<R: Read>(
     reader: R,
 ) -> Result<zstd::stream::read::Decoder<'static, BufReader<R>>, String> {
-    let mut decoder =
-        zstd::stream::read::Decoder::new(reader).map_err(|error| error.to_string())?;
-    decoder
-        .window_log_max(27)
-        .map_err(|error| error.to_string())?;
+    windowed(zstd::stream::read::Decoder::new(reader))
+}
+
+fn windowed<R: io::BufRead>(
+    decoder: io::Result<zstd::stream::read::Decoder<'static, R>>,
+) -> Result<zstd::stream::read::Decoder<'static, R>, String> {
+    let mut decoder = decoder.map_err(|error| error.to_string())?;
+    let limited = decoder.window_log_max(27);
+    limited.map_err(|error| error.to_string())?;
     Ok(decoder)
+}
+
+/// All of `reader`, with room reserved for the `expected` bytes first. That is a hint only: a
+/// seal can claim any size, and a reservation that fails reads all the same.
+fn read_all(mut reader: impl Read, expected: u64) -> io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    let _ = bytes.try_reserve_exact(usize::try_from(expected).unwrap_or(0));
+    reader.read_to_end(&mut bytes)?;
+    Ok(bytes)
 }
 
 fn parsed<T: DeserializeOwned>(
@@ -266,9 +374,9 @@ fn copied(
     seal.map_or(Ok(()), |seal| seal.verify_decoded(&decoded.observed))
 }
 
-/// Syntax-only object validation without retaining a document tree.
+/// Syntax-only object validation without retaining a document tree, or its bytes.
 pub fn validate_object(path: &Path, encoding: Encoding) -> Result<(), String> {
-    let _: Object = read(path, encoding, None)?;
+    let _: Object = unsealed(path, encoding).streamed()?;
     Ok(())
 }
 

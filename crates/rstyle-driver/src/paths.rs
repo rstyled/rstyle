@@ -1,8 +1,16 @@
 //! Where a local source file sits relative to the workspace root.
 
+use rstyle_capture::Places;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{FileName, SourceFile};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+/// The machine's directories a crate's documents name by placeholder: the root its files are
+/// relative to, the build directory Cargo writes to and the toolchain's sysroot.
+pub(crate) fn places(tcx: TyCtxt<'_>, root: &Path) -> Places {
+    let target = std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from);
+    Places::new(root, target.as_deref(), Some(tcx.sess.opts.sysroot.path()))
+}
 
 /// A local file's path relative to `root`, climbing out of it with `..` for a file
 /// outside it, as a document records every file a unit compiles.

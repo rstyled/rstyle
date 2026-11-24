@@ -6,6 +6,7 @@ use std::os::unix::fs::PermissionsExt;
 
 const FRONTEND: &str = r#"#!/bin/sh
 set -eu
+arrived() { set -- "$1"/*; echo "$#"; }
 case "$1" in
 describe)
     if [ -n "${FAKE_DESCRIBE_FAILS:-}" ]; then echo "unknown command" >&2; exit 1; fi
@@ -21,6 +22,23 @@ cpg)
         # Only a stop from the runner can end this, and it still holds the pipe open.
         exec sleep 300
     fi
+    if [ -n "${FAKE_REUSE_KEY:-}" ]; then
+        # A frontend that takes --reuse: the unit's record, then its document unless the store holds it.
+        held="" previous=""
+        for argument in "$@"; do
+            if [ "$previous" = --reuse ]; then held=$(cat "$argument"); fi
+            previous=$argument
+        done
+        if [ -n "${FAKE_HELD:-}" ]; then printf '%s' "$held" > "$FAKE_HELD"; fi
+        case "$held" in
+        *"$FAKE_REUSE_KEY"*)
+            printf '\036{"schema":"rstyle.unit-input/1","unit":"%s","key":"%s","reused":true}\n\036null\n' \
+                "$FAKE_REUSE_UNIT" "$FAKE_REUSE_KEY" > "/dev/fd/$5"
+            exit 0 ;;
+        esac
+        printf '\036{"schema":"rstyle.unit-input/1","unit":"%s","key":"%s","reused":false}\n' \
+            "$FAKE_REUSE_UNIT" "$FAKE_REUSE_KEY" > "/dev/fd/$5"
+    fi
     {
         printf '\036'
         cat "$FAKE_DOCUMENT"
@@ -34,6 +52,16 @@ analyze)
     reader|quitter|sinking) test "$7" = --input-fd ;;
     *) test "$#" = 6 ;;
     esac
+    if [ -n "${FAKE_MEETING:-}" ]; then
+        # Every analysis waits here for all of them, which only analyses running side by side can meet.
+        : > "$FAKE_MEETING/$2"
+        waited=0
+        until [ "$(arrived "$FAKE_MEETING")" -eq "$FAKE_MEETING_SIZE" ]; do
+            waited=$((waited + 1))
+            if [ "$waited" -gt 200 ]; then echo "$2 waited alone" >&2; exit 4; fi
+            sleep 0.05
+        done
+    fi
     case "$2" in
     reader) cat "/dev/fd/$8" > "$FAKE_RECEIVED" ;;
     sinking) cat "/dev/fd/$8" > /dev/null; exit 3 ;;
@@ -53,9 +81,12 @@ const NO_ANALYSES: &str =
     r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[]}"#;
 const ANALYSES: &str = r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[{"name":"calls"},{"name":"broken"},{"name":"invalid"},{"name":"silent"}]}"#;
 const READERS: &str = r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[{"name":"reader","input":"documents"},{"name":"quitter","input":"documents"},{"name":"sinking","input":"documents"},{"name":"calls","input":"source"}]}"#;
+const MIXED: &str = r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[{"name":"sinking","input":"documents"},{"name":"calls"},{"name":"reader","input":"documents"},{"name":"broken"}]}"#;
 const CXX: &str = r#"{"schema":"rstyle.frontend-description/1","language":"cxx","analyses":[]}"#;
 const CXX_EXCLUDING: &str = r#"{"schema":"rstyle.frontend-description/1","language":"cxx","analyses":[],"options":["exclude"]}"#;
 const PY: &str = r#"{"schema":"rstyle.frontend-description/1","language":"py","analyses":[],"options":["exclude"]}"#;
+const CACHING: &str = r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[],"options":["cache"]}"#;
+const REUSING: &str = r#"{"schema":"rstyle.frontend-description/1","language":"go","analyses":[],"options":["reuse"]}"#;
 const CXX_READERS: &str = r#"{"schema":"rstyle.frontend-description/1","language":"cxx","analyses":[{"name":"reader","input":"documents"},{"name":"calls","input":"source"}]}"#;
 
 /// A Go module and a frontend to run over it.
@@ -232,17 +263,23 @@ fn text_output_names_where_the_run_is() {
 #[test]
 fn a_failed_stream_publishes_nothing() {
     let project = Project::new();
-    let output = project
-        .command(NO_ANALYSES, &["go"])
-        .env("FAKE_TRUNCATE", "1")
-        .output()
-        .unwrap();
-    assert_eq!(output.status.code(), Some(2), "{output:?}");
-    assert!(
-        stderr(&output).contains("ended before its terminal null"),
-        "{output:?}"
-    );
-    assert!(project.run_folders().is_empty());
+    // The second has an analysis of the source running beside the stream when it fails.
+    for (description, args) in [
+        (NO_ANALYSES, &["go"][..]),
+        (ANALYSES, &["go", "--filter", "check,go:calls"]),
+    ] {
+        let output = project
+            .command(description, args)
+            .env("FAKE_TRUNCATE", "1")
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(2), "{output:?}");
+        assert!(
+            stderr(&output).contains("ended before its terminal null"),
+            "{output:?}"
+        );
+        assert!(project.run_folders().is_empty());
+    }
 }
 
 #[test]
@@ -937,6 +974,73 @@ fn no_filter_runs_every_analysis_and_a_failure_is_the_worst_result() {
             .contains("no results file"),
         "{frontend:?}"
     );
+}
+
+#[test]
+fn analyses_run_side_by_side_and_report_in_the_order_described() {
+    let project = Project::new();
+    let meeting = project.root().join("meeting");
+    std::fs::create_dir(&meeting).unwrap();
+    let output = project
+        .command(MIXED, &["go", "--format", "json"])
+        .env("FAKE_MEETING", &meeting)
+        .env("FAKE_MEETING_SIZE", "4")
+        .env("FAKE_RECEIVED", project.root().join("received"))
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(!stderr(&output).contains("waited alone"), "{output:?}");
+    let unified = report(&output);
+    assert!(unified["check"].is_object(), "core's results still arrive");
+    let frontend = unified["frontend"].as_array().unwrap();
+    let outcomes: Vec<_> = frontend
+        .iter()
+        .map(|result| {
+            let analysis = result["analysis"].as_str().unwrap();
+            (analysis, result["status"].as_str().unwrap())
+        })
+        .collect();
+    assert_eq!(
+        outcomes,
+        [
+            ("go:sinking", "failed"),
+            ("go:calls", "complete"),
+            ("go:reader", "complete"),
+            ("go:broken", "failed"),
+        ]
+    );
+    for failed in [&frontend[0], &frontend[3]] {
+        let error = failed["error"].as_str().unwrap();
+        assert!(error.contains("failed with"), "{error}");
+    }
+    assert_eq!(
+        frontend_published(&saved_run(&output)),
+        (
+            vec!["calls.sarif".into(), "reader.sarif".into()],
+            vec!["go/calls/".into(), "go/reader/".into()]
+        )
+    );
+}
+
+/// The files a run's frontend analyses published, and the categories of their runs in the final
+/// SARIF, in its order.
+fn frontend_published(run: &Path) -> (Vec<String>, Vec<String>) {
+    let mut files: Vec<_> = std::fs::read_dir(run.join("frontend"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect();
+    files.sort();
+    let log: Value =
+        serde_json::from_slice(&std::fs::read(run.join("report.sarif")).unwrap()).unwrap();
+    let categories = log["runs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|run| run["automationDetails"]["id"].as_str())
+        .filter(|id| !id.starts_with("rstyle/"))
+        .map(String::from)
+        .collect();
+    (files, categories)
 }
 
 #[test]
@@ -2974,4 +3078,344 @@ fn two_crates_with_build_scripts_make_one_run() {
         flow.iter().all(|row| row["flow"]["standing"] != "unknown"),
         "{flow:?}"
     );
+}
+
+#[test]
+fn a_frontend_that_takes_a_cache_is_given_the_project_s_own() {
+    let project = Project::new();
+    let arguments = || std::fs::read_to_string(project.root().join("arguments")).unwrap();
+    let run = |description: &str| {
+        project
+            .command(description, &["go", "--format", "json"])
+            .env("FAKE_ARGUMENTS", project.root().join("arguments"))
+            .output()
+            .unwrap()
+    };
+    let cache = project.root().join(".rstyle/cache/go");
+
+    let output = run(NO_ANALYSES);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(!arguments().contains("--cache"), "{}", arguments());
+    assert!(
+        !cache.exists(),
+        "a frontend that keeps nothing gets no directory"
+    );
+
+    let output = run(CACHING);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let given: Vec<String> = arguments().lines().map(str::to_owned).collect();
+    let at = given
+        .iter()
+        .position(|argument| argument == "--cache")
+        .unwrap();
+    assert_eq!(PathBuf::from(&given[at + 1]), cache);
+    assert!(cache.is_dir());
+
+    // A project whose `.rstyle` can't hold a cache still runs, as it would without one.
+    std::fs::remove_dir_all(project.root().join(".rstyle/cache")).unwrap();
+    std::fs::write(project.root().join(".rstyle/cache"), "").unwrap();
+    let output = project
+        .command(CACHING, &["go", "--format", "json", "--out"])
+        .arg(project.root().join("elsewhere"))
+        .env("FAKE_ARGUMENTS", project.root().join("arguments"))
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(!arguments().contains("--cache"), "{}", arguments());
+}
+
+/// The manifest a run with `--store` says it kept itself under.
+fn kept_manifest(output: &Output) -> String {
+    let stderr = stderr(output);
+    stderr
+        .lines()
+        .find_map(|line| {
+            line.split(" as ")
+                .nth(1)
+                .filter(|_| line.contains("run kept in"))
+        })
+        .unwrap_or_else(|| panic!("no manifest named: {stderr}"))
+        .trim()
+        .to_owned()
+}
+
+#[test]
+fn a_rust_run_with_a_store_keeps_what_packing_its_saved_run_keeps() {
+    let directory = fixture("animals");
+    let root = directory.path().canonicalize().unwrap();
+    let store = root.join("store");
+    let args = [
+        "--format",
+        "json",
+        "--no-ignore",
+        "--store",
+        store.to_str().unwrap(),
+    ];
+    let first = rust_run(&root, &args);
+    assert!(
+        first.status.code().is_some_and(|code| code < 2),
+        "{first:?}"
+    );
+    let manifest = kept_manifest(&first);
+
+    let documents = saved_run(&first).join("documents");
+    let packed = Command::new(cargo_bin("rstyle"))
+        .args([
+            "cpg",
+            "pack",
+            "--capture",
+            documents.to_str().unwrap(),
+            "--store",
+        ])
+        .arg(root.join("packed"))
+        .output()
+        .unwrap();
+    assert_eq!(packed.status.code(), Some(0), "{packed:?}");
+    let summary: Value = serde_json::from_slice(&packed.stdout).unwrap();
+    assert_eq!(summary["manifest"], manifest.as_str());
+
+    // Nothing changed: the run names the same units, by their seals.
+    let second = rust_run(&root, &args);
+    assert_eq!(kept_manifest(&second), manifest, "{second:?}");
+}
+
+/// A run of the fake frontend that names its unit's input as `key`, kept in `store` if given.
+fn reusing_run(project: &Project, description: &str, key: &str, store: Option<&Path>) -> Output {
+    let unit = example()["unit"]["id"].as_str().unwrap().to_owned();
+    let mut arguments = vec!["go", "--format", "json"];
+    if let Some(store) = store {
+        arguments.extend(["--store", store.to_str().unwrap()]);
+    }
+    project
+        .command(description, &arguments)
+        .env("FAKE_REUSE_KEY", key)
+        .env("FAKE_REUSE_UNIT", unit)
+        .env("FAKE_HELD", project.root().join("held"))
+        .env("FAKE_ARGUMENTS", project.root().join("arguments"))
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn a_unit_the_store_holds_is_left_to_it_by_a_frontend_that_takes_reuse() {
+    let project = Project::new();
+    let store = project.root().join("store");
+    let key = "ab".repeat(32);
+    let held = || std::fs::read_to_string(project.root().join("held")).unwrap();
+
+    let first = reusing_run(&project, REUSING, &key, Some(&store));
+    assert_eq!(first.status.code(), Some(0), "{first:?}");
+    assert_eq!(held(), "[]", "an empty store holds nothing");
+    let manifest = kept_manifest(&first);
+
+    let second = reusing_run(&project, REUSING, &key, Some(&store));
+    assert_eq!(second.status.code(), Some(0), "{second:?}");
+    assert_eq!(held(), format!(r#"["{key}"]"#));
+    assert_eq!(
+        kept_manifest(&second),
+        manifest,
+        "the same units, kept once"
+    );
+    assert_eq!(without_run(report(&second)), without_run(report(&first)));
+    let documents = |output: &Output| -> Vec<Value> {
+        let directory = saved_run(output).join("documents");
+        let manifest: Value = read_json(&directory.join("documents.manifest.json")).unwrap();
+        manifest["documents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|seal| read_json(&directory.join(seal["file"].as_str().unwrap())).unwrap())
+            .collect()
+    };
+    assert_eq!(
+        documents(&second),
+        documents(&first),
+        "the store gave back the document"
+    );
+}
+
+#[test]
+fn only_a_run_kept_in_a_store_and_a_frontend_that_takes_reuse_hear_of_it() {
+    let project = Project::new();
+    let key = "cd".repeat(32);
+    let arguments = || std::fs::read_to_string(project.root().join("arguments")).unwrap();
+    let store = project.root().join("store");
+    let output = reusing_run(&project, NO_ANALYSES, &key, Some(&store));
+    assert!(!arguments().contains("--reuse"), "{}", arguments());
+    // A frontend that names a unit's input anyway, with no store to keep it, fails the run.
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let output = reusing_run(&project, REUSING, &key, None);
+    assert!(!arguments().contains("--reuse"));
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(stderr(&output).contains("no store was given"), "{output:?}");
+    // A key that isn't a sha256 never names a file in the store.
+    let output = reusing_run(&project, REUSING, "../../escape", Some(&store));
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(stderr(&output).contains("isn't a sha256"), "{output:?}");
+}
+
+#[test]
+fn a_run_with_a_store_keeps_its_documents_there_too() {
+    let project = Project::new();
+    let store = project.root().join("store");
+    let output = project.go(&["--format", "json", "--store", store.to_str().unwrap()]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let manifest = kept_manifest(&output);
+
+    // The stored run unpacks to the documents the run saved.
+    let run = saved_run(&output);
+    let out = project.root().join("unpacked");
+    let arguments = [
+        "cpg",
+        "unpack",
+        "--store",
+        store.to_str().unwrap(),
+        "--manifest",
+        &manifest,
+        "--out",
+        out.to_str().unwrap(),
+    ];
+    let unpack = project.command(NO_ANALYSES, &arguments).output().unwrap();
+    assert_eq!(unpack.status.code(), Some(0), "{unpack:?}");
+    let documents = |directory: &Path| -> Vec<Value> {
+        let mut paths: Vec<PathBuf> = std::fs::read_dir(directory)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.to_string_lossy().ends_with(".cpg.json.zst"))
+            .collect();
+        paths.sort();
+        paths
+            .iter()
+            .map(|path| read_json::<Value>(path).unwrap())
+            .collect()
+    };
+    assert_eq!(documents(&out), documents(&run.join("documents")));
+}
+
+/// A Rust run's documents, by file name, after a check of `root`.
+fn rust_documents(root: &Path) -> Vec<(String, Value)> {
+    let output = rust_run(root, &["--filter", "check", "--format", "json"]);
+    assert_ne!(output.status.code(), Some(2), "{output:?}");
+    let directory = saved_run(&output).join("documents");
+    let mut documents: Vec<(String, Value)> = std::fs::read_dir(&directory)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.to_string_lossy().ends_with(".cpg.json.zst"))
+        .map(|path| {
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            (name, read_json::<Value>(&path).unwrap())
+        })
+        .collect();
+    documents.sort_by(|left, right| left.0.cmp(&right.0));
+    documents
+}
+
+#[test]
+fn a_rust_run_s_documents_hold_no_path_of_the_machine() {
+    // A macro's struct records the expansions it comes from, and std's definitions the
+    // metadata they were read from.
+    let source = "macro_rules! point { ($name:ident) => { pub struct $name { pub x: u32 } } }\n\
+                  point!(Point);\n\
+                  pub fn total(points: Vec<Point>) -> u32 { points.iter().map(|point| point.x).sum() }\n";
+    let checkouts = [tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap()];
+    let roots: Vec<PathBuf> = checkouts
+        .iter()
+        .enumerate()
+        .map(|(index, checkout)| {
+            // One checkout a level deeper than the other, so the paths differ in length too.
+            let root = checkout.path().join("nested".repeat(index)).join("app");
+            std::fs::create_dir_all(&root).unwrap();
+            a_package_in(&root);
+            std::fs::write(root.join("src/lib.rs"), source).unwrap();
+            root.canonicalize().unwrap()
+        })
+        .collect();
+    let sysroot = Command::new("rustc")
+        .args(["--print", "sysroot"])
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .output()
+        .unwrap();
+    let sysroot = String::from_utf8(sysroot.stdout).unwrap();
+
+    let documents: Vec<_> = roots.iter().map(|root| rust_documents(root)).collect();
+    assert!(!documents[0].is_empty());
+    let text = serde_json::to_string(&documents[0]).unwrap();
+    for (machine, what) in [
+        (roots[0].to_str().unwrap(), "the checkout"),
+        (sysroot.trim(), "the sysroot"),
+        ("ExpnHash", "the compiler's expansion hash"),
+    ] {
+        assert!(
+            !text.contains(machine),
+            "a document names {what}: {machine}"
+        );
+    }
+    assert!(
+        text.contains("$SYSROOT/"),
+        "std's metadata is named from the sysroot"
+    );
+    assert!(
+        text.contains("\"expansion\":\"expansion:"),
+        "the macro's expansion is named"
+    );
+    assert_eq!(documents[0], documents[1]);
+}
+
+/// How many functions' facts a run with `--store` says it reused, and of how many.
+fn reused_facts(output: &Output) -> (usize, usize) {
+    let stderr = stderr(output);
+    let line = stderr
+        .lines()
+        .find(|line| line.contains("functions' facts from"))
+        .unwrap_or_else(|| panic!("no facts reused: {stderr}"));
+    let words: Vec<&str> = line.split_whitespace().collect();
+    (words[2].parse().unwrap(), words[4].parse().unwrap())
+}
+
+#[test]
+fn a_store_keeps_each_function_s_facts_for_the_runs_after() {
+    let project = Project::new();
+    let store = project.root().join("store");
+    let store = store.to_str().unwrap();
+    let first = project.go(&["--format", "json", "--store", store]);
+    assert!(
+        first.status.code().is_some_and(|code| code < 2),
+        "{first:?}"
+    );
+    let (reused, functions) = reused_facts(&first);
+    assert_eq!(reused, 0);
+    assert!(functions > 0, "{first:?}");
+    let expected = without_run(report(&first));
+
+    let verified = project.go(&["--format", "json", "--store", store, "--verify-incremental"]);
+    assert_eq!(
+        reused_facts(&verified),
+        (functions, functions),
+        "{verified:?}"
+    );
+    assert_eq!(without_run(report(&verified)), expected);
+
+    // A saved run read back reads the same facts, though nothing else is kept.
+    let replayed = Command::new(cargo_bin("rstyle"))
+        .args(["go", "--format", "json", "--store", store, "--from"])
+        .arg(saved_run(&first))
+        .current_dir(project.root())
+        .env("RSTYLE_GO", "/nonexistent/frontend")
+        .output()
+        .unwrap();
+    assert_eq!(
+        reused_facts(&replayed),
+        (functions, functions),
+        "{replayed:?}"
+    );
+    assert_eq!(report(&replayed), expected);
+    assert!(!stderr(&replayed).contains("run kept in"), "{replayed:?}");
+}
+
+#[test]
+fn verifying_facts_needs_a_store_to_read_them_from() {
+    let project = Project::new();
+    let output = project.go(&["--verify-incremental"]);
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    assert!(stderr(&output).contains("--store"), "{output:?}");
 }

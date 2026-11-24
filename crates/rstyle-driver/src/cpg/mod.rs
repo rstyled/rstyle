@@ -4,6 +4,7 @@
 mod accesses;
 mod body;
 mod compiler;
+mod expansions;
 mod flow;
 mod generated_root;
 mod namespaces;
@@ -14,6 +15,8 @@ pub(crate) mod sysroot;
 mod unit;
 
 use rstyle_capture::PackageContext;
+use rstyle_capture::places::map_strings;
+use rustc_data_structures::sync::{DynSend, DynSync, par_map};
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::LOCAL_CRATE;
@@ -36,22 +39,49 @@ pub fn emit(tcx: TyCtxt<'_>, root: &Path, dir: &Path) -> Result<(), String> {
     }
     let name = unit_name(tcx);
     let encoding = rstyle_core::cpg::transport::Encoding::from_environment()?;
-    let documents = documents_in(tcx, (root, None), None);
-
-    for (index, (document, unrecorded)) in documents.enumerate() {
-        if let Some((id, reason)) = unrecorded.first() {
-            return Err(format!("{}: {reason}", tcx.def_path_str(id.to_def_id())));
-        }
+    write_documents(tcx, (root, None), None, |index, document| {
         let path = dir.join(format!("{name}.{index:06}{}", encoding.suffix()));
-        rstyle_core::cpg::transport::write_json(&path, encoding, &document)?;
-    }
+        rstyle_core::cpg::transport::write_json(&path, encoding, &document)
+    })?;
     Ok(())
+}
+
+/// What `write` returns for each of the crate's documents, in order, each recording the capture
+/// `session` when given. While rustc runs its front end on more than one thread the documents
+/// are built and written on its threads, at most one per thread at once; otherwise in order on
+/// this one, each written before the next is built.
+pub fn write_documents<T: DynSend>(
+    tcx: TyCtxt<'_>,
+    (root, package): (&Path, Option<&PackageContext>),
+    session: Option<Value>,
+    write: impl Fn(usize, Value) -> Result<T, String> + DynSync + DynSend,
+) -> Result<Vec<T>, String> {
+    let recorded =
+        |(document, unrecorded): (Value, Vec<(LocalDefId, String)>)| match unrecorded.first() {
+            Some((id, reason)) => Err(format!("{}: {reason}", tcx.def_path_str(id.to_def_id()))),
+            None => Ok(document),
+        };
+    if !crate::threads::parallel() {
+        let documents = documents_in(tcx, (root, package), session).enumerate();
+        return documents
+            .map(|(index, built)| write(index, recorded(built)?))
+            .collect();
+    }
+
+    let package = cargo_package(package);
+    let batches = batches(tcx);
+    let prefixes = id_prefixes(tcx, root, batches.iter().flatten().copied());
+    par_map(batches.into_iter().enumerate(), |(index, batch)| {
+        let origin = (root, package.clone(), session.clone());
+        let built = batch_document(tcx, (origin, index == 0), &batch, &prefixes);
+        write(index, recorded(built)?)
+    })
 }
 
 // rstyle-allow(side_effect_density): documents are produced lazily, one batch at a time
 /// The crate's function documents, each recording the capture `session` when given:
 /// the compiler invocation, the selected unit, and each file's path.
-pub fn documents_in<'tcx, 'r>(
+fn documents_in<'tcx, 'r>(
     tcx: TyCtxt<'tcx>,
     (root, package): (&'r Path, Option<&'r PackageContext>),
     session: Option<Value>,
@@ -79,7 +109,7 @@ fn id_prefixes(
     let digests: Vec<(LocalDefId, String)> = owners
         .map(|id| {
             let identity = unit.stable_identity(id.to_def_id());
-            (id, unit::sha256_hex(identity.as_bytes()))
+            (id, rstyle_core::cpg::store::sha256(identity.as_bytes()))
         })
         .collect();
     let mut sharing: HashMap<&str, usize> = HashMap::new();
@@ -163,13 +193,17 @@ fn batch_document(
     }
 
     let paths = unit.local_paths();
+    // The package and the session name the machine's directories by placeholder, so the same
+    // source gives the same document in any checkout.
+    let places = unit.places().clone();
     let mut document = document(tcx, (unit, whole), recorded, &unit_name(tcx));
+    let portable = |value: &Value| map_strings(value, &|text| places.portable(text));
     if let Some(package) = package {
-        document["unit"]["extensions"]["rust:cargo-package"] = package;
+        document["unit"]["extensions"]["rust:cargo-package"] = portable(&package);
     }
     if let Some(mut session) = session {
         session["files"] = json!(paths);
-        document["unit"]["extensions"]["rust:compiler-session"] = session;
+        document["unit"]["extensions"]["rust:compiler-session"] = portable(&session);
     }
 
     (document, unrecorded)
@@ -203,6 +237,26 @@ fn root_file(tcx: TyCtxt<'_>, root: &Path) -> Option<String> {
 /// unit, also records its namespaces and imports.
 fn document(
     tcx: TyCtxt<'_>,
+    unit: (unit::Unit<'_>, bool),
+    functions: Vec<Value>,
+    name: &str,
+) -> Value {
+    let producer = json!({"name": "rstyle-driver", "version": env!("CARGO_PKG_VERSION"), "namespace": "rust",
+                          "revision": env!("RSTYLE_PRODUCER_REVISION")});
+    object([
+        ("schema_version", "0.1.0".into()),
+        ("profile", json!({"id": "compat.cpg", "version": "0.1.0"})),
+        ("layout", "bundled".into()),
+        ("document", "unit".into()),
+        ("producer", producer),
+        ("coverage", unit::coverage()),
+        ("unit", unit_record(tcx, unit, functions, name)),
+    ])
+}
+
+/// The unit's own record: how it was compiled, its tables and its `functions`.
+fn unit_record(
+    tcx: TyCtxt<'_>,
     (mut unit, whole): (unit::Unit<'_>, bool),
     functions: Vec<Value>,
     name: &str,
@@ -218,35 +272,48 @@ fn document(
     }
     let (files, definitions, types, values) = unit.tables();
     let session = tcx.sess;
+    let language = json!({"name": "rust", "version": session.edition().to_string()});
+    let toolchain = json!({"name": "rustc", "version": toolchain_version(),
+                           "commit": env!("RSTYLE_RUSTC_COMMIT")});
+    let target = json!({"triple": session.opts.target_triple.tuple(),
+                        "pointer_width": session.target.pointer_width,
+                        "data_layout": session.target.data_layout.to_string()});
+    let semantics = json!({"integer_overflow": if session.overflow_checks() { "checked" } else { "wrapping" },
+                           "exceptions": if format!("{:?}", session.panic_strategy()) == "Abort" { "abort" } else { "unwind" },
+                           "debug_assertions": session.opts.debug_assertions,
+                           "optimization": format!("{:?}", session.opts.optimize)});
 
-    json!({
-        "schema_version": "0.1.0",
-        "profile": {"id": "compat.cpg", "version": "0.1.0"},
-        "layout": "bundled",
-        "document": "unit",
-        "producer": {"name": "rstyle-driver", "version": env!("CARGO_PKG_VERSION"), "namespace": "rust",
-                     "revision": env!("RSTYLE_PRODUCER_REVISION")},
-        "coverage": unit::coverage(),
-        "unit": {
-            "id": format!("unit:{name}"),
-            "root_file": root_file(tcx, &root),
-            "language": {"name": "rust", "version": session.edition().to_string()},
-            "toolchain": {"name": "rustc", "version": toolchain_version(),
-                          "commit": env!("RSTYLE_RUSTC_COMMIT")},
-            "target": {"triple": session.opts.target_triple.tuple(),
-                       "pointer_width": session.target.pointer_width,
-                       "data_layout": session.target.data_layout.to_string()},
-            "configuration": configuration(tcx),
-            "semantics": {"integer_overflow": if session.overflow_checks() { "checked" } else { "wrapping" },
-                          "exceptions": if format!("{:?}", session.panic_strategy()) == "Abort" { "abort" } else { "unwind" },
-                          "debug_assertions": session.opts.debug_assertions,
-                          "optimization": format!("{:?}", session.opts.optimize)},
-            "files": files, "namespaces": namespaces, "imports": imports, "definitions": definitions, "types": types,
-            "values": values, "instances": [], "functions": functions,
-            // The LLVM target the compiler builds for, which the frontend's facts name.
-            "extensions": extensions,
-        },
-    })
+    object([
+        ("id", format!("unit:{name}").into()),
+        ("root_file", root_file(tcx, &root).into()),
+        ("language", language),
+        ("toolchain", toolchain),
+        ("target", target),
+        ("configuration", configuration(tcx).into()),
+        ("semantics", semantics),
+        ("files", files.into()),
+        ("namespaces", namespaces.into()),
+        ("imports", imports.into()),
+        ("definitions", definitions.into()),
+        ("types", types.into()),
+        ("values", values.into()),
+        ("instances", Value::Array(Vec::new())),
+        ("functions", functions.into()),
+        // The LLVM target the compiler builds for, which the frontend's facts name.
+        ("extensions", extensions),
+    ])
+}
+
+/// A JSON object of `fields`, each moved in. `json!` serializes a copy of every value it's
+/// given, which for a function's nodes, or a document's functions and tables, is a copy
+/// of most of what was built.
+pub(crate) fn object<const N: usize>(fields: [(&str, Value); N]) -> Value {
+    Value::Object(
+        fields
+            .into_iter()
+            .map(|(name, value)| (name.to_owned(), value))
+            .collect(),
+    )
 }
 
 /// The conversion `?` applies to an error of the same type: `From::from`, and the
@@ -290,24 +357,39 @@ fn function(unit: &mut unit::Unit<'_>, id: LocalDefId, prefix: &str) -> Result<V
     let root = builder.expr(body.value).ok_or_else(missing)?;
     let span = written_span(span, &signature["span"], (sig, body), &builder.nodes);
     let places = places::places(tcx, id, &mut builder);
-    let implements = tcx
-        .opt_associated_item(id.to_def_id())
-        .and_then(|item| item.trait_item_def_id())
-        .map(|trait_fn| builder.unit.definition(trait_fn));
+    let implements = implemented(builder.unit, id);
     let definition = builder.unit.definition(id.to_def_id());
     let written = places::nested_places(tcx, id, &mut builder);
     let (cfg, accesses) = control_flow(&builder, &root, (&places, &written));
 
-    let mut function = json!({
-        "id": format!("fn:{}", crate::ids::def_id_str(tcx, id.to_def_id())), "definition": definition,
-        "name": tcx.def_path_str(id.to_def_id()), "span": span, "signature": signature, "root": root,
-        "nodes": builder.nodes, "cfg": cfg, "symbols": builder.symbols,
-        "accesses": accesses, "refs": builder.refs, "places": places, "values": [],
-    });
+    let id_text = format!("fn:{}", crate::ids::def_id_str(tcx, id.to_def_id()));
+    let mut function = object([
+        ("id", id_text.into()),
+        ("definition", definition.into()),
+        ("name", tcx.def_path_str(id.to_def_id()).into()),
+        ("span", span),
+        ("signature", signature),
+        ("root", root.into()),
+        ("nodes", builder.nodes.into()),
+        ("cfg", cfg),
+        ("symbols", builder.symbols.into()),
+        ("accesses", accesses.into()),
+        ("refs", builder.refs.into()),
+        ("places", places.into()),
+        ("values", Value::Array(Vec::new())),
+    ]);
     if let Some(implements) = implements {
         function["implements"] = json!(implements);
     }
     Ok(function)
+}
+
+/// The definition of the trait method the function `id` implements, if it implements one.
+fn implemented(unit: &mut unit::Unit<'_>, id: LocalDefId) -> Option<String> {
+    let tcx = unit.tcx;
+    tcx.opt_associated_item(id.to_def_id())
+        .and_then(|item| item.trait_item_def_id())
+        .map(|trait_fn| unit.definition(trait_fn))
 }
 
 /// The function's control flow and who reads and writes its bindings.

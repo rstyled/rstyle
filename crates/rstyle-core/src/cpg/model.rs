@@ -2,13 +2,13 @@
 //! schema's `additionalProperties: false` does, so a document from a newer profile
 //! fails to load instead of losing facts silently.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 pub type Id = String;
 pub type Declarations = BTreeMap<String, Capability>;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Document {
     pub schema_version: String,
@@ -22,28 +22,28 @@ pub struct Document {
     pub function: Option<Function>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Layout {
     Bundled,
     Split,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DocumentKind {
     Unit,
     Function,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Profile {
     pub id: String,
     pub version: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Producer {
     pub name: String,
@@ -52,28 +52,28 @@ pub struct Producer {
     pub namespace: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Coverage {
     pub capabilities: Declarations,
     pub layers: Declarations,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CoverageOverride {
     pub capabilities: Option<Declarations>,
     pub layers: Option<Declarations>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Capability {
     pub status: Status,
     pub description: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Status {
     Supported,
@@ -83,14 +83,14 @@ pub enum Status {
     NotApplicable,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct UnitRef {
     pub id: Id,
     pub digest: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Unit {
     pub id: Id,
@@ -112,14 +112,14 @@ pub struct Unit {
     pub extensions: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Named {
     pub name: String,
     pub version: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Toolchain {
     pub name: String,
@@ -127,7 +127,7 @@ pub struct Toolchain {
     pub commit: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Target {
     pub triple: String,
@@ -135,7 +135,7 @@ pub struct Target {
     pub data_layout: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Semantics {
     pub integer_overflow: String,
@@ -144,7 +144,7 @@ pub struct Semantics {
     pub optimization: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct File {
     pub id: Id,
@@ -158,7 +158,7 @@ pub struct File {
     pub content: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Namespace {
     pub id: Id,
@@ -167,7 +167,7 @@ pub struct Namespace {
     pub file: Option<Id>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Import {
     pub id: Id,
@@ -187,7 +187,49 @@ pub struct FileSpan {
     pub end: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+/// Serialized as derived, and noted as it is while [`spans_reached`] listens.
+impl Serialize for FileSpan {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        REACHED.with_borrow_mut(|reached| {
+            let Some(reached) = reached else {
+                return;
+            };
+            match reached.get_mut(self.file.as_str()) {
+                Some((first, last)) => {
+                    *first = (*first).min(self.start);
+                    *last = (*last).max(self.end);
+                }
+                None => {
+                    reached.insert(self.file.clone(), (self.start, self.end));
+                }
+            }
+        });
+        let mut span = serializer.serialize_struct("FileSpan", 3)?;
+        span.serialize_field("file", &self.file)?;
+        span.serialize_field("start", &self.start)?;
+        span.serialize_field("end", &self.end)?;
+        span.end()
+    }
+}
+
+/// The first and last offset of each file the spans reach, by file ID.
+pub type Reached = BTreeMap<String, (usize, usize)>;
+
+thread_local! {
+    static REACHED: std::cell::RefCell<Option<Reached>> = const { std::cell::RefCell::new(None) };
+}
+
+/// What `serialize` returns, and how far into each file every span it serialized reaches, on
+/// this thread, however deep in what it serializes the spans lie.
+pub fn spans_reached<T>(serialize: impl FnOnce() -> T) -> (T, Reached) {
+    let outer = REACHED.replace(Some(Reached::new()));
+    let value = serialize();
+    let reached = REACHED.replace(outer).unwrap_or_default();
+    (value, reached)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DefinitionKind {
     Function,
@@ -203,7 +245,7 @@ pub enum DefinitionKind {
     Other,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Scope {
     Unit,
@@ -211,7 +253,7 @@ pub enum Scope {
     Library,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Definition {
     pub id: Id,
@@ -256,7 +298,7 @@ impl Definition {
 }
 
 /// The interface a call to a function or method sees.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Callable {
     pub owner_type: Option<Id>,
@@ -268,7 +310,7 @@ pub struct Callable {
     pub modifiers: Vec<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TypeKind {
     Integer,
@@ -293,7 +335,7 @@ pub enum TypeKind {
     Opaque,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Type {
     pub id: Id,
@@ -328,7 +370,7 @@ pub struct Type {
     pub modifiers: Vec<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct TypeField {
     pub name: String,
@@ -339,7 +381,7 @@ pub struct TypeField {
     pub embedded: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Variant {
     pub name: String,
@@ -351,7 +393,7 @@ pub struct Variant {
     pub discriminant: Option<i64>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Value {
     pub node: Option<Id>,
@@ -361,7 +403,7 @@ pub struct Value {
     pub value: Literal,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Literal {
     pub kind: String,
@@ -371,14 +413,14 @@ pub struct Literal {
     pub variant: Option<Id>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct LiteralField {
     pub name: String,
     pub value: Literal,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Instance {
     pub id: Id,
@@ -389,14 +431,14 @@ pub struct Instance {
     pub body: Option<Id>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Selection {
     pub node: Id,
     pub target: RefTarget,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Function {
     pub id: Id,
@@ -417,7 +459,7 @@ pub struct Function {
     pub extensions: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Signature {
     pub span: FileSpan,
@@ -441,7 +483,7 @@ pub struct Signature {
     pub modifiers: Vec<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Parameter {
     pub position: usize,
@@ -458,7 +500,7 @@ pub struct Parameter {
     pub provenance: Option<Provenance>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Receiver {
     pub symbol: Id,
@@ -469,7 +511,7 @@ pub struct Receiver {
     pub provenance: Option<Provenance>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Generic {
     pub name: String,
@@ -480,7 +522,7 @@ pub struct Generic {
     pub span: Option<FileSpan>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ConstantParameter {
     pub name: String,
@@ -492,7 +534,7 @@ pub struct ConstantParameter {
     pub span: Option<FileSpan>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Lifetime {
     pub id: Id,
@@ -505,14 +547,14 @@ pub struct Lifetime {
     pub elided: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Outlives {
     pub longer: Id,
     pub shorter: Id,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NodeKind {
     Identifier,
@@ -561,7 +603,7 @@ pub enum NodeKind {
     Unsupported,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Node {
     pub id: Id,
@@ -595,7 +637,7 @@ pub struct Node {
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Origin {
     Source,
@@ -605,7 +647,7 @@ pub enum Origin {
     Analysis,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Provenance {
     pub origin: Origin,
@@ -618,7 +660,7 @@ pub struct Provenance {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Cfg {
     pub entry: Id,
@@ -631,7 +673,7 @@ pub struct Cfg {
 
 /// A closure's own flow. Its body runs when the closure is called, so no edge joins it to the
 /// function's flow, where the closure's node is one vertex.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ClosureFlow {
     pub node: Id,
@@ -640,14 +682,14 @@ pub struct ClosureFlow {
     pub edges: Vec<CfgEdge>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Exit {
     pub id: Id,
     pub kind: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CfgEdge {
     pub id: Id,
@@ -657,7 +699,7 @@ pub struct CfgEdge {
     pub loop_role: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Symbol {
     pub id: Id,
@@ -671,7 +713,7 @@ pub struct Symbol {
     pub ty: Option<Id>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AccessMode {
     Read,
@@ -679,7 +721,7 @@ pub enum AccessMode {
     ReadWrite,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Access {
     pub node: Id,
@@ -687,7 +729,7 @@ pub struct Access {
     pub mode: AccessMode,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TargetKind {
     Symbol,
@@ -699,7 +741,7 @@ pub enum TargetKind {
     Namespace,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct RefTarget {
     pub kind: TargetKind,
@@ -707,7 +749,7 @@ pub struct RefTarget {
     pub operation: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RefStatus {
     Resolved,
@@ -715,7 +757,7 @@ pub enum RefStatus {
     Unresolved,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Dispatch {
     Builtin,
@@ -726,7 +768,7 @@ pub enum Dispatch {
     FunctionValue,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Ref {
     pub node: Id,
@@ -756,7 +798,7 @@ pub struct Ref {
 
 /// Which parameter one of a call's arguments binds to, each field absent where the frontend
 /// can't know it.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ArgumentBinding {
     /// The parameter it binds to, as the callee numbers its own parameters: a receiver is 0.
@@ -768,7 +810,7 @@ pub struct ArgumentBinding {
 }
 
 /// How an argument that unpacks into any number of parameters unpacks.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Spread {
     Sequence,
@@ -777,14 +819,14 @@ pub enum Spread {
 
 /// A callee's parameter and result types at one call, each absent where the frontend
 /// cannot normalize it.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct InstanceSignature {
     pub parameters: Vec<Option<Id>>,
     pub result: Option<Id>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CallsBack {
     pub value: bool,
@@ -802,7 +844,7 @@ impl CallsBack {
 }
 
 /// Code a library call runs besides its own.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Ran {
     /// A closure written in the calling function, by its node. That function's own facts hold
@@ -812,7 +854,7 @@ pub enum Ran {
     Definition { id: Id },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PlaceMode {
     Value,
@@ -821,7 +863,7 @@ pub enum PlaceMode {
     Raw,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Place {
     pub id: Id,
@@ -837,14 +879,14 @@ pub struct Place {
     pub escapes: Option<bool>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PlaceRoot {
     pub symbol: Option<Id>,
     pub definition: Option<Id>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum Step {
     Field(FieldStep),
@@ -852,26 +894,26 @@ pub enum Step {
     Deref(DerefStep),
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct FieldStep {
     pub field: String,
     pub definition: Option<Id>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct IndexStep {
     pub index: Option<Id>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct DerefStep {
     pub deref: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Adjustment {
     pub kind: String,
@@ -881,7 +923,7 @@ pub struct Adjustment {
 }
 
 /// A place a closure captures, by its root binding.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Capture {
     pub symbol: Id,
@@ -894,7 +936,7 @@ pub struct Capture {
 }
 
 /// One projection of a captured place, with the type it reaches.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CaptureStep {
     pub kind: String,

@@ -7,14 +7,15 @@ mod risk;
 mod store;
 
 use crate::cpg::analyze::{self, FrontendResult, Unified};
-use crate::cpg::{self, input};
+use crate::cpg::{self, input, input::Derivation};
 use crate::{Cli, Format, MineArgs, PatternDisplayArgs, compiler, ignore, workspace};
 use clap::Args;
-use frontend::{AnalysisPaths, Frontend, Saving};
+use frontend::{AnalysisPaths, Frontend, Input, Saving, Started};
 pub(crate) use risk::{RiskArgs, risk};
 use rstyle_core::config::{Config, Excludes};
 use rstyle_core::cpg::OnRecords;
-use rstyle_core::cpg::records::{Demand, Record};
+use rstyle_core::cpg::records::Record;
+use rstyle_core::cpg::store::facts::FunctionFacts;
 use rstyle_core::cpg::transport::{self, DOCUMENTS_MANIFEST, Encoding};
 use rstyle_core::exclusions;
 use rstyle_core::filter::{Analysis, Filter};
@@ -50,6 +51,15 @@ pub(crate) struct RunArgs {
     /// Analyze a saved run without running the frontend; saves only with --out.
     #[arg(long)]
     from: Option<PathBuf>,
+    /// Keep the saved run's documents in this local store too, one pack per unit, as `rstyle
+    /// cpg pack` does, and say the manifest that names them. Each function's facts are kept there
+    /// too, so a later run derives only the functions that changed. With --from, only the facts
+    /// are kept.
+    #[arg(long)]
+    store: Option<PathBuf>,
+    /// Derive every function whose facts --store keeps again, and fail when any differ.
+    #[arg(long, requires = "store")]
+    verify_incremental: bool,
     /// Exit 1 when any candidate is left after the ignore ledger (for CI).
     #[arg(long)]
     fail_on_candidates: bool,
@@ -327,41 +337,83 @@ fn from_frontend(
     let local = filter.frontend_analyses(language, &frontend.analyses())?;
     let plan = Plan::new((cli, args), (filter, language), (source, project))?;
     let staged = Staged::new(args.destination(&plan.project, language)?)?;
-    let frontend = frontend.excluding(&plan.config.exclude.0);
+    let frontend = frontend
+        .excluding(&plan.config.exclude.0)
+        .caching(|| store::frontend_cache(&plan.project, language).ok());
     let early = Early::new(&plan.filter, &plan.config)?;
-
-    let (records, documents) =
-        match plan.filter.needs_documents() || frontend.reads_documents(&local) {
-            true => frontend_records(&plan, &frontend, &staged, &early)?,
-            false => (Vec::new(), 0),
-        };
-    let mut unified = plan.analyzed(records, Some(early))?;
     if !local.is_empty() {
-        let paths = AnalysisPaths {
-            source: &plan.source,
-            results: &staged.folder(FRONTEND_FOLDER)?,
-            documents: &staged.path().join(DOCUMENTS_FOLDER),
-        };
-        unified.frontend = frontend.run_analyses(&local, &paths);
+        staged.folder(FRONTEND_FOLDER)?;
     }
+    let (results, kept) = (
+        staged.path().join(FRONTEND_FOLDER),
+        staged.path().join(DOCUMENTS_FOLDER),
+    );
+    let paths = AnalysisPaths {
+        source: &plan.source,
+        results: &results,
+        documents: &kept,
+    };
+    // A run kept in a store packs each unit as its document arrives, and a frontend that can
+    // leaves the units the store already holds to it.
+    let emitted = plan.emitted();
+    let held = held_keys(emitted.as_ref())?;
+    let frontend = match &held {
+        Some(keys) => frontend.reusing(keys.path()),
+        None => frontend,
+    };
+
+    let (unified, documents) = std::thread::scope(|scope| {
+        // An analysis of the source needs nothing the stream brings, so it runs beside it. A run
+        // that fails waits for what started before it says so, and publishes none of it.
+        let of_source = frontend.start_analyses(scope, (&local, Input::Source), &paths);
+        let (records, documents) =
+            match plan.filter.needs_documents() || frontend.reads_documents(&local) {
+                true => frontend_records(&plan, &frontend, (&staged, emitted.as_ref()), &early)?,
+                false => (Vec::new(), 0),
+            };
+        // An analysis of the documents starts once the stream has kept them all, beside core's.
+        let of_documents = frontend.start_analyses(scope, (&local, Input::Documents), &paths);
+        let mut unified = plan.analyzed(records, Some(early))?;
+        unified.frontend = Started::together([of_source, of_documents]).finished();
+        Ok::<_, String>((unified, documents))
+    })?;
     let run = plan.save(&unified, staged, documents)?;
-    plan.output(&unified, Some(&run))
+    let output = plan.output(&unified, Some(&run))?;
+    plan.reported(&run, output, (emitted, documents))
+}
+
+// rstyle-allow(side_effect_density): IO boundary: writes the keys a frontend is told the store holds
+/// The input keys of the units the store holds, as the JSON array `--reuse` reads.
+fn held_keys(
+    emitted: Option<&crate::cpg::pack::Emitted>,
+) -> Result<Option<tempfile::NamedTempFile>, String> {
+    let Some(emitted) = emitted else {
+        return Ok(None);
+    };
+    let file = tempfile::NamedTempFile::new().map_err(|error| error.to_string())?;
+    let keys = serde_json::to_vec(&emitted.held_keys()).expect("a list of keys serializes");
+    std::fs::write(file.path(), keys).map_err(|error| error.to_string())?;
+    Ok(Some(file))
 }
 
 // rstyle-allow(side_effect_density): process boundary: reads the frontend's stream
 fn frontend_records(
     plan: &Plan<'_>,
     frontend: &Frontend,
-    staged: &Staged,
+    (staged, emitted): (&Staged, Option<&crate::cpg::pack::Emitted>),
     early: &Early,
 ) -> Result<(Vec<Record>, usize), String> {
     let directory = staged.folder(DOCUMENTS_FOLDER)?;
+    let facts = plan.facts()?;
     let saving = Saving {
         directory: &directory,
         encoding: plan.cli.cpg_compression,
+        emitted,
     };
     let take = |records: Vec<Record>| early.take(records);
-    let streamed = frontend.stream(&plan.source, (plan.filter.demand(), &take), &saving)?;
+    let derivation = plan.derivation(facts.as_ref());
+    let streamed = frontend.stream(&plan.source, (derivation, &take), &saving)?;
+    plan.kept_facts(facts.as_ref())?;
     Ok((streamed.records, streamed.documents))
 }
 
@@ -384,10 +436,12 @@ pub(crate) fn rust(cli: &Cli, args: &RunArgs) -> Result<(String, u8), String> {
     let staged = Staged::new(args.destination(&plan.project, "rust")?)?;
     let early = Early::new(&plan.filter, &plan.config)?;
 
-    let (records, documents) = rust_records(&plan, &staged, &early)?;
+    let emitted = plan.emitted();
+    let (records, documents) = rust_records(&plan, &staged, &early, emitted.as_ref())?;
     let unified = plan.analyzed(records, Some(early))?;
     let run = plan.save(&unified, staged, documents)?;
-    plan.output(&unified, Some(&run))
+    let output = plan.output(&unified, Some(&run))?;
+    plan.reported(&run, output, (emitted, documents))
 }
 
 /// Reads the capture `cargo rstyle` and `patterns` share, so only what changed compiles, and
@@ -397,21 +451,46 @@ fn rust_records(
     plan: &Plan<'_>,
     staged: &Staged,
     early: &Early,
+    emitted: Option<&crate::cpg::pack::Emitted>,
 ) -> Result<(Vec<Record>, usize), String> {
     if !plan.filter.needs_documents() {
         return Ok((Vec::new(), 0));
     }
 
     let units = compiler::captured_documents(plan.cli)?;
+    if let Some(emitted) = emitted {
+        note_sealed_units(&units, emitted);
+    }
     let documents = store::keep_documents(&units, &staged.folder(DOCUMENTS_FOLDER)?)?;
     let seals = units.iter().flat_map(|unit| {
         unit.documents
             .iter()
             .map(|seal| (unit.directory.as_path(), seal))
     });
-    let records =
-        input::sealed_records(seals, plan.filter.demand(), &|records| early.take(records))?;
+    let facts = plan.facts()?;
+    let derivation = plan.derivation(facts.as_ref());
+    let records = input::sealed_records(seals, derivation, &|records| early.take(records))?;
+    plan.kept_facts(facts.as_ref())?;
     Ok((records, documents))
+}
+
+/// Notes each unit by its documents' text, as their seals name it, so keeping the run once
+/// it's reported reads only the units that changed. A unit whose seals don't name their text
+/// is left out, and the run is packed from its documents.
+fn note_sealed_units(units: &[compiler::SealedUnit], emitted: &crate::cpg::pack::Emitted) {
+    for unit in units {
+        let digests: Option<Vec<String>> = unit
+            .documents
+            .iter()
+            .map(|seal| {
+                let checksum = seal.decoded_checksum.as_deref()?;
+                Some(checksum.strip_prefix("sha256:")?.to_owned())
+            })
+            .collect();
+        if let Some(digests) = digests.filter(|digests| !digests.is_empty()) {
+            emitted.sealed_unit(digests);
+        }
+    }
 }
 
 /// Reads a saved run back, with no frontend unless the filter names one of its analyses.
@@ -434,7 +513,10 @@ fn saved(
     let early = Early::new(&plan.filter, &plan.config)?;
 
     let take = |records: Vec<Record>| early.take(records);
-    let records = saved_records(from, record.as_ref(), (plan.filter.demand(), &take))?;
+    let facts = plan.facts()?;
+    let derivation = plan.derivation(facts.as_ref());
+    let records = saved_records(from, record.as_ref(), (derivation, &take))?;
+    plan.kept_facts(facts.as_ref())?;
     let mut unified = plan.analyzed(records, Some(early))?;
     let documents = documents_folder(from);
     match &args.out {
@@ -549,9 +631,9 @@ fn read_any_record(from: &Path) -> Result<Option<RunRecord>, String> {
 fn saved_records(
     from: &Path,
     record: Option<&RunRecord>,
-    (demand, take): (Demand, OnRecords<'_>),
+    (derivation, take): (Derivation<'_>, OnRecords<'_>),
 ) -> Result<Vec<Record>, String> {
-    seen_saved_records((from, record), demand, (&|_| {}, take))
+    seen_saved_records((from, record), derivation, (&|_| {}, take))
 }
 
 /// A saved run's records, with each document shown to `see` as it's read and its records handed
@@ -559,12 +641,12 @@ fn saved_records(
 // rstyle-allow(side_effect_density): IO boundary: reads a saved run's documents
 fn seen_saved_records(
     (from, record): (&Path, Option<&RunRecord>),
-    demand: Demand,
+    derivation: Derivation<'_>,
     (see, take): (input::See<'_>, OnRecords<'_>),
 ) -> Result<Vec<Record>, String> {
     let directory = documents_folder(from);
     if directory.join(DOCUMENTS_MANIFEST).exists() {
-        return input::seen_capture_records(&directory, demand, (see, take));
+        return input::seen_capture_records(&directory, derivation, (see, take));
     }
 
     let paths = cpg::documents(&directory)?;
@@ -579,7 +661,7 @@ fn seen_saved_records(
     if paths.is_empty() {
         return Err(format!("{} holds no documents", from.display()));
     }
-    input::seen_file_records(&paths, demand, (see, take))
+    input::seen_file_records(&paths, derivation, (see, take))
 }
 
 /// Where a saved run keeps its documents, or the folder itself if it holds them directly.
@@ -663,6 +745,72 @@ impl Plan<'_> {
         };
         transport::write_json(&staged.path().join(RUN_FILE), Encoding::Json, &record)?;
         staged.publish()
+    }
+
+    /// Where each function's facts are kept between runs of this build of rstyle, in `--store`,
+    /// if there is one.
+    fn facts(&self) -> Result<Option<FunctionFacts>, String> {
+        let Some(store) = self.args.store.as_deref() else {
+            return Ok(None);
+        };
+        let demand = self.filter.demand();
+        let verify = self.args.verify_incremental;
+        Ok(Some(FunctionFacts::new(
+            store,
+            store::build()?,
+            demand,
+            verify,
+        )))
+    }
+
+    /// What the run derives of each function, and where it keeps it.
+    fn derivation<'f>(&self, facts: Option<&'f FunctionFacts>) -> Derivation<'f> {
+        Derivation {
+            demand: self.filter.demand(),
+            facts,
+        }
+    }
+
+    // rstyle-allow(side_effect_density): IO boundary: records which facts the store keeps
+    /// Records where the store keeps each unit's function facts now, and says how many it reused.
+    fn kept_facts(&self, facts: Option<&FunctionFacts>) -> Result<(), String> {
+        let Some((facts, store)) = facts.zip(self.args.store.as_deref()) else {
+            return Ok(());
+        };
+        let counts = facts.finish()?;
+        let (reused, total) = (counts.reused, counts.reused + counts.derived);
+        let store = store.display();
+        eprintln!("rstyle: reused {reused} of {total} functions' facts from {store}");
+        Ok(())
+    }
+
+    /// What keeps the run in `--store`, if there is one: units packed as they arrive, or named
+    /// by their documents' seals, and the rest packed from the saved run.
+    fn emitted(&self) -> Option<crate::cpg::pack::Emitted> {
+        let store = self.args.store.as_deref()?;
+        Some(crate::cpg::pack::Emitted::new(store, 3))
+    }
+
+    // rstyle-allow(side_effect_density): IO boundary: prints the report, then keeps the run
+    /// The run's report, printed before the run is kept in `--store` when there is one, so a
+    /// check never waits on its store: what's left to print is then nothing.
+    fn reported(
+        &self,
+        run: &Path,
+        output: (String, u8),
+        (emitted, documents): (Option<crate::cpg::pack::Emitted>, usize),
+    ) -> Result<(String, u8), String> {
+        let Some(emitted) = emitted else {
+            return Ok(output);
+        };
+        let (text, code) = output;
+        print!("{text}");
+        std::io::Write::flush(&mut std::io::stdout()).map_err(|error| error.to_string())?;
+        let store = emitted.store().display().to_string();
+        let kept = emitted.finish(&run.join(DOCUMENTS_FOLDER), documents)?;
+        let manifest = kept["manifest"].as_str().unwrap_or_default();
+        eprintln!("rstyle: run kept in {store} as {manifest}");
+        Ok((String::new(), code))
     }
 
     fn output(&self, unified: &Unified, run: Option<&Path>) -> Result<(String, u8), String> {
@@ -796,6 +944,42 @@ fn marked_or_repository(start: &Path, marks_a_project: fn(&Path) -> bool) -> Opt
 mod tests {
     use super::*;
 
+    /// A unit of one saved document holding `text`, sealed as Rust's capture seals it, its
+    /// text's sha256 named only when `named`.
+    fn sealed_unit(directory: &Path, text: &str, named: bool) -> compiler::SealedUnit {
+        let decoded = rstyle_core::cpg::store::sha256(text.as_bytes());
+        let seal = serde_json::json!({
+            "file": "document-0.cpg.json", "checksum": "xxh3-64:0", "bytes": text.len(),
+            "decoded_checksum": named.then(|| format!("sha256:{decoded}")),
+        });
+        compiler::SealedUnit {
+            directory: directory.to_path_buf(),
+            documents: vec![serde_json::from_value(seal).unwrap()],
+        }
+    }
+
+    #[test]
+    fn a_rust_run_is_kept_by_its_units_seals_when_they_name_their_text() {
+        let dir = tempfile::tempdir().unwrap();
+        let text = serde_json::json!({
+            "unit": {"id": "unit:t", "files": [], "definitions": [], "types": [], "functions": [
+                {"id": "fn:a", "span": {"file": "file:a.rs", "start": 0, "end": 1}},
+            ]},
+        })
+        .to_string();
+        std::fs::write(dir.path().join("document-0.cpg.json"), &text).unwrap();
+        let packed = crate::cpg::pack::pack_run(dir.path(), &dir.path().join("packed"), 3).unwrap();
+        for named in [true, false] {
+            let emitted = crate::cpg::pack::Emitted::new(&dir.path().join(format!("{named}")), 3);
+            let empty = compiler::SealedUnit {
+                directory: dir.path().to_path_buf(),
+                documents: Vec::new(),
+            };
+            note_sealed_units(&[sealed_unit(dir.path(), &text, named), empty], &emitted);
+            assert_eq!(emitted.finish(dir.path(), 1).unwrap(), packed);
+        }
+    }
+
     #[test]
     fn a_python_project_is_what_says_how_it_is_packaged_then_its_repository() {
         let dir = tempfile::tempdir().unwrap();
@@ -819,6 +1003,8 @@ mod tests {
                 filter: Vec::new(),
                 out: None,
                 from: None,
+                store: None,
+                verify_incremental: false,
                 fail_on_candidates: false,
                 no_ignore: false,
                 excludes: Vec::new(),
@@ -875,6 +1061,8 @@ mod tests {
                 filter: Vec::new(),
                 out: None,
                 from: None,
+                store: None,
+                verify_incremental: false,
                 fail_on_candidates: false,
                 no_ignore: false,
                 excludes: Vec::new(),

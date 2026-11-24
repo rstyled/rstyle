@@ -75,8 +75,27 @@ pub struct CallEvent {
     pub library: Option<LibraryClass>,
     /// The identity of a callee that's a library's, as a dependence graph names it. A comparison
     /// reads this, since `library` alone can't tell a library nothing classifies from this code.
-    #[serde(default, skip_serializing)]
+    /// Only a store writes it: see [`keeping`].
+    #[serde(default, skip_serializing_if = "unkept")]
     pub library_callee: Option<String>,
+}
+
+thread_local! {
+    static KEEPING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// What `serialize` returns, with the fields only a store keeps written as well, on this thread.
+/// Facts serialize as they always have everywhere else.
+pub fn keeping<T>(serialize: impl FnOnce() -> T) -> T {
+    let outer = KEEPING.replace(true);
+    let value = serialize();
+    KEEPING.set(outer);
+    value
+}
+
+/// Whether a field only a store keeps is left out: unless a store is writing it.
+fn unkept(callee: &Option<String>) -> bool {
+    callee.is_none() || !KEEPING.get()
 }
 
 /// What a library contract says a call does. Config can still override it, which is why

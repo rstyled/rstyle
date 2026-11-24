@@ -147,6 +147,22 @@ fn ids_begin_with_the_sha256_of_the_function_identity() {
 }
 
 #[test]
+fn another_crates_definitions_hold_no_hash_of_that_crate() {
+    // Any edit to a crate changes its hash, a comment included, which would rewrite every
+    // document naming one of its definitions. Its name and stable ID already tell it apart.
+    let identities = compiler_identities(KEPT);
+    let other: Vec<&Value> = identities
+        .values()
+        .filter(|fields| fields["crate_name"] != "ids")
+        .collect();
+    assert!(!other.is_empty(), "{identities:?}");
+    for fields in other {
+        assert!(fields.get("crate_hash").is_none(), "{fields}");
+        assert!(fields["stable_crate_id"].is_string(), "{fields}");
+    }
+}
+
+#[test]
 fn compiler_identities_hold_nothing_that_moves_with_other_items() {
     let before = compiler_identities(KEPT);
     let after = compiler_identities(&with_items_before());

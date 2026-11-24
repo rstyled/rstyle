@@ -486,3 +486,27 @@ fn accesses_a_frontend_doesnt_record_leave_a_function_unknown() {
 fn a_rule_can_be_named_by_a_suppression() {
     assert!(crate::suppress::RULE_IDS.contains(&dead_store::RULE));
 }
+
+#[test]
+fn a_kept_defect_reads_back_only_under_a_rule_this_build_has() {
+    let defect = Defect {
+        rule: dead_store::RULE,
+        severity: crate::config::Level::Warning,
+        line: 3,
+        message: "x is never read".into(),
+    };
+    let kept = serde_json::to_value(&defect).unwrap();
+    assert_eq!(
+        serde_json::from_value::<Defect>(kept.clone()).unwrap(),
+        defect
+    );
+    let mut unknown = kept;
+    unknown["rule"] = "a_rule_no_build_has".into();
+    let error = serde_json::from_value::<Defect>(unknown).unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("no defect rule is named a_rule_no_build_has"),
+        "{error}"
+    );
+}

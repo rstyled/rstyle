@@ -12,7 +12,7 @@ fn bundled_records_reach_the_visitor_before_the_following_document_is_read() {
         assert_eq!(visited.get(), i * 3);
         let mut value = example();
         value["unit"]["id"] = Value::String(format!("unit:{i}"));
-        Ok(value)
+        Parsed::from_json(&value)
     });
     visit_records(documents, Demand::default(), |batch| {
         visited.set(visited.get() + batch.len());
@@ -27,7 +27,7 @@ fn split_functions_can_arrive_before_their_unit() {
     let mut split = layout::split(&example());
     split.reverse();
     let records = read_records(
-        split.into_iter().map(Ok),
+        split.iter().map(Parsed::from_json),
         Demand {
             graphs: true,
             bounds: true,
@@ -44,7 +44,7 @@ fn split_functions_can_arrive_before_their_unit() {
 fn stream_rejects_duplicate_functions_across_bundled_and_split_documents() {
     let documents = std::iter::once(example())
         .chain(layout::split(&example()))
-        .map(Ok);
+        .map(|document| Parsed::from_json(&document));
     let error = read_records(documents, Demand::default()).unwrap_err();
     assert!(error.contains("appears more than once"), "{error}");
 }
@@ -53,9 +53,9 @@ fn stream_rejects_duplicate_functions_across_bundled_and_split_documents() {
 fn late_input_failure_does_not_produce_a_successful_run_or_read_more_input() {
     let visited = Cell::new(0);
     let documents = [
-        Ok(example()),
+        Parsed::from_json(&example()),
         Err("incomplete transfer".into()),
-        Ok(example()),
+        Parsed::from_json(&example()),
     ]
     .into_iter()
     .enumerate()

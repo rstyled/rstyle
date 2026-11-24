@@ -1,5 +1,7 @@
 //! Completed raw observations, reused only with the current Cargo freshness decision.
-use super::{Args, Capture, Plan, Unit, build_lane, read_json, retention, write_json};
+use super::{
+    Args, Capture, Plan, Unit, build_lane, read_json, relocation::Relocation, retention, write_json,
+};
 use crate::Cli;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -9,24 +11,29 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     process::Output,
-    time::SystemTime,
 };
 
 const INDEX_FILE: &str = "advisory-owners.json";
+/// 3: the runs directory it was written in, so a build directory restored into a checkout at
+/// another path still serves the owners it captured. 2: tools named by their bytes.
+const SCHEMA: u32 = 3;
 
 #[derive(Serialize, Deserialize)]
 pub(super) struct Index {
     schema: u32,
+    /// The runs directory the index was written in, which its units' directories sit under.
+    #[serde(default)]
+    runs: PathBuf,
     plan: Plan,
     tools: Vec<Tool>,
     entries: Vec<Entry>,
 }
 
+/// A program the capture ran, by its bytes: the same build reinstalled, as a fresh worker does,
+/// still serves the owners it captured, and a rebuilt one doesn't.
 #[derive(Serialize, Deserialize, PartialEq)]
 struct Tool {
-    path: PathBuf,
-    modified: SystemTime,
-    len: u64,
+    checksum: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -98,7 +105,7 @@ impl Compile<'_> {
 
     fn prepare(&self, capture: &Capture, previous: Option<Index>) -> Result<Prepared, String> {
         let tools = tools(&capture.plan)?;
-        let previous = previous.filter(|index| reusable(index, capture, &tools));
+        let previous = previous.and_then(|index| reusable(index, capture, &tools));
         if previous.is_none() {
             build_lane::refresh_selected(capture, self.args)?;
         }
@@ -139,21 +146,47 @@ fn tools(plan: &Plan) -> Result<Vec<Tool>, String> {
 }
 
 fn tool(path: PathBuf) -> Result<Tool, String> {
-    let path = path.canonicalize().map_err(|e| e.to_string())?;
-    let metadata = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+    let bytes = std::fs::read(&path).map_err(|e| format!("Cannot read {}: {e}", path.display()))?;
     Ok(Tool {
-        path,
-        modified: metadata.modified().map_err(|e| e.to_string())?,
-        len: metadata.len(),
+        checksum: rstyle_capture::checksum(&bytes),
     })
 }
 
-fn reusable(index: &Index, capture: &Capture, tools: &[Tool]) -> bool {
-    index.schema == 1
-        && index.plan.same_capture(&capture.plan)
+/// The index as this checkout would have written it: the same when it was written here, and
+/// with each path it records moved into this checkout when it was written in another.
+fn relocated(index: Index, capture: &Capture) -> Result<Index, String> {
+    let relocation = Relocation::new(&index.runs, &index.plan, capture)?;
+    let entries = index
+        .entries
+        .iter()
+        .map(|entry| {
+            Ok(Entry {
+                artifact: relocation.value(&entry.artifact),
+                unit: relocation.unit(&entry.unit)?,
+            })
+        })
+        .collect::<Result<_, String>>()?;
+    Ok(Index {
+        schema: index.schema,
+        runs: relocation.directory(&index.runs),
+        plan: relocation.plan(&index.plan)?,
+        tools: index.tools,
+        entries,
+    })
+}
+
+/// The previous index, moved into this checkout, when it can serve this capture: written in this
+/// schema by the same tools for the same plan, with each unit it names still stored.
+fn reusable(index: Index, capture: &Capture, tools: &[Tool]) -> Option<Index> {
+    if index.schema != SCHEMA {
+        return None;
+    }
+    let index = relocated(index, capture).ok()?;
+    let serves = index.plan.same_capture(&capture.plan)
         && index.tools == tools
         && !index.entries.is_empty()
-        && index.entries.iter().all(|entry| stored(&entry.unit))
+        && index.entries.iter().all(|entry| stored(&entry.unit));
+    serves.then_some(index)
 }
 
 // rstyle-allow(side_effect_density): IO boundary: checks a unit's files are still there
@@ -254,7 +287,12 @@ fn publish(capture: &Capture, cargo: &[u8], tools: Vec<Tool>) -> Result<(), Stri
 
 fn completed_index(capture: &Capture, cargo: &[u8], tools: Vec<Tool>) -> Result<Index, String> {
     Ok(Index {
-        schema: 1,
+        schema: SCHEMA,
+        runs: capture
+            .directory
+            .parent()
+            .ok_or("Missing capture parent")?
+            .to_path_buf(),
         plan: capture.plan.clone(),
         tools,
         entries: entries(capture, cargo)?,

@@ -5,11 +5,14 @@ pub(crate) mod analyze;
 mod descriptor;
 pub(crate) mod ingest;
 pub(crate) mod input;
+pub(crate) mod pack;
 mod receipt;
 
+use rstyle_capture::threads;
 use rstyle_core::config::Config;
+use rstyle_core::cpg::Order;
 use rstyle_core::cpg::bounds::report::from_records;
-use rstyle_core::cpg::records::{self, Demand, Record};
+use rstyle_core::cpg::records::{Demand, Record};
 use rstyle_core::filter::{Analysis, Filter};
 use rstyle_core::unified::{self, FlowReport, FlowRow, take_flow};
 use rstyle_core::{cpg, patterns_report, report};
@@ -26,7 +29,7 @@ pub fn check(
     config: Option<&Path>,
     format: Format,
 ) -> Result<(String, u8), String> {
-    let received = match input::read(args, Demand::default()) {
+    let received = match input::read(args, Demand::default(), Order::Arrival) {
         Ok(received) => received,
         Err(error) => return error.output(format),
     };
@@ -56,12 +59,11 @@ pub fn patterns(cli: &Cli, args: &CpgPatternsArgs) -> Result<(String, u8), Strin
         flow: false,
         defects: false,
     };
-    let received = match input::read(&args.input, demand) {
+    let received = match input::read(&args.input, demand, Order::Canonical) {
         Ok(received) => received,
         Err(error) => return error.output(cli.format),
     };
-    let mut records = received.records;
-    records::canonical_order(&mut records);
+    let records = received.records;
     let bounds = args
         .complexity
         .then(|| from_records(&records, args.display.top));
@@ -93,7 +95,7 @@ pub fn flow(args: &CpgFlowArgs, format: Format) -> Result<(String, u8), String> 
         flow: true,
         ..Demand::default()
     };
-    let received = match input::read(&args.input, demand) {
+    let received = match input::read(&args.input, demand, Order::Arrival) {
         Ok(received) => received,
         Err(error) => return error.output(format),
     };
@@ -127,7 +129,7 @@ pub fn analyze(cli: &Cli, args: &CpgAnalyzeArgs) -> Result<(String, u8), String>
     let filter = Filter::parse(&args.filter)?;
     validate_analyze(&filter, args)?;
 
-    let received = match input::read_pooled(&args.input, filter.demand()) {
+    let received = match input::read(&args.input, filter.demand(), Order::Canonical) {
         Ok(received) => received,
         Err(error) => return error.output(cli.format),
     };
@@ -208,24 +210,6 @@ fn mined(
     Ok(evaluation)
 }
 
-// rstyle-allow(side_effect_density): IO boundary: reads one input document
-fn read(path: &Path) -> Result<serde_json::Value, String> {
-    let directory = path.parent().unwrap_or_else(|| Path::new("."));
-    let manifest = directory.join(cpg::transport::DOCUMENTS_MANIFEST);
-    if manifest.exists() {
-        let bytes = std::fs::read(&manifest).map_err(|e| e.to_string())?;
-        let manifest = cpg::transport::DocumentManifest::read(&bytes)?;
-        let seal = manifest
-            .documents
-            .iter()
-            .find(|seal| Some(std::ffi::OsStr::new(&seal.file)) == path.file_name())
-            .ok_or_else(|| format!("{} is not listed in its document manifest", path.display()))?;
-        cpg::transport::read_sealed(directory, seal)
-    } else {
-        cpg::transport::read_json(path)
-    }
-}
-
 /// Documents name no Cargo workspace, so only an explicit `--config` applies.
 // rstyle-allow(side_effect_density): IO boundary: reads the explicit config file
 pub(crate) fn load_config(path: Option<&Path>) -> Result<Config, String> {
@@ -301,7 +285,8 @@ fn emit_documents(selection: &Selection<'_>, out: &Path, target: &Path) -> Resul
         .env("RUSTC_WORKSPACE_WRAPPER", crate::run::driver_path()?)
         .env("RSTYLE_CPG_DIR", out)
         .env("RSTYLE_CPG_ROOT", &root)
-        .env("RSTYLE_CPG_COMPRESSION", selection.encoding.cli_name());
+        .env("RSTYLE_CPG_COMPRESSION", selection.encoding.cli_name())
+        .env(threads::VARIABLE, threads::from_environment()?.to_string());
     status(check, "cargo check")?;
 
     Ok(documents(out)?.len())

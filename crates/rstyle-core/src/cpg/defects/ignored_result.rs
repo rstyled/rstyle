@@ -18,7 +18,7 @@ use std::collections::BTreeSet;
 pub const RULE: &str = "ignored_result";
 
 /// What one call did with its result.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ResultUse {
     /// The callee's identity, which a run's calls are weighed by.
     pub callee: String,
