@@ -8,6 +8,7 @@ FROM ghcr.io/rstyled/rstyle-base:9c106b6fac70ff5e09f28623da3e7ed0c1ba3cc6 AS bui
 COPY . /src
 WORKDIR /src
 RUN pinned="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)" && [ "$pinned" = "$RUSTUP_TOOLCHAIN" ] || { echo "rust-toolchain.toml names $pinned, but the base has $RUSTUP_TOOLCHAIN: bump rstyled/rstyle-base first" >&2; exit 1; }
+# rstyle-driver's build.rs bakes in this commit, read from .git, which the context keeps (Dockerfile.dockerignore).
 RUN cargo build --release --locked --bin cargo-rstyle --bin rstyle-driver --bin rstyle && target/release/cargo-rstyle --help >/dev/null && target/release/rstyle --help >/dev/null
 
 FROM scratch
