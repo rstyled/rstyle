@@ -731,8 +731,18 @@ impl Plan<'_> {
     /// Writes the report and SARIF, then publishes the whole run. The report is compressed
     /// here and printed plain, so `--format json | jq` keeps working.
     fn save(&self, unified: &Unified, staged: Staged, documents: usize) -> Result<PathBuf, String> {
-        unified.write_sarif(staged.path(), &self.source, &self.config)?;
-        transport::write_json(&staged.path().join(REPORT_FILE), Encoding::Zstd, unified)?;
+        let report = staged.path().join(REPORT_FILE);
+        // Both read the finished results, so the SARIF files are written while the report is.
+        let (sarif, written) = std::thread::scope(|scope| {
+            let sarif =
+                scope.spawn(|| unified.write_sarif(staged.path(), &self.source, &self.config));
+            let written = rstyle_core::unified::verbatim(|| {
+                transport::write_json_unsealed(&report, Encoding::Zstd, unified)
+            });
+            (sarif.join(), written)
+        });
+        sarif.unwrap_or_else(|panic| std::panic::resume_unwind(panic))?;
+        written?;
         let policy = crate::config_path(self.cli.config.clone(), &self.project);
         keep_policy(policy.as_deref(), staged.path())?;
 

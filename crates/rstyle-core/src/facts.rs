@@ -87,10 +87,7 @@ thread_local! {
 /// What `serialize` returns, with the fields only a store keeps written as well, on this thread.
 /// Facts serialize as they always have everywhere else.
 pub fn keeping<T>(serialize: impl FnOnce() -> T) -> T {
-    let outer = KEEPING.replace(true);
-    let value = serialize();
-    KEEPING.set(outer);
-    value
+    crate::raised::raised(&KEEPING, serialize)
 }
 
 /// Whether a field only a store keeps is left out: unless a store is writing it.

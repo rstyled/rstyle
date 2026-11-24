@@ -284,3 +284,21 @@ fn a_file_that_cannot_be_read_names_itself() {
     let error = read_sealed_text(directory.path(), &seal).unwrap_err();
     assert!(error.starts_with(&expected), "{error}");
 }
+
+#[test]
+fn an_unsealed_write_reads_back_in_either_encoding() {
+    let directory = tempfile::tempdir().unwrap();
+    let decoded = serde_json::to_string(&example()).unwrap();
+    for encoding in [Encoding::Json, Encoding::Zstd] {
+        let path = directory
+            .path()
+            .join(format!("unsealed{}", encoding.suffix()));
+        write_json_unsealed(&path, encoding, &example()).unwrap();
+        assert_eq!(read_json_text(&path).unwrap(), decoded);
+        // A file already there is never replaced.
+        let error = write_json_unsealed(&path, encoding, &example()).unwrap_err();
+        assert!(error.contains("Cannot publish"), "{error}");
+    }
+    let nowhere = directory.path().join("missing/unsealed.json");
+    assert!(write_json_unsealed(&nowhere, Encoding::Json, &example()).is_err());
+}

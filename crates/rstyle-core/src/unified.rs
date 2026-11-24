@@ -16,7 +16,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 mod early;
-pub use early::{Early, SpilledFlow};
+pub use early::{Early, SpilledFlow, verbatim};
 
 /// What the selected analyses reported; a filtered one stays absent. Nothing here says where or
 /// when the run happened, so two runs over the same source are byte-comparable.
@@ -471,6 +471,9 @@ mod tests {
         assert_eq!(compact(&taken), compact(&held));
         assert_eq!(pretty(&taken), pretty(&held));
         assert_eq!(taken.text(), held.text());
+        // Spilled rows written as they were spilled make the same compact report.
+        assert_eq!(verbatim(|| compact(&taken)), compact(&held));
+        assert_eq!(pretty(&taken), pretty(&held));
     }
 
     #[test]
@@ -500,6 +503,23 @@ mod tests {
         });
         let panic = caught.expect_err("the panic carried on");
         assert_eq!(panic.downcast_ref::<&str>(), Some(&"beside"));
+    }
+
+    #[test]
+    fn rows_are_read_back_again_once_a_verbatim_write_ends_even_in_a_panic() {
+        let (filter, config) = (Filter::Everything, Config::default());
+        let options = patterns_report::Options::default();
+        let [library, _] = compiled_twice();
+        let early = Early::new(&filter, &config).unwrap();
+        let taken = early.take(library).unwrap();
+        let taken = analyze_taking(taken, (&filter, &config, &options), Some(early)).unwrap();
+        let pretty = || serde_json::to_string_pretty(&taken).unwrap();
+        let read_back = pretty();
+
+        let panicked = std::panic::catch_unwind(|| verbatim(|| panic!("while writing")));
+        assert!(panicked.is_err());
+        assert_eq!(pretty(), read_back);
+        assert_ne!(verbatim(pretty), read_back);
     }
 
     #[test]

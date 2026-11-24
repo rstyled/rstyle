@@ -67,6 +67,7 @@ pub fn keep_records(records: Vec<Record>) -> Result<Vec<Record>, String> {
     Ok(records)
 }
 
+// rstyle-allow(ignored_result): the scope joins each worker, and carries a worker's panic on
 /// Derives every job's document. `load` reads a job, numbered in arrival order, into its
 /// document on a worker thread. At most `workers` jobs wait in the queue, so a producer
 /// faster than the workers holds a bounded number of documents in memory. Split documents
