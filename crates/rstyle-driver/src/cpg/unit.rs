@@ -7,13 +7,14 @@ use rustc_hir::def_id::DefId;
 use rustc_middle::ty::{self, Ty, TyCtxt, TypeVisitableExt, consts::ConstExt};
 use rustc_span::{FileName, Span};
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 pub struct Unit<'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub root: PathBuf,
+    /// The machine's directories the unit's documents name by placeholder.
+    places: rstyle_capture::Places,
     files: BTreeMap<String, Value>,
     /// Each file's path as the compiler opened it, made absolute.
     local_paths: BTreeMap<String, String>,
@@ -29,6 +30,7 @@ impl<'tcx> Unit<'tcx> {
     pub fn new(tcx: TyCtxt<'tcx>, root: PathBuf) -> Self {
         Self {
             tcx,
+            places: crate::paths::places(tcx, &root),
             root,
             files: BTreeMap::new(),
             local_paths: BTreeMap::new(),
@@ -48,11 +50,16 @@ impl<'tcx> Unit<'tcx> {
         if matches!(self.tcx.def_kind(def_id), DefKind::Macro(_)) {
             stable.push('!');
         }
-        // A type may share its path with a function of the value namespace, as a braced
-        // struct and a function of its name do; `#type` names the type.
+        // A type or a module may share its path with a function of the value namespace, as a
+        // braced struct and a function of its name do; `#type` names the type or module.
         let type_namespace = matches!(
             self.tcx.def_kind(def_id),
-            DefKind::Struct | DefKind::Enum | DefKind::Union | DefKind::TyAlias | DefKind::Trait
+            DefKind::Struct
+                | DefKind::Enum
+                | DefKind::Union
+                | DefKind::TyAlias
+                | DefKind::Trait
+                | DefKind::Mod
         );
         let namesake = match def_id.is_local() {
             true => self.value_paths().contains(&stable),
@@ -112,6 +119,11 @@ impl<'tcx> Unit<'tcx> {
         self.local_paths.clone()
     }
 
+    /// The machine's directories the unit's documents name by placeholder.
+    pub fn places(&self) -> &rstyle_capture::Places {
+        &self.places
+    }
+
     /// Records every local source file the compiler loaded, as the unit's files.
     pub fn record_local_files(&mut self) {
         let files = self.tcx.sess.source_map().files().clone();
@@ -141,7 +153,7 @@ impl<'tcx> Unit<'tcx> {
         // A file is recorded as written: its original bytes, and offsets into them.
         if !self.files.contains_key(&id) {
             let content = super::source::recover(&lo.sf)?;
-            let digest = sha256_hex(content.as_bytes());
+            let digest = rstyle_core::cpg::store::sha256(content.as_bytes());
             let mut record = json!({"id": id, "path": path, "digest": format!("sha256:{digest}"),
                                     "origin": "source", "content": content});
             if crate::paths::build_output(self.tcx, &lo.sf) {
@@ -429,12 +441,12 @@ impl<'tcx> Unit<'tcx> {
             .marks()
             .into_iter()
             .map(|(expansion, transparency)| {
-                json!({"expansion": format!("{:?}", expansion.expn_hash()),
+                json!({"expansion": super::expansions::identity(self.tcx, &self.root, expansion),
                        "transparency": format!("{transparency:?}")})
             })
             .collect();
         record["marks"] = json!(marks);
-        if let Some(root) = super::generated_root::generated_root(self.tcx, local) {
+        if let Some(root) = super::generated_root::generated_root(self.tcx, &self.root, local) {
             record["root"] = json!(root);
         }
 
@@ -507,7 +519,8 @@ impl<'tcx> Unit<'tcx> {
         for (field, value) in compiler_facts(tcx, def_id, kind) {
             record[field] = value;
         }
-        record["extensions"] = json!({"rust:compiler-identity": rust_identity(tcx, def_id, kind)});
+        record["extensions"] =
+            json!({"rust:compiler-identity": rust_identity(tcx, &self.places, def_id, kind)});
 
         record
     }
@@ -544,7 +557,11 @@ impl<'tcx> Unit<'tcx> {
         let id = type_id(self.tcx, &spelling, ty);
         if !self.types.contains_key(&id) {
             self.types.insert(id.clone(), json!({}));
-            let mut record = self.type_record(ty);
+            // One spelling reaches here with its lifetimes bound by a signature in one function
+            // and free or erased in another, and its record must not depend on which came
+            // first. No record reads a lifetime, only whether there are lifetime arguments.
+            let erased = ty::fold_regions(self.tcx, ty, |_, _| self.tcx.lifetimes.re_erased);
+            let mut record = self.type_record(erased);
             record["id"] = json!(id);
             record["spelling"] = json!(spelling);
             if let Some(key) = super::sysroot::type_key(self.tcx, ty) {
@@ -982,13 +999,26 @@ fn bool_array<'tcx>(
 }
 
 /// A type's ID: its spelling, and for a type mentioning type parameters their indices,
-/// since the same spelling names different parameters in different functions.
+/// since the same spelling names different parameters in different functions. A closure or
+/// coroutine is spelled by where it is written, which every one a macro expands at one call
+/// site shares, and a type declared inside a body by a path without the body, so a type
+/// mentioning either also names its definition.
 fn type_id(tcx: TyCtxt<'_>, spelling: &str, ty: Ty<'_>) -> String {
     let parameters: BTreeSet<String> = ty
         .walk()
         .filter_map(|arg| arg.as_type())
         .filter_map(|ty| match ty.kind() {
             ty::Param(param) => Some(format!("{}={}", param.name, param.index)),
+            ty::Closure(def_id, _) | ty::Coroutine(def_id, _) | ty::CoroutineClosure(def_id, _) => {
+                Some(ids::def_id_str(tcx, *def_id))
+            }
+            // A type declared inside a body, as derive macros declare `__Field`, is spelled
+            // by a path that leaves out which body, so another of its name shares it.
+            ty::Adt(adt, _)
+                if adt.did().is_local() && tcx.def_kind(tcx.parent(adt.did())) != DefKind::Mod =>
+            {
+                Some(ids::def_id_str(tcx, adt.did()))
+            }
             // A nominal type spelled as a primitive is, as `struct u32` is, by its identity.
             ty::Adt(adt, _) if primitive_name(&tcx.def_path_str(adt.did())) => {
                 Some(format!("{:?}", tcx.def_path_hash(adt.did())))
@@ -1133,10 +1163,17 @@ fn compiler_facts(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> Vec<(&'stati
 
 // rstyle-allow(mutation_per_target): builds one identity record key by key
 /// The compiler's own identity of a definition, as the frontend's facts print it: its def
-/// path with its crate's disambiguator, `DefKind`, `DefPathHash`, crate name and, for another
-/// crate, its hash. The path is a `DefId` as the compiler prints it, without the crate number
-/// and index, which hold only within one compilation and move whenever an item is added.
-fn rust_identity(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> serde_json::Map<String, Value> {
+/// path with its crate's disambiguator, `DefKind`, `DefPathHash` and crate name. The path is
+/// a `DefId` as the compiler prints it, without the crate number and index, which hold only
+/// within one compilation and move whenever an item is added. Another crate's hash isn't
+/// recorded: any edit to that crate changes it, a comment included, so it would rewrite every
+/// document naming one of its definitions though nothing they record had changed.
+fn rust_identity(
+    tcx: TyCtxt<'_>,
+    places: &rstyle_capture::Places,
+    def_id: DefId,
+    kind: DefKind,
+) -> serde_json::Map<String, Value> {
     let mut identity = serde_json::Map::new();
     identity.insert("def_path".into(), json!(tcx.def_path_debug_str(def_id)));
     identity.insert("def_kind".into(), json!(format!("{kind:?}")));
@@ -1161,13 +1198,12 @@ fn rust_identity(tcx: TyCtxt<'_>, def_id: DefId, kind: DefKind) -> serde_json::M
         identity.insert("parent".into(), json!(tcx.def_path_debug_str(parent)));
     }
     if !def_id.is_local() {
-        identity.insert(
-            "crate_hash".into(),
-            json!(tcx.crate_hash(def_id.krate).to_string()),
-        );
         let rmeta = tcx.used_crate_source(def_id.krate).rmeta.clone();
         if let Some(rmeta) = rmeta {
-            identity.insert("rmeta".into(), json!(rmeta));
+            identity.insert(
+                "rmeta".into(),
+                json!(places.portable(&rmeta.to_string_lossy())),
+            );
         }
     }
     if let Some(generics) = generics(tcx, def_id, kind) {
@@ -1236,12 +1272,4 @@ fn variant_shapes(adt: ty::AdtDef<'_>) -> Vec<&'static str> {
         shapes.push("rust:unit-or-record-variant");
     }
     shapes
-}
-
-/// The sha256 of `bytes`, in lowercase hex.
-pub(super) fn sha256_hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect()
 }

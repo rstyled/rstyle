@@ -5,12 +5,25 @@
 //! up and instantiates the contract's step expression with the call's argument sizes.
 //! The same files declare each operation's iteration and extent roles, so a frontend
 //! recognizes traversals by key instead of carrying its own method tables.
+mod allocation;
+mod extension;
+mod invocation;
 mod iteration;
+mod loops;
+mod ranges;
+mod state;
 
+pub use allocation::{Allocation, Storage};
+pub use invocation::{CallForm, CallbackFree, TypeGuard};
+pub use state::{StateArgument, StateCallbackFree};
+
+pub use extension::{Control, Extension, Implicit};
 pub use iteration::{
     ConsumerEffect, Dispatch, Dispatched, Extent, ExtentRole, Handed, ItemAgnostic, Iteration,
     Runs, StageEffect,
 };
+pub use loops::{Guard, LoopForm, OperatorRole};
+pub use ranges::{RangeForm, Traversal};
 
 use super::Bound;
 use serde::{Deserialize, Serialize};
@@ -24,6 +37,7 @@ const EMBEDDED: &[&str] = &[
     include_str!("contracts/rust.toml"),
     include_str!("contracts/cxx.toml"),
     include_str!("contracts/go.toml"),
+    include_str!("contracts/py.toml"),
 ];
 
 /// Per-invocation steps of one operation, over the sizes of its arguments.
@@ -81,6 +95,22 @@ struct File {
     extent: Vec<iteration::ExtentEntry>,
     #[serde(default)]
     callable: Vec<iteration::CallableEntry>,
+    #[serde(default)]
+    allocation: Vec<allocation::Entry>,
+    #[serde(default)]
+    callback_free: Vec<invocation::Entry>,
+    #[serde(default)]
+    state_callback_free: Vec<state::Entry>,
+    #[serde(default)]
+    extension: Vec<extension::ExtensionEntry>,
+    #[serde(default, rename = "loop")]
+    loops: Vec<loops::LoopEntry>,
+    #[serde(default)]
+    operator: Vec<loops::OperatorEntry>,
+    #[serde(default)]
+    range: Vec<ranges::RangeEntry>,
+    #[serde(default)]
+    traversal: Vec<ranges::TraversalEntry>,
 }
 
 #[derive(Deserialize)]
@@ -99,6 +129,14 @@ pub struct Contracts {
     consumers: BTreeMap<String, Iteration<ConsumerEffect>>,
     extents: BTreeMap<String, Extent>,
     callables: BTreeMap<String, iteration::Callable>,
+    allocations: BTreeMap<String, Allocation>,
+    callback_free: BTreeMap<String, CallbackFree>,
+    state_callback_free: BTreeMap<String, Vec<StateCallbackFree>>,
+    extensions: BTreeMap<String, Extension>,
+    loops: BTreeMap<String, LoopForm>,
+    operators: BTreeMap<String, OperatorRole>,
+    ranges: BTreeMap<String, Vec<RangeForm>>,
+    traversals: BTreeMap<String, Traversal>,
 }
 
 impl File {
@@ -144,6 +182,16 @@ impl Contracts {
         for text in files {
             contracts.extend(text)?;
         }
+        // Certifying a call callback-free would discard a callable another role says it runs.
+        let handed = contracts
+            .callback_free
+            .keys()
+            .find(|operation| contracts.handed(operation).is_some());
+        if let Some(operation) = handed {
+            return Err(format!(
+                "Operation {operation} is callback-free and runs a callable it's handed"
+            ));
+        }
         Ok(contracts)
     }
 
@@ -159,13 +207,88 @@ impl Contracts {
             Ok((&entry.operations[..], contract))
         });
         declare(&mut self.operations, (namespace, "step"), steps)?;
+        self.extend_storage(&file)?;
+        self.extend_roles(&file)
+    }
+
+    fn extend_storage(&mut self, file: &File) -> Result<(), String> {
+        let namespace = file.namespace.as_str();
         let extents = file
             .extent
             .iter()
             .map(|entry| Ok((&entry.operations[..], entry.extent())));
         declare(&mut self.extents, (namespace, "extent"), extents)?;
+        let allocations = file.allocation.iter();
+        let allocations = allocations.map(|entry| Ok((&entry.operations[..], entry.allocation()?)));
+        declare(
+            &mut self.allocations,
+            (namespace, "allocation"),
+            allocations,
+        )
+    }
 
-        self.extend_iteration(&file)
+    fn extend_roles(&mut self, file: &File) -> Result<(), String> {
+        self.extend_language(file)?;
+        self.extend_invocations(file)?;
+        self.extend_iteration(file)
+    }
+
+    /// The roles a file gives the language's own extension nodes, then the forms it gives its
+    /// loops and operators.
+    fn extend_language(&mut self, file: &File) -> Result<(), String> {
+        let namespace = file.namespace.as_str();
+        let extensions = file
+            .extension
+            .iter()
+            .map(|entry| Ok((&entry.extensions[..], entry.extension(namespace)?)));
+        declare(&mut self.extensions, (namespace, "extension"), extensions)?;
+        self.extend_forms(file)
+    }
+
+    fn extend_invocations(&mut self, file: &File) -> Result<(), String> {
+        let namespace = file.namespace.as_str();
+        let roles = file
+            .callback_free
+            .iter()
+            .map(|entry| Ok((&entry.operations[..], entry.callback_free()?)));
+        declare(&mut self.callback_free, (namespace, "callback-free"), roles)?;
+        state::declare(
+            &mut self.state_callback_free,
+            namespace,
+            &file.state_callback_free,
+        )
+    }
+
+    /// The forms a file gives the language's loops whose guard is in their body and its calls
+    /// that make ranges, and the roles it gives the language's own operators.
+    fn extend_forms(&mut self, file: &File) -> Result<(), String> {
+        let namespace = file.namespace.as_str();
+        self.extend_sources(file)?;
+        let loops = file
+            .loops
+            .iter()
+            .map(|entry| Ok((&entry.kinds[..], entry.form())));
+        declare(&mut self.loops, (namespace, "loop"), loops)?;
+        let operators = file
+            .operator
+            .iter()
+            .map(|entry| Ok((&entry.operators[..], entry.role)));
+        declare(&mut self.operators, (namespace, "operator"), operators)
+    }
+
+    /// The calls a file says make a range of integers, or traverse one of their arguments.
+    fn extend_sources(&mut self, file: &File) -> Result<(), String> {
+        let namespace = file.namespace.as_str();
+        let ranges = file
+            .range
+            .iter()
+            .map(|entry| Ok((&entry.operations[..], entry.forms()?)));
+        declare(&mut self.ranges, (namespace, "range"), ranges)?;
+        let traversals = file
+            .traversal
+            .iter()
+            .map(|entry| Ok((&entry.operations[..], entry.traversal()?)));
+        declare(&mut self.traversals, (namespace, "traversal"), traversals)
     }
 
     fn extend_iteration(&mut self, file: &File) -> Result<(), String> {
@@ -216,6 +339,53 @@ impl Contracts {
     /// What an operation measures about its receiver's extent.
     pub fn extent(&self, operation: &str) -> Option<&Extent> {
         self.extents.get(operation)
+    }
+
+    /// What native storage an operation returns; this declares neither callback nor step cost.
+    pub fn allocation(&self, operation: &str) -> Option<&Allocation> {
+        self.allocations.get(operation)
+    }
+
+    /// Conditions under which a call invokes no workspace code of its own.
+    /// This declares neither costs, purity, nor how a handed callable runs.
+    pub fn callback_free(&self, operation: &str) -> Option<&CallbackFree> {
+        self.callback_free.get(operation)
+    }
+
+    /// Exact standard receiver families whose selected parameterless interface method
+    /// invokes no workspace code. This declares no cost, extent, purity or callback role.
+    pub fn state_callback_free(&self, operation: &str) -> &[StateCallbackFree] {
+        self.state_callback_free
+            .get(operation)
+            .map_or(&[], Vec::as_slice)
+    }
+
+    /// Where each arity of a call that makes a range of integers holds its bounds, such as
+    /// `py:range.__new__`'s.
+    pub fn range(&self, operation: &str) -> Option<&[RangeForm]> {
+        self.ranges.get(operation).map(Vec::as_slice)
+    }
+
+    /// Which argument a call that yields one item per item of it traverses, such as
+    /// `py:enumerate.__new__`'s first.
+    pub fn traversal(&self, operation: &str) -> Option<&Traversal> {
+        self.traversals.get(operation)
+    }
+
+    /// The form of a loop by the frontend's original kind of it, such as `cxx:DoStmt`.
+    pub fn loop_form(&self, kind: &str) -> Option<&LoopForm> {
+        self.loops.get(kind)
+    }
+
+    /// Whether a language's own operator, such as `cxx:comma`, evaluates its operands in order
+    /// and has the value of the last.
+    pub fn sequence(&self, operator: &str) -> bool {
+        matches!(self.operators.get(operator), Some(OperatorRole::Sequence))
+    }
+
+    /// How runtime bounds lower a node of a registered extension, such as `py:dict`.
+    pub fn extension(&self, extension: &str) -> Option<&Extension> {
+        self.extensions.get(extension)
     }
 
     pub fn get(&self, operation: &str) -> Option<&Contract> {
@@ -379,6 +549,21 @@ mod tests {
     }
 
     #[test]
+    fn a_callback_free_operation_runs_no_callable_it_is_handed() {
+        let callable = "[[callable]]\nbasis = \"b\"\nruns = \"AtMostOnce\"\narity = 1\ncallbacks = [0]\noperations = [\"O.map\"]\n";
+        let free = "[[callback_free]]\nbasis = \"b\"\nform = \"Member\"\narity = 1\ncleanup_free = []\ntypes = [{ argument = 0, keys = [\"t:O\"] }]\noperations = [\"O.map\"]\n";
+        assert!(Contracts::parse_all(&[&file(callable)]).is_ok());
+        assert!(Contracts::parse_all(&[&file(free)]).is_ok());
+        // In one file or in two, the operation would be certified callback-free and its
+        // callable discarded.
+        let expected = "Operation t:O.map is callback-free and runs a callable it's handed";
+        let one = file(&format!("{callable}{free}"));
+        assert_eq!(Contracts::parse_all(&[&one]).unwrap_err(), expected);
+        let two = Contracts::parse_all(&[&file(callable), &file(free)]).unwrap_err();
+        assert_eq!(two, expected);
+    }
+
+    #[test]
     fn callable_roles_are_validated() {
         let callable = "[[callable]]\nbasis = \"b\"\nruns = \"AtMostOnce\"\narity = 2\ncallbacks = [0, 1]\noperations = [\"O.map_or_else\"]\n";
         let one = Contracts::parse_all(&[&file(callable)]).unwrap();
@@ -408,6 +593,182 @@ mod tests {
         }
         let per_item = file(&callable.replace("AtMostOnce", "PerItem"));
         assert!(Contracts::parse_all(&[&per_item]).is_err());
+    }
+
+    #[test]
+    fn embedded_contracts_give_extensions_their_roles() {
+        let contracts = Contracts::embedded();
+        let role = |extension: &str| contracts.extension(extension).map(|role| role.implicit);
+        assert_eq!(role("py:fstring"), Some(Implicit::Never));
+        assert_eq!(role("py:format"), Some(Implicit::Always));
+        assert_eq!(role("py:keyword"), Some(Implicit::WithoutMember));
+        assert_eq!(role("go:slice"), Some(Implicit::Never));
+        assert!(
+            contracts
+                .extension("py:dict")
+                .unwrap()
+                .basis
+                .contains("hashes")
+        );
+        let comprehension = contracts.extension("py:comprehension").unwrap();
+        assert_eq!(comprehension.lazy.as_deref(), Some("py:lazy"));
+        assert!(comprehension.consumed_by.iter().any(|it| it == "py:sum"));
+        assert_eq!(contracts.extension("py:format").unwrap().lazy, None);
+        // An assignment to several targets has no role, and roles are keyed by namespace.
+        assert_eq!(role("py:assign-chain"), None);
+        assert_eq!(role("slice"), None);
+        assert!(contracts.get("py:dict").is_none());
+    }
+
+    #[test]
+    fn extension_roles_are_validated() {
+        let extension =
+            "[[extension]]\nbasis = \"b\"\nimplicit = \"Always\"\nextensions = [\"e\"]\n";
+        let one = Contracts::parse_all(&[&file(extension)]).unwrap();
+        assert_eq!(one.extension("t:e").unwrap().implicit, Implicit::Always);
+        let twice = Contracts::parse_all(&[&file(extension), &file(extension)]).unwrap_err();
+        assert_eq!(twice, "Library operation t:e has two extension roles");
+        let unknown = file(&extension.replace("Always", "Sometimes"));
+        assert!(Contracts::parse_all(&[&unknown]).is_err());
+        // Only a lazy node is consumed where it's made, by the operations its role names.
+        let lazy = extension.replace(
+            "extensions",
+            "lazy = \"l\"\nconsumed_by = [\"f\"]\nextensions",
+        );
+        let consumed = Contracts::parse_all(&[&file(&lazy)]).unwrap();
+        assert_eq!(consumed.extension("t:e").unwrap().consumed_by, ["t:f"]);
+        let eager = file(&lazy.replace("lazy = \"l\"\n", ""));
+        assert_eq!(
+            Contracts::parse_all(&[&eager]).unwrap_err(),
+            "Extension role that isn't lazy is consumed by [\"f\"]"
+        );
+    }
+
+    #[test]
+    fn control_roles_say_how_an_extension_raises_or_handles() {
+        let contracts = Contracts::embedded();
+        let control = |extension: &str| contracts.extension(extension).and_then(|r| r.control);
+        assert_eq!(control("py:raise"), Some(Control::Throw));
+        assert_eq!(control("cxx:throw"), Some(Control::Throw));
+        assert_eq!(control("py:assert"), Some(Control::Assert));
+        assert_eq!(control("py:with"), Some(Control::With));
+        assert_eq!(control("go:defer"), Some(Control::Deferred));
+        assert_eq!(control("go:go"), Some(Control::Deferred));
+        assert_eq!(control("py:del"), Some(Control::Delete));
+        assert_eq!(control("py:compare-chain"), Some(Control::Chain));
+        let tried = contracts.extension("py:try").unwrap();
+        assert_eq!(tried.control, Some(Control::Try));
+        assert_eq!(tried.handlers, ["py:except"]);
+        // A handler is an extension of its own, read as what it evaluates.
+        let except = contracts.extension("py:except").unwrap();
+        assert_eq!((except.control, except.implicit), (None, Implicit::Never));
+        assert!(contracts.extension("cxx:try").unwrap().handlers.is_empty());
+    }
+
+    #[test]
+    fn control_roles_are_validated() {
+        let tried = "[[extension]]\nbasis = \"b\"\ncontrol = \"Try\"\nhandlers = [\"h\"]\nextensions = [\"t\"]\n";
+        let one = Contracts::parse_all(&[&file(tried)]).unwrap();
+        assert_eq!(one.extension("t:t").unwrap().handlers, ["t:h"]);
+        // Only a try has handlers, and a control role runs no operation of its own.
+        let thrown = file(&tried.replace("Try", "Throw"));
+        assert_eq!(
+            Contracts::parse_all(&[&thrown]).unwrap_err(),
+            "Extension role Never with control Some(Throw) has handlers [\"h\"]"
+        );
+        let operating = file(&tried.replace("handlers", "implicit = \"Always\"\nhandlers"));
+        assert!(Contracts::parse_all(&[&operating]).is_err());
+    }
+
+    #[test]
+    fn loop_forms_and_operator_roles_are_keyed_by_namespace() {
+        let contracts = Contracts::embedded();
+        let form = contracts
+            .loop_form("cxx:DoStmt")
+            .expect("do statement form");
+        assert_eq!(form.guard, Guard::Last);
+        assert!(form.basis.contains("continue goes to the test"));
+        assert!(contracts.sequence("cxx:comma"));
+        assert!(contracts.loop_form("DoStmt").is_none());
+        assert!(!contracts.sequence("comma"));
+
+        let forms = "[[loop]]\nbasis = \"b\"\nguard = \"Last\"\nkinds = [\"D\"]\n[[operator]]\nbasis = \"b\"\nrole = \"Sequence\"\noperators = [\"c\"]\n";
+        let one = Contracts::parse_all(&[&file(forms)]).unwrap();
+        assert_eq!(one.loop_form("t:D").unwrap().guard, Guard::Last);
+        assert!(one.sequence("t:c"));
+        let twice = Contracts::parse_all(&[&file(forms), &file(forms)]).unwrap_err();
+        assert_eq!(twice, "Library operation t:D has two loop roles");
+        let guard = file(&forms.replace("Last", "First"));
+        assert!(Contracts::parse_all(&[&guard]).is_err());
+    }
+
+    #[test]
+    fn range_and_traversal_roles_say_what_a_loop_counts() {
+        let contracts = Contracts::embedded();
+        let forms = contracts.range("py:range.__new__").expect("range forms");
+        assert_eq!(forms.len(), 3);
+        assert_eq!(
+            forms[0],
+            RangeForm {
+                arity: 1,
+                start: None,
+                stop: 0,
+                step: None
+            }
+        );
+        let enumerate = contracts
+            .traversal("py:enumerate.__new__")
+            .expect("enumerate");
+        assert_eq!(
+            (enumerate.over, enumerate.arities.as_slice()),
+            (0, &[1, 2][..])
+        );
+        assert!(contracts.traversal("py:sorted").is_none());
+        assert!(contracts.range("range.__new__").is_none());
+
+        let roles = "[[range]]\nbasis = \"b\"\nforms = [{ arity = 2, start = 0, stop = 1 }]\noperations = [\"r\"]\n[[traversal]]\nbasis = \"b\"\narities = [1]\nover = 0\noperations = [\"t\"]\n";
+        let one = Contracts::parse_all(&[&file(roles)]).unwrap();
+        assert_eq!(one.range("t:r").unwrap()[0].start, Some(0));
+        assert_eq!(one.traversal("t:t").unwrap().over, 0);
+        let twice = Contracts::parse_all(&[&file(roles), &file(roles)]).unwrap_err();
+        assert_eq!(twice, "Library operation t:r has two range roles");
+        // Each form names distinct arguments of its own arity, once per arity.
+        for forms in [
+            "[{ arity = 2, start = 1, stop = 1 }]",
+            "[{ arity = 1, stop = 1 }]",
+            "[{ arity = 1, stop = 0 }, { arity = 1, stop = 0 }]",
+            "[]",
+        ] {
+            let malformed = file(&roles.replace("[{ arity = 2, start = 0, stop = 1 }]", forms));
+            assert!(Contracts::parse_all(&[&malformed]).is_err(), "{forms}");
+        }
+        let outside = file(&roles.replace("over = 0", "over = 1"));
+        assert_eq!(
+            Contracts::parse_all(&[&outside]).unwrap_err(),
+            "Traversal role over 1 has arities [1]"
+        );
+    }
+
+    #[test]
+    fn an_extent_role_can_name_the_receiver_kinds_it_holds_for() {
+        let contracts = Contracts::embedded();
+        let items = contracts
+            .extent("py:dict.items")
+            .expect("dict items traversal");
+        assert_eq!(
+            (items.role, items.receiver.as_slice()),
+            (ExtentRole::Traversal, &["map".to_string()][..])
+        );
+        assert!(
+            contracts
+                .extent("rust:slice.iter")
+                .unwrap()
+                .receiver
+                .is_empty()
+        );
+        let extent = "[[extent]]\nbasis = \"b\"\nrole = \"Length\"\nreceiver = [\"set\"]\noperations = [\"S.len\"]\n";
+        let one = Contracts::parse_all(&[&file(extent)]).unwrap();
+        assert_eq!(one.extent("t:S.len").unwrap().receiver, ["set"]);
     }
 
     #[test]

@@ -110,3 +110,27 @@ fn absence_of_a_nonempty_manifest_cannot_certify_a_capture() {
         assert!(CaptureReader::open(dir.path()).is_err());
     }
 }
+
+#[test]
+fn text_is_named_and_counted_once_verified_and_before_it_is_parsed() {
+    let dir = tempfile::tempdir().unwrap();
+    let seals = capture(dir.path());
+    let mut reader = CaptureReader::open(dir.path()).unwrap();
+    let document = reader.next_text().unwrap().unwrap();
+    assert_eq!(document.file, seals[0].file);
+    assert_eq!(
+        serde_json::from_str::<Value>(&document.text).unwrap(),
+        json!({"position":0})
+    );
+    assert_eq!(reader.progress().verified_documents, 1);
+
+    fs::write(dir.path().join(&seals[1].file), b"changed").unwrap();
+    let error = reader.next_text().unwrap_err();
+    assert!(
+        error.starts_with(&format!("{}: ", seals[1].file)),
+        "{error}"
+    );
+    assert_eq!(reader.progress().verified_documents, 1);
+    assert_eq!(reader.next_text().unwrap(), None);
+    assert!(reader.complete().is_err());
+}

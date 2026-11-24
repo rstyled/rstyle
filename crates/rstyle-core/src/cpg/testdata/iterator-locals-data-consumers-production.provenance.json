@@ -1,0 +1,61 @@
+{
+  "corpus": "rstyle-main frozen production replay",
+  "manifest_file": "documents.manifest.json",
+  "manifest_checksum": "sha256:2fb0b26c09a559ab4421fccaf68217717d92fd96cd2008d67c6e24426c11f9b9",
+  "documents": [
+    {
+      "file": "document-000078.cpg.json.zst",
+      "checksum": "sha256:075555f4b0335b1ea37c2933ae4fff50d7aa00379b36895a8f42926505f4e857",
+      "bytes": 261631,
+      "encoding": "zstd",
+      "decoded_bytes": 3321298,
+      "decoded_checksum": "sha256:2be5a29f059da3b8ca59124ea134582b1205d658f2e8966a07ecc4327a417223"
+    },
+    {
+      "file": "document-000065.cpg.json.zst",
+      "checksum": "sha256:3bc74bfc308351dc26a09f108c9b01f8a03135d3ff2a9533678f9e8168808a0e",
+      "bytes": 582187,
+      "encoding": "zstd",
+      "decoded_bytes": 11299908,
+      "decoded_checksum": "sha256:2299a4e3418f1fe3f586fce64f1f8fb09eb04adb38328cd929cce6a12d76890a"
+    }
+  ],
+  "owner": "rstyle_core::normalize::data_consumers",
+  "owner_checksum": "sha256:89452c559b573a10205a32078e0cbe8f337a7bbd63b584adfcec5a74b65e4fb9",
+  "owner_checksum_encoding": "UTF-8 JSON with lexicographically sorted object keys, no insignificant whitespace",
+  "retained_functions": [
+    {
+      "owner": "rstyle_core::normalize::data_consumers",
+      "definition": "def:rstyle_core::normalize::data_consumers",
+      "function": "fn:rstyle_core::normalize::data_consumers",
+      "document": "document-000078.cpg.json.zst",
+      "checksum": "sha256:89452c559b573a10205a32078e0cbe8f337a7bbd63b584adfcec5a74b65e4fb9"
+    },
+    {
+      "owner": "rstyle_core::facts::{impl#110}::eq",
+      "definition": "def:rstyle_core::facts::{impl#110}::eq",
+      "function": "fn:rstyle_core::facts::{impl#110}::eq",
+      "document": "document-000065.cpg.json.zst",
+      "checksum": "sha256:7551a26263976ddca567ee15ee8e6863779418ea8c22e80c03dd0f8b86ca0b9b"
+    }
+  ],
+  "fixture_checksum": "sha256:ee382b77afaa876be048fb11599a64537ff71fdcbfdb7db8e39386cac69de1d0",
+  "reduction": "The original primary function and selected workspace callees needed for its composed outcome are retained unchanged. Definitions, types, files, values and instances are their transitive ID dependency closure. Function facts, referenced source bytes, compilation semantics and implicit-call capability remain unchanged. Unrelated functions and session extensions are omitted. The classes fixture retains the original shape::normalize body to expose its actual unmodeled-semantics blocker; its downstream callees are not expanded because that body is already Unknown locally.",
+  "source_files": [
+    {
+      "id": "file:crates/rstyle-core/src/facts.rs",
+      "digest": "sha256:fbe753d43746567ab7ed353dff86393b0cba39e2aa6f6f2d6bedf5ffc4cdc8de",
+      "content_checksum": "sha256:fbe753d43746567ab7ed353dff86393b0cba39e2aa6f6f2d6bedf5ffc4cdc8de"
+    },
+    {
+      "id": "file:crates/rstyle-core/src/lib.rs",
+      "digest": "sha256:eee14f7d38c14823aafbc8844a0841f3da605c61d683e11fecf143431acc585b",
+      "content_checksum": "sha256:eee14f7d38c14823aafbc8844a0841f3da605c61d683e11fecf143431acc585b"
+    },
+    {
+      "id": "file:crates/rstyle-core/src/normalize.rs",
+      "digest": "sha256:63143bae6b468d9629e17637a2d0397a80c17a6656fd39c64db78177dea7687b",
+      "content_checksum": "sha256:63143bae6b468d9629e17637a2d0397a80c17a6656fd39c64db78177dea7687b"
+    }
+  ]
+}

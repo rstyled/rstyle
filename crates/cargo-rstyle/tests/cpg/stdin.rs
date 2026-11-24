@@ -243,3 +243,24 @@ fn text_receipts_identify_streams() {
     assert_eq!(output.status.code(), Some(2));
     assert!(stdout(&output).contains("CPG stream rejected:"));
 }
+
+#[test]
+fn a_streamed_document_outside_the_model_is_named_by_its_place_in_the_stream() {
+    let mut extra = other();
+    extra["unit"]["functions"][0]["nodes"][0]["role"] = json!("tail");
+    let bytes = sequence(&[example(), extra]);
+    for route in ["receive", "check", "analyze"] {
+        let output = command(route, &bytes, &["--format", "json"]);
+        assert_eq!(output.status.code(), Some(2), "{output:?}");
+        let receipt = report(&output);
+        assert_eq!(receipt["status"], "rejected");
+        assert_eq!(receipt["transport"]["received_documents"], 2);
+        let message = receipt["failures"][0]["message"].as_str().unwrap();
+        assert!(
+            message.starts_with(
+                "CPG stream document 2: Invalid compat.cpg document: unknown field `role`"
+            ),
+            "{message}"
+        );
+    }
+}

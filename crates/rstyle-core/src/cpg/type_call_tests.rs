@@ -30,7 +30,31 @@ const DEMAND: Demand = Demand {
 
 /// `make`'s composed bound, after `change` edits the reference of its call of `Made`.
 fn make_composed(change: impl FnOnce(&mut Value)) -> Value {
+    composed(serde_json::from_str(MADE).unwrap(), change)
+}
+
+/// The document with `__init__`'s loop over `first` instead of `second`.
+fn looping_over_first() -> Value {
     let mut document: Value = serde_json::from_str(MADE).unwrap();
+    let init = document["unit"]["functions"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|function| function["name"] == "Made.__init__")
+        .unwrap();
+    for (table, field) in [("refs", "/target/id"), ("accesses", "/symbol")] {
+        for row in init[table].as_array_mut().unwrap() {
+            if let Some(symbol) = row.pointer_mut(field).filter(|symbol| **symbol == "f3.s2") {
+                *symbol = json!("f3.s1");
+            }
+        }
+    }
+    document
+}
+
+/// `make`'s composed bound in `document`, after `change` edits the reference of its call of
+/// `Made`.
+fn composed(mut document: Value, change: impl FnOnce(&mut Value)) -> Value {
     let make = document["unit"]["functions"]
         .as_array_mut()
         .unwrap()
@@ -111,4 +135,22 @@ fn a_call_of_a_type_stays_opaque_when_its_reference_names_the_type() {
         reference["target"] = json!({"kind": "definition", "id": "def:py::made.Made"});
     });
     assert!(leaves_the_call_opaque(&composed), "{composed}");
+}
+
+#[test]
+fn a_call_in_method_form_without_a_dispatch_binds_no_argument_to_a_formal() {
+    // Read in method form, the call's first child is its receiver, which its written arguments
+    // leave out: `xs` mustn't bind `self`, nor `ys` bind `first`.
+    let written = composed(looping_over_first(), |_| {});
+    assert_eq!(
+        written["Proven"]["loop_body_entries"],
+        json!({"Input": "len(xs)#0"}),
+        "{written}"
+    );
+    let composed = composed(looping_over_first(), |reference| {
+        reference.as_object_mut().unwrap().remove("dispatch");
+        reference["reason"] = json!("a call in method form records no dispatch");
+    });
+    assert!(composed["Proven"].is_null(), "{composed}");
+    assert!(!composed.to_string().contains("len(ys)"), "{composed}");
 }

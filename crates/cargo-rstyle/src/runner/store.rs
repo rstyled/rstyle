@@ -101,12 +101,23 @@ pub(super) fn project_folder(project: &Path) -> Result<PathBuf, String> {
     Ok(folder)
 }
 
+// rstyle-allow(side_effect_density): IO boundary: creates a folder in the project's `.rstyle`
+/// The folder at `relative` in the project's `.rstyle`, made if it isn't there.
+fn project_subfolder(project: &Path, relative: &Path) -> Result<PathBuf, String> {
+    let folder = project_folder(project)?.join(relative);
+    std::fs::create_dir_all(&folder).map_err(|error| format!("{}: {error}", folder.display()))?;
+    Ok(folder)
+}
+
+/// The directory the project keeps for `language`'s frontend between runs, beside its runs.
+pub(super) fn frontend_cache(project: &Path, language: &'static str) -> Result<PathBuf, String> {
+    project_subfolder(project, &Path::new("cache").join(language))
+}
+
 /// The project's runs of `language`.
-// rstyle-allow(side_effect_density): IO boundary: creates the run folder
 pub(super) fn project_runs(project: &Path, language: &'static str) -> Result<Runs, String> {
     let keep = crate::compiler::capture::saved_run_limit()?;
-    let parent = project_folder(project)?.join("runs");
-    std::fs::create_dir_all(&parent).map_err(|error| format!("{}: {error}", parent.display()))?;
+    let parent = project_subfolder(project, Path::new("runs"))?;
     Ok(Runs {
         parent,
         language,
@@ -312,6 +323,20 @@ fn civil_date(days: u64) -> (u64, u64, u64) {
     };
     let year = year_of_era + era * 400 + u64::from(month <= 2);
     (year, month, day)
+}
+
+// rstyle-allow(side_effect_density): IO boundary: reads the running program once
+/// The sha256 of the running program, which names the build that derives a function's facts: a
+/// fact kept by another build is never read back.
+pub(super) fn build() -> Result<&'static str, String> {
+    static BUILD: std::sync::OnceLock<Result<String, String>> = std::sync::OnceLock::new();
+    let digest = BUILD.get_or_init(|| {
+        let program = std::env::current_exe().map_err(|error| error.to_string())?;
+        let bytes =
+            std::fs::read(&program).map_err(|error| format!("{}: {error}", program.display()))?;
+        Ok(rstyle_core::cpg::store::sha256(&bytes))
+    });
+    digest.as_deref().map_err(Clone::clone)
 }
 
 #[cfg(test)]

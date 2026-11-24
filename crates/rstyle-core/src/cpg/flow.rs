@@ -774,13 +774,45 @@ fn accesses_recorded(coverage: &Coverage, function: &Function) -> bool {
 pub fn syntax_gap(coverage: &Coverage, function: &Function) -> Option<&'static str> {
     let (layers, _) = entries(coverage, function);
     if declared(layers, "ast") != Some(Status::Supported) {
-        return Some("The frontend does not hold all of this function's syntax");
+        return Some(PARTIAL_SYNTAX);
     }
     function
         .nodes
         .iter()
         .any(|node| node.kind == NodeKind::Unsupported)
-        .then_some("The function holds a construct the frontend does not model")
+        .then_some(UNMODELED_SYNTAX)
+}
+
+/// Why a function's tree isn't all of it, written as the reason's own text. Spelled as an
+/// alias, so deriving `Deserialize` doesn't borrow from what's read.
+pub type SyntaxGap = Option<&'static str>;
+
+const PARTIAL_SYNTAX: &str = "The frontend does not hold all of this function's syntax";
+const UNMODELED_SYNTAX: &str = "The function holds a construct the frontend does not model";
+/// Every reason a function's tree can fall short of it.
+const SYNTAX_GAPS: [&str; 2] = [PARTIAL_SYNTAX, UNMODELED_SYNTAX];
+
+/// A syntax gap as a store keeps it: its text, read back as the reason's own.
+pub mod syntax_gap_text {
+    use serde::{Deserialize, Deserializer, Serializer, de::Error};
+
+    pub fn serialize<S: Serializer>(
+        gap: &Option<&'static str>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serde::Serialize::serialize(gap, serializer)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<&'static str>, D::Error> {
+        let Some(gap) = Option::<String>::deserialize(deserializer)? else {
+            return Ok(None);
+        };
+        let known = super::SYNTAX_GAPS.iter().find(|known| **known == gap);
+        let known = known.ok_or_else(|| D::Error::custom(format!("no syntax gap reads {gap}")));
+        known.copied().map(Some)
+    }
 }
 
 /// A function's flow when all of its syntax, what reads and writes each binding and what its calls

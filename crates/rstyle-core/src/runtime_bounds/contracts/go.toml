@@ -11,9 +11,36 @@
 schema = "rstyle.library-contracts/1"
 namespace = "go"
 
+[[allocation]]
+basis = "The built-in allocator creates a fresh native slice header and backing storage with exactly the requested length; replacing an element invokes no setter and leaves the header's length unchanged. The type operand is static; length evaluation and allocation costs remain separate."
+storage = "FreshNativeSequence"
+arity = 2
+type_argument = 0
+length_argument = 1
+operations = ["make"]
+
+[[extent]]
+basis = "The resolved built-in len returns a native slice's current length without changing its header. Map and channel lengths are not stable slice extents."
+role = "Length"
+operations = ["len"]
+
 [[callable]]
 basis = "Runs the function the first time it's called on this Once, and returns when that call has"
 runs = "AtMostOnce"
 arity = 1
 callbacks = [0]
 operations = ["sync.Once.Do"]
+
+# Extension roles: how runtime bounds lower a node the profile registers for Go, by its name
+# without the `go:` namespace. The node evaluates its children once, in the order the registry
+# writes them, and `implicit` says when it also runs an operation the document names no callee for.
+
+[[extension]]
+basis = "Slicing reads and bounds-checks the operand's header and its bounds without calling anything"
+implicit = "Never"
+extensions = ["slice"]
+
+[[extension]]
+basis = "defer evaluates its call's function and arguments where it's written and runs the call when the function exits, and go runs it on a goroutine of its own"
+control = "Deferred"
+extensions = ["defer", "go"]

@@ -29,17 +29,11 @@ pub fn publish(
 
     std::fs::create_dir_all(directory).map_err(|error| error.to_string())?;
     let encoding = rstyle_core::cpg::transport::Encoding::from_environment()?;
-    let mut sealed = Vec::new();
-    for (document, unrecorded) in
-        super::documents_in(tcx, (root.as_path(), package), Some(session(options)))
-    {
-        if let Some((id, reason)) = unrecorded.first() {
-            return Err(format!("{}: {reason}", tcx.def_path_str(id.to_def_id())));
-        }
-        let path = directory.join(format!("document-{:06}{}", sealed.len(), encoding.suffix()));
-        let seal = rstyle_core::cpg::transport::write_json(&path, encoding, &document)?;
-        sealed.push(seal);
-    }
+    let origin = (root.as_path(), package);
+    let sealed = super::write_documents(tcx, origin, Some(session(options)), |index, document| {
+        let path = directory.join(format!("document-{index:06}{}", encoding.suffix()));
+        rstyle_core::cpg::transport::write_json(&path, encoding, &document)
+    })?;
 
     let bytes =
         serde_json::to_vec(&DocumentManifest::of(sealed)).map_err(|error| error.to_string())?;

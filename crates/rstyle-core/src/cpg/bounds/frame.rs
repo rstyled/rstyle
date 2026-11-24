@@ -2,18 +2,23 @@
 //! the stable extents a body measures, or why the whole body is unmodeled.
 
 use super::super::model::{Node, NodeKind, TypeKind};
+mod aliases;
+
 use super::calls::Parameter;
 use super::extent::{
-    Place, extent_receiver, extent_type, has_role, is_method, iteration_receiver, place, run_once,
+    Place, extent_receiver, extent_type, has_role, is_method, iteration_receiver, ordinary_length,
+    place, run_once,
 };
 use super::facts::{Facts, referent};
 use crate::advisory::runtime_bounds::{MAX_NODES, MAX_VARIABLES};
 use crate::runtime_bounds::contracts::ExtentRole;
 use crate::wording::{Message, Wording};
+use aliases::Alias;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub struct Frame<'a> {
     pub extents: Vec<Place<'a>>,
+    pub origins: BTreeMap<String, Place<'a>>,
     pub reason: Option<String>,
     pub exhausted: bool,
 }
@@ -22,12 +27,15 @@ pub(super) fn inspect<'a>(
     facts: &Facts<'_, 'a>,
     parameters: &[Parameter<'a>],
 ) -> Result<Frame<'a>, String> {
-    Inspect::new(facts).run(parameters)
+    Inspect::new(facts, parameters).run(parameters)
 }
 
 struct Inspect<'f, 'b, 'a> {
     facts: &'f Facts<'b, 'a>,
     numbers: BTreeMap<&'a str, u32>,
+    formals: BTreeSet<&'a str>,
+    aliases: Vec<Alias<'a>>,
+    origins: BTreeMap<String, Place<'a>>,
     stable: BTreeMap<&'a str, bool>,
     candidates: Vec<&'a Node>,
     // Optional extents are selected only when stable; unmodeled uses stay unknown.
@@ -45,8 +53,14 @@ struct Inspect<'f, 'b, 'a> {
 
 type Visited = Result<(), String>;
 
+#[derive(Default)]
+struct Selection {
+    keys: BTreeSet<String>,
+    rejected: BTreeSet<String>,
+}
+
 impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
-    fn new(facts: &'f Facts<'b, 'a>) -> Self {
+    fn new(facts: &'f Facts<'b, 'a>, parameters: &[Parameter<'a>]) -> Self {
         let signature = &facts.body.function.signature;
         let forbidden = signature
             .modifiers
@@ -56,6 +70,12 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
         Inspect {
             facts,
             numbers: facts.symbol_numbers(),
+            formals: parameters
+                .iter()
+                .filter_map(|parameter| parameter.symbol)
+                .collect(),
+            aliases: Vec::new(),
+            origins: BTreeMap::new(),
             stable: BTreeMap::new(),
             candidates: Vec::new(),
             optional: Vec::new(),
@@ -89,6 +109,7 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
 
         Ok(Frame {
             extents: self.selected,
+            origins: self.origins,
             reason: self.reason,
             exhausted: self.exhausted,
         })
@@ -117,31 +138,85 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
     }
 
     fn select_extents(&mut self) -> Visited {
-        let mut keys = BTreeSet::new();
+        let mut selection = Selection::default();
         let required = self.candidates.iter().map(|e| (*e, true));
         let optional = self.optional.iter().map(|e| (*e, false));
         for (expression, required) in required.chain(optional).collect::<Vec<_>>() {
-            let Some(place) = place(self.facts, expression, &self.numbers)? else {
-                continue;
-            };
-            let stable = self.stable.get(place.root) == Some(&true);
-            if !required && !stable {
-                continue;
-            }
-            if !stable {
-                self.reason = Some(
-                    "Extent source is not a stable formal or immutable local outside loops".into(),
-                );
-            }
-            if keys.insert(place.key()) {
-                self.selected.push(place);
-            }
-            if self.selected.len() > MAX_VARIABLES {
-                self.exhausted = true;
+            self.select_source(expression, required, &mut selection)?;
+            if self.exhausted {
                 return Ok(());
             }
         }
+        self.protect_origins(&mut selection.keys);
+        Ok(())
+    }
 
+    fn select_source(
+        &mut self,
+        expression: &'a Node,
+        required: bool,
+        selection: &mut Selection,
+    ) -> Visited {
+        let Some(place) = place(self.facts, expression, &self.numbers)? else {
+            return Ok(());
+        };
+        if !required && self.stable.get(place.root) != Some(&true) {
+            return Ok(());
+        }
+        self.check_extent_stability(&place);
+        self.record_origin(expression, &place, &mut selection.rejected)?;
+        self.retain_extent(place, &mut selection.keys);
+        Ok(())
+    }
+
+    fn check_extent_stability(&mut self, place: &Place<'a>) {
+        if self.stable.get(place.root) != Some(&true) {
+            self.reason = Some(
+                "Extent source is not a stable formal or immutable local outside loops".into(),
+            );
+        }
+    }
+
+    fn retain_extent(&mut self, place: Place<'a>, keys: &mut BTreeSet<String>) {
+        if keys.insert(place.key()) {
+            self.selected.push(place);
+        }
+        self.exhausted = self.selected.len() > MAX_VARIABLES;
+    }
+
+    fn protect_origins(&mut self, keys: &mut BTreeSet<String>) {
+        for source in self.origins.values().cloned().collect::<Vec<_>>() {
+            self.retain_extent(source, keys);
+            if self.exhausted {
+                return;
+            }
+        }
+    }
+
+    fn record_origin(
+        &mut self,
+        expression: &'a Node,
+        selected: &Place<'a>,
+        rejected: &mut BTreeSet<String>,
+    ) -> Visited {
+        let key = selected.key();
+        let Some(alias) = self
+            .aliases
+            .iter()
+            .find(|alias| alias.local == selected.root)
+        else {
+            return Ok(());
+        };
+        match alias.source_for(self.facts, selected, expression)? {
+            Some(source) if !rejected.contains(&key) => {
+                self.origins.insert(key, source);
+            }
+            Some(_) => {}
+            None => {
+                self.origins.remove(&key);
+                rejected.insert(key);
+            }
+        }
         Ok(())
     }
 
@@ -363,6 +438,16 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
         {
             self.callbacks.insert(init.id.as_str());
         }
+        if !self.validating
+            && self.loops == 0
+            && otherwise.is_none()
+            && let Some(init) = init
+            && let Some(alias) =
+                aliases::SharedFormals::new(self.facts, &self.formals, &self.numbers)
+                    .for_local(pattern, init)?
+        {
+            self.aliases.push(alias);
+        }
         self.stable
             .insert(symbol, self.loops == 0 && init.is_some());
         Ok(())
@@ -536,7 +621,7 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
     // rstyle-allow(mutation_per_target): the inspection accumulates frame facts in self by design
     fn record_candidate(&mut self, expression: &'a Node) -> Visited {
         if let Some(receiver) = self.candidate(expression)? {
-            if self.closures > 0 {
+            if self.closures > 0 || ordinary_length(self.facts, expression).is_some() {
                 self.optional.push(receiver);
             } else {
                 self.candidates.push(receiver);
@@ -576,7 +661,10 @@ impl<'f, 'b, 'a> Inspect<'f, 'b, 'a> {
             return Ok(Some(receiver));
         }
         match super::iteration::for_head(self.facts, expression)? {
-            Some(head) => iteration_receiver(self.facts, head),
+            Some(head) => {
+                let source = super::iteration::traversed(self.facts, head)?;
+                iteration_receiver(self.facts, source)
+            }
             None => Ok(None),
         }
     }

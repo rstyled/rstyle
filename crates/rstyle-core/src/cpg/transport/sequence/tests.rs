@@ -167,3 +167,13 @@ fn a_reader_that_stops_stops_the_sequence() {
     let error = send_sealed(directory.path(), &seals, &mut Broken).unwrap_err();
     assert!(error.contains("stopped reading"), "{error}");
 }
+
+#[test]
+fn a_record_that_stops_inside_a_character_fails_as_a_parsed_one_does() {
+    let bytes = b"\x1e{\"x\":\"\xf0\x9f\x1enull\n";
+    let expected = "CPG stream document 1: Incomplete UTF-8 in CPG JSON at line 1 column 8";
+    let mut text = SequenceReader::new(bytes.as_slice());
+    assert_eq!(text.next_text().unwrap_err(), expected);
+    let mut parsed = SequenceReader::new(bytes.as_slice());
+    assert_eq!(parsed.next_document::<Value>().unwrap_err(), expected);
+}

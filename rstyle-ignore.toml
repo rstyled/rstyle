@@ -4,6 +4,19 @@
 
 version = 1
 
+[ignore.85b1c0f6a0fa]
+kind = "capability_set"
+reason = "each hands two contract sections to the shared declare; the entry types share only a key list, so an interface would wrap one map call per section"
+fns = [
+  "rstyle_core::runtime_bounds::contracts::Contracts::extend_forms",
+  "rstyle_core::runtime_bounds::contracts::Contracts::extend_sources",
+  "rstyle_core::runtime_bounds::contracts::Contracts::extend_storage",
+  "rstyle_core::runtime_bounds::contracts::allocation::Entry::allocation",
+  "rstyle_core::runtime_bounds::contracts::iteration::ExtentEntry::extent",
+  "rstyle_core::runtime_bounds::contracts::loops::LoopEntry::form",
+  "rstyle_core::runtime_bounds::contracts::ranges::TraversalEntry::traversal",
+]
+
 [ignore.8ef272ca3a36]
 kind = "generic_fn"
 reason = "each forwards its own report's scope to the shared SourceScope::outside"
@@ -34,6 +47,14 @@ reason = "each observes the bytes with the shared Observed::of and differs in wh
 fns = [
   "rstyle_core::cpg::transport::capture::checksum",
   "rstyle_core::cpg::transport::manifest::SealedDocument::verify",
+]
+
+[ignore.4022b7484080]
+kind = "parameterize"
+reason = "each reads its own variable into its own parser, in crates that share nothing else; a helper would wrap one environment read"
+fns = [
+  "cargo_rstyle::compiler::capture::retention::limit",
+  "rstyle_capture::threads::from_environment",
 ]
 
 [ignore.6dd938055815]

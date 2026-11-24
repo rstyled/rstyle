@@ -1,0 +1,121 @@
+# Library operation contracts for the Python frontend.
+#
+# Extension roles: how runtime bounds lower a node the profile registers for Python, by its name
+# without the `py:` namespace. The node evaluates its children once, in the order the registry
+# writes them, and a child that is a pattern is a binding the node writes. `implicit` says when it
+# also runs an operation the document names no callee for, which can reach a method a workspace
+# type defines; runtime bounds read that operation as an unresolved call at the node.
+
+schema = "rstyle.library-contracts/1"
+namespace = "py"
+
+[[extension]]
+basis = "Joining an f-string's formatted fields and building a slice object run only the interpreter's own code"
+implicit = "Never"
+extensions = ["fstring", "slice"]
+
+[[extension]]
+basis = "Formatting a value calls its type's __format__, __str__ or __repr__; a dict display hashes and compares its keys and unpacks a ** entry's mapping; a starred expression iterates its operand; await runs the awaitable's __await__; an import can run the imported module's code"
+implicit = "Always"
+extensions = ["await", "dict", "format", "import", "star"]
+
+[[extension]]
+basis = "A keyword argument passes its value; one without a member is ** and unpacks a mapping through its keys and items"
+implicit = "WithoutMember"
+extensions = ["keyword"]
+
+# Control roles: how a node raises an exception or handles one. Something raised inside a handled
+# region reaches its handlers with every counter the region names unknown.
+
+[[extension]]
+basis = "raise evaluates its exception and its cause, and control does not pass"
+control = "Throw"
+extensions = ["raise"]
+
+[[extension]]
+basis = "assert evaluates its test, and its message only when the test fails, then raises AssertionError"
+control = "Assert"
+extensions = ["assert"]
+
+[[extension]]
+basis = "try runs its body and, when the body raises, an except clause or none; an else block runs only when the body doesn't raise and a finally block on every way out, so reading both as finally blocks only adds paths"
+control = "Try"
+handlers = ["except"]
+extensions = ["try"]
+
+[[extension]]
+basis = "An except clause evaluates its exception type, which matches what was raised by the class hierarchy alone, binds what was raised, then runs its body"
+extensions = ["except"]
+
+[[extension]]
+basis = "with evaluates each context and calls its __enter__, or __aenter__ in async with, binding what that returns; every way out of its body calls each context's __exit__, innermost first, and __exit__ can end an exception the body raised"
+control = "With"
+extensions = ["with"]
+
+# Range roles: a call that makes a range of integers counting up from a start to an exclusive stop,
+# by where each arity holds its bounds, so a `for` over it is a counted scan.
+
+[[range]]
+basis = "range(stop) counts from zero up to stop, range(start, stop) from start, and range(start, stop, step) by step; a stop at or below the start yields nothing"
+forms = [
+  { arity = 1, stop = 0 },
+  { arity = 2, start = 0, stop = 1 },
+  { arity = 3, start = 0, stop = 1, step = 2 },
+]
+operations = ["range.__new__"]
+
+# Traversal roles: a call that yields at most one item for each item of one of its arguments, so a
+# `for` over it counts what that argument counts. Only an argument the loop could count itself, a
+# list or tuple the function only reads or a range, is counted, and the interpreter iterates it with
+# its own code. `sorted` has no role: it compares the items, which can run their own methods.
+
+[[traversal]]
+basis = "enumerate yields one numbered item for each item of its first argument"
+arities = [1, 2]
+over = 0
+operations = ["enumerate.__new__"]
+
+[[traversal]]
+basis = "reversed yields each item of its argument once, from the last"
+arities = [1]
+over = 0
+operations = ["reversed.__new__"]
+
+[[traversal]]
+basis = "zip yields one tuple per item until its shortest argument ends, so no more than its first argument has"
+arities = [2, 3, 4]
+over = 0
+operations = ["zip.__new__"]
+
+# A comprehension runs the for loops it desugars to where it's written, then builds its result. A
+# generator expression runs where it's consumed, so it is lowered in place only where the call it's
+# an argument of drains it before returning: unpacked into the call's arguments, or handed first to
+# a builtin that iterates it and keeps nothing of it. A call that could keep it, return it or pass
+# it on, as `sum`'s `start` and `max`'s `default` can, leaves it unsupported.
+
+[[extension]]
+basis = "A comprehension runs the for loops it desugars to, then builds its list, set or dict, which hashes a set's or dict's keys and can run their __hash__ and __eq__"
+implicit = "Always"
+lazy = "lazy"
+consumed_by = ["sum", "any", "all", "min", "max", "sorted", "list.__init__", "tuple.__new__", "set.__init__", "frozenset.__new__", "dict.__init__"]
+extensions = ["comprehension"]
+
+[[extension]]
+basis = "del removes each target in order: a name is unbound, and an item or an attribute is removed by its container's __delitem__ or __delattr__"
+control = "Delete"
+extensions = ["del"]
+
+[[extension]]
+basis = "A chain of comparisons evaluates each operand once, and the next only while every comparison so far held; comparing values that aren't numbers, booleans or strings runs a method they define"
+control = "Chain"
+extensions = ["compare-chain"]
+
+# Extent roles: a dict's items, keys and values traverse each entry once without changing the dict,
+# when the dict is a `map`, which rstyle-py writes only where nothing from the function's start
+# through the loop can change it.
+
+[[extent]]
+basis = "items, keys and values yield each entry of the dict once, and a dict that changes size while they're iterated raises"
+role = "Traversal"
+receiver = ["map"]
+operations = ["dict.items", "dict.keys", "dict.values"]

@@ -13,6 +13,7 @@ mod events;
 mod facts;
 pub mod failures;
 pub mod flow;
+mod invocation;
 pub mod layout;
 mod metrics;
 pub mod model;
@@ -21,12 +22,13 @@ pub mod records;
 mod run;
 mod shapes;
 pub mod source;
+pub mod store;
 mod stream;
 pub mod transport;
 pub mod tree;
 
 pub use facts::{CAPABILITIES, LAYERS, all_facts, derivable_facts, rule_facts};
-pub use pool::{OnRecords, Pool, keep_records, pooled_records};
+pub use pool::{OnRecords, Order, Pool, keep_records, pooled_records};
 pub use run::{RunInputs, run_inputs};
 pub use stream::{read_records, visit_records};
 
@@ -54,6 +56,14 @@ fn arithmetic(overflow: &str) -> crate::runtime_bounds::Arithmetic {
 fn lowered(
     document: &model::Document,
 ) -> Result<Vec<(String, crate::advisory::runtime_bounds::Input)>, String> {
+    lowered_some(document, &|_| true)
+}
+
+/// As [`lowered`], for the functions whose place in the document is `wanted`.
+fn lowered_some(
+    document: &model::Document,
+    wanted: &dyn Fn(usize) -> bool,
+) -> Result<Vec<(String, crate::advisory::runtime_bounds::Input)>, String> {
     let unit = document.unit.as_ref().ok_or("The document has no unit")?;
     let sources = source::Sources::new(unit)?;
     let tables = tree::Tables::new(unit)?;
@@ -68,7 +78,9 @@ fn lowered(
 
     functions
         .iter()
-        .map(|function| {
+        .enumerate()
+        .filter(|(at, _)| wanted(*at))
+        .map(|(_, function)| {
             let identity = tables
                 .definition(&function.definition)?
                 .stable_identity
@@ -107,7 +119,7 @@ pub fn run_records(
     documents: Vec<serde_json::Value>,
     demand: records::Demand,
 ) -> Result<Vec<records::Record>, String> {
-    read_records(documents.into_iter().map(Ok), demand)
+    read_records(documents.iter().map(layout::Parsed::from_json), demand)
 }
 
 /// A record's measured facts, with its graph, when its function is authored.
@@ -124,9 +136,13 @@ pub fn authored(record: records::Record) -> Option<FnFacts> {
 #[cfg(test)]
 mod body_tests;
 #[cfg(test)]
+mod bounds_write_tests;
+#[cfg(test)]
 mod callable_role_tests;
 #[cfg(test)]
 mod dependence_tests;
+#[cfg(test)]
+mod extension_tests;
 #[cfg(test)]
 mod failures_tests;
 #[cfg(test)]

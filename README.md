@@ -124,6 +124,27 @@ mkdir -p .cursor/skills/rstyle && cargo rstyle --skill > .cursor/skills/rstyle/S
 | `1` | Findings |
 | `2` | Tool error or incomplete analysis |
 
+### Rust
+
+The Rust commands compile your workspace with rstyle's driver. The driver runs rustc's front end on
+several threads, through nightly rustc's `-Zthreads`, and writes each crate's documents on those
+threads too. It uses one thread per core it may run on, as its CPU affinity and cgroup limits allow.
+All the crates being compiled share Cargo's jobserver, so together they keep no more threads busy
+than Cargo's `-j`.
+
+That trades CPU time for wall time:
+
+| Workspace | Cores | Wall time | CPU time | Peak memory |
+| --- | --- | --- | --- | --- |
+| rstyle, after an edit to `rstyle-core` | 10 | 16.0 s → 6.9 s | +46% | 0.96 → 1.43 GB |
+| rstyle, after an edit to `rstyle-core` | 4 | 15.4 s → 8.1 s | +19% | 0.96 → 1.24 GB |
+| nautilus_trader, its 105 crates rebuilt | 10 | 138 s → 105 s | +42% | 9.7 → 9.2 GB |
+| nautilus_trader, its 105 crates rebuilt | 4 | 166 s → 138 s | +12% | 5.1 → 5.1 GB |
+
+To turn it off, set `RSTYLE_DRIVER_THREADS=1`: rustc runs on one thread, as it does by default, and
+the driver writes the documents in order. Any other number from 2 to 255 sets the threads per crate.
+The documents and reports are the same either way.
+
 ### Go
 
 `rstyle go` uses `$RSTYLE_GO` if set, then `rstyle-go` from Go's binary directory or your `PATH`, and

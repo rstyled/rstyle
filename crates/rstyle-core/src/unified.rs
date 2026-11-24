@@ -326,7 +326,11 @@ mod tests {
     fn run(names: &[&str]) -> Analyses {
         let filter = Filter::parse(names).unwrap();
         let document = serde_json::from_str(include_str!("cpg/testdata/example.cpg.json")).unwrap();
-        let records = read_records([Ok(document)], filter.demand()).unwrap();
+        let records = read_records(
+            [crate::cpg::layout::Parsed::from_json(&document)],
+            filter.demand(),
+        )
+        .unwrap();
         let options = patterns_report::Options::default();
         analyze(records, &filter, &Config::default(), &options).unwrap()
     }
@@ -401,7 +405,11 @@ mod tests {
             file["path"] = format!("../elsewhere/{}", file["path"].as_str().unwrap()).into();
         }
         let filter = Filter::Everything;
-        let records = read_records([Ok(document)], filter.demand()).unwrap();
+        let records = read_records(
+            [crate::cpg::layout::Parsed::from_json(&document)],
+            filter.demand(),
+        )
+        .unwrap();
         let options = patterns_report::Options::default();
         let result = analyze(records, &filter, &Config::default(), &options);
         let error = result.err().expect("no error");
@@ -418,7 +426,9 @@ mod tests {
         let mut tests = example();
         tests["unit"]["id"] = "unit:example-tests".into();
         let demand = Filter::Everything.demand();
-        [example(), tests].map(|document| read_records([Ok(document)], demand).unwrap())
+        [example(), tests].map(|document| {
+            read_records([crate::cpg::layout::Parsed::from_json(&document)], demand).unwrap()
+        })
     }
 
     #[test]
