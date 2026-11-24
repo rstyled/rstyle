@@ -16,9 +16,10 @@
 //! A function whose identity another function of its document shares, or whose facts fail, is
 //! derived every time, since what it derives depends on more than itself.
 //!
-//! Each document's records are kept as one facts pack: a zstd frame per function, in order, and an
-//! index of their keys, none for a function derived every time, named by the sha256 of its bytes
-//! like any object. A map entry per unit names the packs its documents made in the last run that
+//! Each document's records are kept as one facts pack: their texts in order, compressed together as
+//! one zstd frame, so what functions repeat of each other compresses away, and an index of where
+//! each text lies in it and its key, none for a function derived every time, named by the sha256
+//! of its bytes like any object. A map entry per unit names the packs its documents made in the last run that
 //! kept it, and a run looks its keys up in those.
 //!
 //! A document read from stored bytes is also kept whole: an entry under the sha256 of those bytes
@@ -45,9 +46,10 @@ pub const FACTS_SCHEMA: &str = "rstyle.function-facts/0";
 const MAGIC: &[u8; 6] = b"RSFACT";
 const INDEX_MAGIC: &[u8; 8] = b"RSFACTIX";
 /// The facts pack format's version, and the flags byte after it, which no version sets yet.
-const FORMAT: [u8; 2] = [0, 0];
+/// Version 1 compresses a pack's texts together; version 0 compressed each one alone.
+const FORMAT: [u8; 2] = [1, 0];
 const FOOTER: usize = 24;
-/// The zstd level each frame is written at.
+/// The zstd level a pack's texts and its index are written at.
 const LEVEL: i32 = 3;
 /// The map from a unit, under one build and demand, to the facts packs its documents made.
 const MAP: &str = "facts";
@@ -90,13 +92,14 @@ struct Index {
     frames: HashMap<String, (usize, [u64; 2])>,
 }
 
-/// A record read back from the store, and its frame as kept.
+/// A record read back from the store, and its text as kept.
 type Found = Option<(Record, Vec<u8>)>;
 
-/// Frames of a facts pack, in order, each with the key it's kept under, if any.
+/// The texts of a facts pack, in order, each with the key it's kept under, if any.
 type Frames = Vec<(Option<String>, Vec<u8>)>;
 
-/// Where each frame of a facts pack lies, in order, with the key it's kept under, if any.
+/// Where each text of a facts pack lies in its texts, in order, with the key it's kept under, if
+/// any.
 type Places = Vec<(Option<String>, [u64; 2])>;
 
 /// A document the store kept whole: its unit, and its records in document order.
@@ -208,15 +211,10 @@ impl FunctionFacts {
     /// Every record a facts pack holds, in order, if each one reads.
     fn pack_records(&self, pack: &str, wording: Wording) -> Option<Vec<Record>> {
         let path = self.objects.path(pack).ok()?;
-        let entries = pack_index(&path).ok()?;
-        let bytes = std::fs::read(path).ok()?;
+        let (entries, texts) = unpacked(&std::fs::read(path).ok()?).ok()?;
         entries
             .into_iter()
-            .map(|(_, [offset, length])| {
-                let offset = usize::try_from(offset).ok()?;
-                let end = offset.checked_add(usize::try_from(length).ok()?)?;
-                read(bytes.get(offset..end)?, wording).map(|(record, _)| record)
-            })
+            .map(|(_, place)| decoded(text_at(&texts, place)?, wording).ok())
             .collect()
     }
 
@@ -238,8 +236,8 @@ impl FunctionFacts {
         self.entry_path(DOCUMENTS, digest)
     }
 
-    /// Each function's record in document order, kept or derived, and the frame each one with a
-    /// key is kept in, or each one at all when the document is kept `whole`. A record both kept
+    /// Each function's record in document order, kept or derived, and the text each one with a
+    /// key is kept as, or each one at all when the document is kept `whole`. A record both kept
     /// and derived, as verifying gives, must be the same.
     fn merged(
         &self,
@@ -252,17 +250,17 @@ impl FunctionFacts {
         for (at, (key, found)) in keys.into_iter().zip(found).enumerate() {
             let fresh = derived.remove(&at);
             let (record, frame) = match (found, key) {
-                (Some((kept, frame)), Some(key)) => {
+                (Some((kept, text)), Some(key)) => {
                     if let Some(fresh) = &fresh {
                         same(&kept, fresh, &key)?;
                     }
                     self.reused.fetch_add(1, Ordering::Relaxed);
-                    (kept, Some((Some(key), frame)))
+                    (kept, Some((Some(key), text)))
                 }
                 (_, key) => {
                     let fresh = fresh.ok_or("a function was neither kept nor derived")?;
                     let kept = key.is_some() || whole;
-                    let frame = kept.then(|| Ok::<_, String>((key, frame(&fresh)?)));
+                    let frame = kept.then(|| Ok::<_, String>((key, encoded(&fresh)?)));
                     self.derived.fetch_add(1, Ordering::Relaxed);
                     (fresh, frame.transpose()?)
                 }
@@ -335,13 +333,12 @@ impl FunctionFacts {
         for (pack, places) in by_pack {
             let read_pack = |path: PathBuf| std::fs::read(path).map_err(|error| error.to_string());
             let bytes = self.objects.path(&index.packs[pack]).and_then(read_pack);
-            for (at, [offset, length]) in places {
-                let frame = bytes.as_ref().ok().and_then(|bytes| {
-                    let offset = usize::try_from(offset).ok()?;
-                    let end = offset.checked_add(usize::try_from(length).ok()?)?;
-                    bytes.get(offset..end)
-                });
-                found[at] = frame.and_then(|frame| read(frame, wording));
+            let texts = bytes
+                .and_then(|bytes| unpacked(&bytes))
+                .map(|(_, texts)| texts);
+            for (at, place) in places {
+                let text = texts.as_ref().ok().and_then(|texts| text_at(texts, place));
+                found[at] = text.and_then(|text| read(text, wording));
                 spoiled |= found[at].is_none();
             }
         }
@@ -386,11 +383,17 @@ impl FunctionFacts {
     }
 }
 
-/// The record a frame holds, with the frame, if it reads: a record nested deeper than serde_json
+/// The record a text holds, with the text, if it reads: a record nested deeper than serde_json
 /// reads doesn't, and is derived again.
-fn read(frame: &[u8], wording: Wording) -> Found {
-    let text = zstd::decode_all(frame).ok()?;
-    Some((decoded(&text, wording).ok()?, frame.to_vec()))
+fn read(text: &[u8], wording: Wording) -> Found {
+    Some((decoded(text, wording).ok()?, text.to_vec()))
+}
+
+/// The text at `place` among a pack's texts.
+fn text_at(texts: &[u8], [offset, length]: [u64; 2]) -> Option<&[u8]> {
+    let offset = usize::try_from(offset).ok()?;
+    let end = offset.checked_add(usize::try_from(length).ok()?)?;
+    texts.get(offset..end)
 }
 
 /// A record from its kept text, in the unit's wording, which isn't kept.
@@ -408,7 +411,7 @@ pub(crate) fn encoded(record: &Record) -> Result<Vec<u8>, String> {
     crate::facts::keeping(|| serde_json::to_vec(record)).map_err(|error| error.to_string())
 }
 
-/// `text` compressed into a frame that checks itself when it's read.
+/// `text` compressed into a zstd frame that checks itself when it's read.
 fn compressed(text: &[u8]) -> Result<Vec<u8>, String> {
     let checked = zstd::zstd_safe::CParameter::ChecksumFlag(true);
     let compress = || -> std::io::Result<Vec<u8>> {
@@ -417,11 +420,6 @@ fn compressed(text: &[u8]) -> Result<Vec<u8>, String> {
         compressor.compress(text)
     };
     compress().map_err(|error| error.to_string())
-}
-
-/// A record as a frame of a facts pack.
-fn frame(record: &Record) -> Result<Vec<u8>, String> {
-    compressed(&encoded(record)?)
 }
 
 /// Refuses a kept record that differs from what deriving it again gives, saying where.
@@ -446,64 +444,80 @@ fn same(kept: &Record, fresh: &Record, key: &str) -> Result<(), String> {
     ))
 }
 
-/// A facts pack of `unit`'s functions: their frames in order, then an index saying which key
-/// each one is kept under, if any, then where the index lies.
+/// A facts pack of `unit`'s functions: their texts in order, compressed together, then an index
+/// saying where each text lies among them and which key it's kept under, if any, then where the
+/// index lies.
 fn pack(unit: &str, frames: Frames) -> Result<Vec<u8>, String> {
     let header = [MAGIC.as_slice(), &FORMAT].concat();
-    let mut at = header.len() as u64;
     let mut entries = Vec::with_capacity(frames.len());
-    for (key, frame) in &frames {
-        entries.push(json!([key, at, frame.len() as u64]));
-        at += frame.len() as u64;
+    let mut at = 0u64;
+    for (key, text) in &frames {
+        entries.push(json!([key, at, text.len() as u64]));
+        at += text.len() as u64;
     }
+    let texts: Vec<&[u8]> = frames.iter().map(|(_, text)| text.as_slice()).collect();
+    let texts = compressed(&texts.concat())?;
     let index = json!({"schema": FACTS_SCHEMA, "unit": unit, "functions": entries});
     let index = compressed(&serde_json::to_vec(&index).map_err(|error| error.to_string())?)?;
+    let at = (header.len() + texts.len()) as u64;
     let length = (index.len() as u64).to_le_bytes();
     let footer = [&at.to_le_bytes()[..], &length, INDEX_MAGIC].concat();
-    let frames = frames.into_iter().map(|(_, frame)| frame);
-    let pieces: Vec<Vec<u8>> = std::iter::once(header)
-        .chain(frames)
-        .chain([index, footer])
-        .collect();
-    Ok(pieces.concat())
+    Ok([header, texts, index, footer].concat())
 }
 
-// rstyle-allow(side_effect_density): IO boundary: reads a facts pack's header, footer and index
-/// Where each frame lies in the facts pack at `path`, in order, with its key if it has one, as its
-/// index says, read without reading the frames.
+/// A facts pack's index and its texts, decompressed.
+fn unpacked(bytes: &[u8]) -> Result<(Places, Vec<u8>), String> {
+    let (entries, at) = index_of(&mut std::io::Cursor::new(bytes), "a facts pack")?;
+    let end = usize::try_from(at).unwrap_or(usize::MAX);
+    let texts = bytes
+        .get(MAGIC.len() + FORMAT.len()..end)
+        .unwrap_or_default();
+    let texts = zstd::decode_all(texts).map_err(|error| error.to_string())?;
+    Ok((entries, texts))
+}
+
+/// Where each text lies in the facts pack at `path`, in order, with its key if it has one, as its
+/// index says, read without reading the texts.
 fn pack_index(path: &Path) -> Result<Places, String> {
     let failed = |error: std::io::Error| format!("{}: {error}", path.display());
     let mut file = std::fs::File::open(path).map_err(failed)?;
-    let header = read_at(&mut file, SeekFrom::Start(0), MAGIC.len() + FORMAT.len());
+    let (entries, _) = index_of(&mut file, &path.display().to_string())?;
+    Ok(entries)
+}
+
+// rstyle-allow(side_effect_density): IO boundary: reads a facts pack's header, footer and index
+/// A facts pack's index, read from its header, footer and index alone, and where its texts end.
+fn index_of(pack: &mut (impl Read + Seek), named: &str) -> Result<(Places, u64), String> {
+    let failed = |error: std::io::Error| format!("{named}: {error}");
+    let header = read_at(pack, SeekFrom::Start(0), MAGIC.len() + FORMAT.len());
     if !header
         .map_err(failed)?
         .starts_with(&[MAGIC.as_slice(), &FORMAT[..1]].concat())
     {
-        return Err(format!("{} is not a facts pack this reads", path.display()));
+        return Err(format!("{named} is not a facts pack this reads"));
     }
-    let footer = read_at(&mut file, SeekFrom::End(-(FOOTER as i64)), FOOTER).map_err(failed)?;
+    let footer = read_at(pack, SeekFrom::End(-(FOOTER as i64)), FOOTER).map_err(failed)?;
     if &footer[16..] != INDEX_MAGIC {
-        let path = path.display();
-        return Err(format!("{path} doesn't end with its index's place"));
+        return Err(format!("{named} doesn't end with its index's place"));
     }
     let at = u64::from_le_bytes(footer[..8].try_into().expect("eight bytes"));
     let length = u64::from_le_bytes(footer[8..16].try_into().expect("eight bytes"));
     let length = usize::try_from(length).map_err(|error| error.to_string())?;
-    let compressed = read_at(&mut file, SeekFrom::Start(at), length).map_err(failed)?;
+    let compressed = read_at(pack, SeekFrom::Start(at), length).map_err(failed)?;
     let text = zstd::decode_all(compressed.as_slice()).map_err(failed)?;
-    index_entries(&text)
+    Ok((index_entries(&text)?, at))
 }
 
 // rstyle-allow(side_effect_density): IO boundary: reads part of a file
 /// The `length` bytes of `file` from `at`.
-fn read_at(file: &mut std::fs::File, at: SeekFrom, length: usize) -> std::io::Result<Vec<u8>> {
+fn read_at(file: &mut (impl Read + Seek), at: SeekFrom, length: usize) -> std::io::Result<Vec<u8>> {
     let mut bytes = vec![0; length];
     file.seek(at)?;
     file.read_exact(&mut bytes)?;
     Ok(bytes)
 }
 
-/// The key, if any, and place of each frame a facts pack's index lists.
+/// The key, if any, and place of each text a facts pack's index lists.
 fn index_entries(text: &[u8]) -> Result<Places, String> {
     let index: Value = serde_json::from_slice(text).map_err(|error| error.to_string())?;
     if index["schema"] != FACTS_SCHEMA {
@@ -520,7 +534,7 @@ fn index_entries(text: &[u8]) -> Result<Places, String> {
                     Ok((Some(key.clone()), [at, length]))
                 }
                 (Value::Null, Some(at), Some(length)) => Ok((None, [at, length])),
-                _ => Err("an index names a frame by its key, offset and length".to_string()),
+                _ => Err("an index names a text by its key, offset and length".to_string()),
             },
         )
         .collect()
