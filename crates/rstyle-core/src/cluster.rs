@@ -4,6 +4,7 @@
 use crate::align::{Alignment, Ctx, HoleKind, align};
 use crate::facts::{NodeKind, Pdg};
 use crate::normalize::{Rules, canonicalize_or_borrow};
+use crate::parallel::mapped;
 use crate::wl::{SimilarityKey, Wl, call_class, comparable, similarity_milli};
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
@@ -71,7 +72,7 @@ fn classes_of(pdg: &Pdg) -> BTreeSet<String> {
 
 /// The rarest call classes (across the corpus) of every function.
 fn block_keys(pdgs: &[&Pdg]) -> Vec<Vec<String>> {
-    let sets: Vec<BTreeSet<String>> = pdgs.iter().map(|p| classes_of(p)).collect();
+    let sets: Vec<BTreeSet<String>> = mapped(pdgs, |p| classes_of(p));
     let mut freq: BTreeMap<&str, usize> = BTreeMap::new();
     for class in sets.iter().flatten() {
         *freq.entry(class.as_str()).or_default() += 1;
@@ -87,14 +88,15 @@ fn block_keys(pdgs: &[&Pdg]) -> Vec<Vec<String>> {
 
 type Adjacency = BTreeMap<usize, BTreeSet<usize>>;
 
-fn candidate_pairs(keys: &[Vec<String>]) -> BTreeSet<(usize, usize)> {
+/// Each pair of functions that share a block, in order, once.
+fn candidate_pairs(keys: &[Vec<String>]) -> Vec<(usize, usize)> {
     let mut blocks: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
     for (index, list) in keys.iter().enumerate() {
         for key in list {
             blocks.entry(key).or_default().push(index);
         }
     }
-    blocks
+    let mut pairs: Vec<(usize, usize)> = blocks
         .values()
         .filter(|members| members.len() <= BLOCK_CAP)
         .flat_map(|members| {
@@ -103,11 +105,14 @@ fn candidate_pairs(keys: &[Vec<String>]) -> BTreeSet<(usize, usize)> {
                 .enumerate()
                 .flat_map(|(i, a)| members[i + 1..].iter().map(move |b| (*a, *b)))
         })
-        .collect()
+        .collect();
+    pairs.sort_unstable();
+    pairs.dedup();
+    pairs
 }
 
-/// Every pair for small corpora, pairs that share a blocking key otherwise.
-fn pairs_to_compare(pdgs: &[&Pdg]) -> BTreeSet<(usize, usize)> {
+/// Every pair for small corpora, pairs that share a blocking key otherwise, in order, once.
+fn pairs_to_compare(pdgs: &[&Pdg]) -> Vec<(usize, usize)> {
     if pdgs.len() > ALL_PAIRS_LIMIT {
         return candidate_pairs(&block_keys(pdgs));
     }
@@ -130,32 +135,69 @@ fn pair_selected(pdgs: &[&Pdg], wls: &[Wl], (a, b): (usize, usize), params: &Par
 }
 
 /// Functions whose kernel similarity reaches the threshold, after the size filters.
-fn similar(
-    pdgs: &[&Pdg],
-    wls: &[Wl],
-    pairs: &BTreeSet<(usize, usize)>,
-    params: &Params,
-) -> Adjacency {
+fn similar(pdgs: &[&Pdg], wls: &[Wl], pairs: &[(usize, usize)], params: &Params) -> Adjacency {
+    let selected = mapped(pairs, |pair| pair_selected(pdgs, wls, *pair, params));
     let mut adjacency = Adjacency::new();
-    for &(a, b) in pairs {
-        if pair_selected(pdgs, wls, (a, b), params) {
-            adjacency.entry(a).or_default().insert(b);
-            adjacency.entry(b).or_default().insert(a);
-        }
+    for (&(a, b), _) in pairs.iter().zip(selected).filter(|(_, selected)| *selected) {
+        adjacency.entry(a).or_default().insert(b);
+        adjacency.entry(b).or_default().insert(a);
     }
     adjacency
 }
 
-/// Unassigned function with the most unassigned neighbours (lowest index on ties).
-fn next_seed(adjacency: &Adjacency, free: &BTreeSet<usize>) -> Option<usize> {
-    free.iter()
-        .map(|v| {
-            let degree = adjacency.get(v).map_or(0, |n| n.intersection(free).count());
-            (degree, *v)
-        })
-        .filter(|(degree, _)| *degree > 0)
-        .min_by_key(|(degree, v)| (usize::MAX - degree, *v))
-        .map(|(_, v)| v)
+/// The functions not yet in a cluster, and how many such neighbours each has, kept as each one
+/// is taken so the next seed needn't count them all again.
+struct Seeds<'a> {
+    adjacency: &'a Adjacency,
+    free: BTreeSet<usize>,
+    degree: BTreeMap<usize, usize>,
+    /// Each free function with a free neighbour, most of them first, then by index.
+    ranked: BTreeSet<(Reverse<usize>, usize)>,
+}
+
+impl<'a> Seeds<'a> {
+    /// Every function with a neighbour is free, with all of its neighbours.
+    fn new(adjacency: &'a Adjacency) -> Self {
+        let degree: BTreeMap<usize, usize> = adjacency.iter().map(|(v, n)| (*v, n.len())).collect();
+        Seeds {
+            adjacency,
+            free: adjacency.keys().copied().collect(),
+            ranked: degree.iter().map(|(v, d)| (Reverse(*d), *v)).collect(),
+            degree,
+        }
+    }
+
+    /// The free function with the most free neighbours (lowest index on ties), if any has one.
+    fn next(&self) -> Option<usize> {
+        self.ranked.first().map(|(_, v)| *v)
+    }
+
+    /// Takes `v` out of the free functions, if it was one.
+    fn take(&mut self, v: usize) {
+        if !self.free.remove(&v) {
+            return;
+        }
+        self.ranked.remove(&(Reverse(self.degree[&v]), v));
+        let adjacency = self.adjacency;
+        let neighbours = adjacency.get(&v).into_iter().flatten();
+        neighbours.for_each(|w| self.lower(*w));
+    }
+
+    /// One fewer free neighbour for `w`, if it's free.
+    fn lower(&mut self, w: usize) {
+        if !self.free.contains(&w) {
+            return;
+        }
+        let degree = self
+            .degree
+            .get_mut(&w)
+            .expect("a free function has a degree");
+        let ranked = (Reverse(*degree), w);
+        *degree -= 1;
+        let lowered = (*degree > 0).then_some((Reverse(*degree), w));
+        self.ranked.remove(&ranked);
+        self.ranked.extend(lowered);
+    }
 }
 
 /// Members with equal similarity keys, collapsed into one weighted class.
@@ -320,28 +362,26 @@ pub fn cluster(pdgs: &[&Pdg], params: &Params) -> Vec<Cluster> {
         .collect();
     let pdgs: Vec<&Pdg> = canonical.iter().map(|p| p.as_ref()).collect();
     let pdgs = pdgs.as_slice();
-    let wls: Vec<Wl> = pdgs.iter().map(|p| Wl::new(p)).collect();
+    let wls: Vec<Wl> = mapped(pdgs, |p| Wl::new(p));
     let adjacency = similar(pdgs, &wls, &pairs_to_compare(pdgs), params);
-    let mut free: BTreeSet<usize> = adjacency.keys().copied().collect();
+    let mut seeds = Seeds::new(&adjacency);
     let mut found = Vec::new();
 
-    while let Some(seed) = next_seed(&adjacency, &free) {
+    while let Some(seed) = seeds.next() {
         let group: Vec<usize> = adjacency[&seed]
             .iter()
             .copied()
-            .filter(|v| free.contains(v))
+            .filter(|v| seeds.free.contains(v))
             .chain([seed])
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect();
         match build(pdgs, &wls, &group, params) {
             Some(c) => {
-                free.retain(|v| !c.members.contains(v));
+                c.members.iter().for_each(|v| seeds.take(*v));
                 found.push(c);
             }
-            None => {
-                free.remove(&seed);
-            }
+            None => seeds.take(seed),
         }
     }
     found
@@ -352,6 +392,60 @@ mod tests {
     use super::*;
     use crate::facts::{PdgNode, TyShape};
     use crate::pdgtest::*;
+
+    /// The seed counting every free function's free neighbours again gives: the most of them,
+    /// then the lowest index.
+    fn counted_seed(adjacency: &Adjacency, free: &BTreeSet<usize>) -> Option<usize> {
+        free.iter()
+            .map(|v| (adjacency[v].intersection(free).count(), *v))
+            .filter(|(degree, _)| *degree > 0)
+            .min_by_key(|(degree, v)| (Reverse(*degree), *v))
+            .map(|(_, v)| v)
+    }
+
+    #[test]
+    fn seeds_come_in_the_order_counting_every_neighbour_again_gives() {
+        let mut state = 0x2545_f491_4f6c_dd1d_u64;
+        let mut random = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        for _ in 0..50 {
+            let mut adjacency = Adjacency::new();
+            for a in 0..40 {
+                for b in (a + 1..40).filter(|_| random() % 6 == 0) {
+                    adjacency.entry(a).or_default().insert(b);
+                    adjacency.entry(b).or_default().insert(a);
+                }
+            }
+            let mut seeds = Seeds::new(&adjacency);
+            let mut free: BTreeSet<usize> = adjacency.keys().copied().collect();
+            while let Some(seed) = counted_seed(&adjacency, &free) {
+                assert_eq!(seeds.next(), Some(seed));
+                // A cluster takes the seed and some of its free neighbours, and can take one twice.
+                let neighbours = adjacency[&seed].iter().filter(|v| free.contains(v));
+                let some: Vec<usize> = neighbours.copied().filter(|_| random() % 2 == 0).collect();
+                for v in some.iter().chain([&seed, &seed]) {
+                    free.remove(v);
+                    seeds.take(*v);
+                }
+            }
+            assert_eq!(seeds.next(), None);
+        }
+    }
+
+    #[test]
+    fn a_seed_whose_group_makes_no_cluster_is_passed_over() {
+        let pdgs = animals();
+        assert!(!run(&pdgs, &Params::default()).is_empty());
+        let unreachable = Params {
+            min_coverage_milli: 1001,
+            ..Params::default()
+        };
+        assert!(run(&pdgs, &unreachable).is_empty());
+    }
 
     fn animals() -> Vec<Pdg> {
         vec![
