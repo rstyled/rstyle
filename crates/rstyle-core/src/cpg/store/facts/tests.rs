@@ -141,14 +141,29 @@ fn a_store_that_lost_or_spoiled_its_packs_derives_again() {
     let packs: Vec<PathBuf> = walk(&store.path().join("objects"));
     assert_eq!(packs.len(), 1);
 
-    // A frame that no longer reads is derived again; the others still read.
+    // A pack whose texts no longer decompress is derived again whole.
     let mut bytes = std::fs::read(&packs[0]).unwrap();
     bytes[MAGIC.len() + FORMAT.len() + 8] ^= 0xff;
     std::fs::write(&packs[0], &bytes).unwrap();
     let (records, counts) = kept(store.path());
     assert_eq!(records, derived);
-    assert_eq!((counts.reused, counts.derived), (2, 1));
+    assert_eq!((counts.reused, counts.derived), (0, 3));
     // The pack made again is the one that was spoiled, and is written again.
+    assert_eq!(walk(&store.path().join("objects")), packs);
+    assert_eq!(kept(store.path()).1.reused, 3);
+
+    // A text that no longer reads as a record is derived again; the others still read.
+    let (entries, texts) = unpacked(&std::fs::read(&packs[0]).unwrap()).unwrap();
+    let mut frames: Frames = entries
+        .iter()
+        .map(|(key, place)| (key.clone(), text_at(&texts, *place).unwrap().to_vec()))
+        .collect();
+    frames[0].1 = br#"{"not": "a record"}"#.to_vec();
+    let unit = &document.unit.as_ref().unwrap().id;
+    std::fs::write(&packs[0], pack(unit, frames).unwrap()).unwrap();
+    let (records, counts) = kept(store.path());
+    assert_eq!(records, derived);
+    assert_eq!((counts.reused, counts.derived), (2, 1));
     assert_eq!(walk(&store.path().join("objects")), packs);
     assert_eq!(kept(store.path()).1.reused, 3);
 
@@ -180,14 +195,14 @@ fn a_changed_document_over_a_spoiled_pack_keeps_a_pack_of_its_own() {
     bytes[MAGIC.len() + FORMAT.len() + 8] ^= 0xff;
     std::fs::write(&packs[0], &bytes).unwrap();
 
-    // The first function's frame no longer reads and the last one changed, so the pack the
-    // document makes is another than the spoiled one, which the map no longer names.
+    // The pack's texts no longer read and the last function changed, so the pack the document
+    // makes is another than the spoiled one, which the map no longer names.
     let mut value = example();
     value["unit"]["functions"][2]["nodes"][0]["original_kind"] = "Changed".into();
     let changed = document(&value);
     let (records, counts) = kept(&changed);
     assert_eq!(records, texts(&records::records(&changed, ALL).unwrap()));
-    assert_eq!((counts.reused, counts.derived), (1, 2));
+    assert_eq!((counts.reused, counts.derived), (0, 3));
     assert_eq!(walk(&store.path().join("objects")).len(), 2);
     assert_eq!(kept(&changed).1.reused, 3);
 }
@@ -384,7 +399,7 @@ fn functions_that_share_an_identity_are_never_kept() {
 }
 
 #[test]
-fn a_facts_pack_lists_where_each_key_s_frame_lies() {
+fn a_facts_pack_lists_where_each_key_s_text_lies() {
     let frames = vec![
         (Some("a".to_owned()), vec![1, 2, 3]),
         (None, vec![5, 6]),
@@ -396,11 +411,27 @@ fn a_facts_pack_lists_where_each_key_s_frame_lies() {
     std::fs::write(&path, &bytes).unwrap();
     let index = pack_index(&path).unwrap();
     let expected = [
-        (Some("a".to_owned()), [8, 3]),
-        (None, [11, 2]),
-        (Some("b".to_owned()), [13, 1]),
+        (Some("a".to_owned()), [0, 3]),
+        (None, [3, 2]),
+        (Some("b".to_owned()), [5, 1]),
     ];
     assert_eq!(index, expected);
+    let (entries, texts) = unpacked(&bytes).unwrap();
+    assert_eq!(entries, expected);
+    assert_eq!(texts, [1, 2, 3, 5, 6, 4]);
+    assert_eq!(text_at(&texts, [3, 2]), Some([5, 6].as_slice()));
+    assert_eq!(text_at(&texts, [5, 2]), None);
+    // A pack of the version before, which compressed each text alone, isn't read.
+    let mut older = bytes.clone();
+    older[MAGIC.len()] = 0;
+    assert!(
+        unpacked(&older)
+            .unwrap_err()
+            .contains("not a facts pack this reads")
+    );
+    // One too short to hold its footer doesn't read either.
+    let error = unpacked(&bytes[..MAGIC.len() + FORMAT.len() + 2]).unwrap_err();
+    assert!(error.starts_with("a facts pack: "), "{error}");
 
     let mut unended = bytes.clone();
     let at = unended.len() - 1;
