@@ -3412,6 +3412,47 @@ fn a_store_keeps_each_function_s_facts_for_the_runs_after() {
     assert!(!stderr(&replayed).contains("run kept in"), "{replayed:?}");
 }
 
+/// The facts manifest a run with `--store` says it kept, read from `store`.
+fn facts_manifest(output: &Output, store: &Path) -> Value {
+    let stderr = stderr(output);
+    let name = stderr
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("rstyle: facts kept in "))
+        .and_then(|rest| rest.rsplit_once(" as "))
+        .map(|(_, name)| name.trim().to_owned())
+        .unwrap_or_else(|| panic!("no facts manifest: {stderr}"));
+    let path = store.join("objects").join(&name[..2]).join(&name[2..]);
+    serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+}
+
+#[test]
+fn a_run_s_facts_manifest_carries_its_facts_to_another_store() {
+    let project = Project::new();
+    let store = project.root().join("store");
+    let first = project.go(&["--store", store.to_str().unwrap()]);
+    let (_, functions) = reused_facts(&first);
+    let manifest = facts_manifest(&first, &store);
+    assert_eq!(manifest["schema"], "rstyle.facts-manifest/0");
+
+    // Another store given only the entries and packs the manifest names reuses every function.
+    let other = project.root().join("other");
+    for (map, entries) in manifest["maps"].as_object().unwrap() {
+        let folder = other.join("maps").join(map);
+        std::fs::create_dir_all(&folder).unwrap();
+        for (key, entry) in entries.as_object().unwrap() {
+            std::fs::write(folder.join(key), entry.to_string()).unwrap();
+        }
+    }
+    for name in manifest["objects"].as_array().unwrap() {
+        let name = name.as_str().unwrap();
+        let place = |root: &Path| root.join("objects").join(&name[..2]).join(&name[2..]);
+        std::fs::create_dir_all(place(&other).parent().unwrap()).unwrap();
+        std::fs::copy(place(&store), place(&other)).unwrap();
+    }
+    let second = project.go(&["--store", other.to_str().unwrap()]);
+    assert_eq!(reused_facts(&second), (functions, functions), "{second:?}");
+}
+
 #[test]
 fn verifying_facts_needs_a_store_to_read_them_from() {
     let project = Project::new();
