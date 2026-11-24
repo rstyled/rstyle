@@ -508,6 +508,14 @@ impl Totals {
     fn size(&self) -> usize {
         self.loops.size() + self.invocations.size() + self.library.size()
     }
+
+    fn simplified(self) -> Self {
+        Self {
+            loops: simplified(self.loops),
+            invocations: simplified(self.invocations),
+            library: simplified(self.library),
+        }
+    }
 }
 
 impl Evidence {
@@ -547,7 +555,9 @@ impl Summary {
         self.evidence = std::mem::take(&mut self.evidence).union(evidence);
     }
 
-    fn within(&self, limits: Limits) -> Result<(), Failure> {
+    /// Simplifies the totals, and refuses them when they're still larger than `limits` allows.
+    fn within(&mut self, limits: Limits) -> Result<(), Failure> {
+        self.totals = std::mem::replace(&mut self.totals, Totals::zero()).simplified();
         if self.totals.size() > limits.expression_nodes {
             return Err(Failure::Budget("Composed bound budget exceeded".into()));
         }
@@ -734,10 +744,11 @@ fn synthesized_label(base: &str, path: &[Field]) -> String {
 fn simplified(bound: Bound) -> Bound {
     match bound {
         Bound::Add(items) => {
-            let (constant, mut terms) = fold(items, 0, u64::saturating_add, |item| match item {
+            let (constant, terms) = fold(items, 0, u64::saturating_add, |item| match item {
                 Bound::Add(inner) => Ok(inner),
                 other => Err(other),
             });
+            let mut terms = collected(terms);
             terms.push(Bound::Const(constant));
             Bound::add(terms)
         }
@@ -754,6 +765,39 @@ fn simplified(bound: Bound) -> Bound {
         Bound::Max(items) => Bound::max(items.into_iter().map(simplified).collect()),
         Bound::Log(value) => Bound::log(simplified(*value)),
         leaf => leaf,
+    }
+}
+
+/// A sum's terms with each repeated term once, scaled by how often it occurs, where it first
+/// occurs: `x + y + 2·x` is `3·x + y`. A term that occurs once is left as it is.
+fn collected(terms: Vec<Bound>) -> Vec<Bound> {
+    let factored: Vec<(u64, Vec<Bound>)> = terms.iter().map(factored).collect();
+    let mut first: HashMap<&[Bound], usize> = HashMap::new();
+    let mut scales: Vec<Option<u64>> = vec![None; terms.len()];
+    for (at, (constant, factors)) in factored.iter().enumerate() {
+        let first = *first.entry(factors.as_slice()).or_insert(at);
+        scales[first] = Some(scales[first].unwrap_or(0).saturating_add(*constant));
+    }
+    let kept = terms.into_iter().zip(factored).zip(scales);
+    kept.filter_map(|((term, (constant, factors)), scale)| match scale? {
+        scale if scale == constant => Some(term),
+        scale => Some(factors.into_iter().fold(Bound::Const(scale), Bound::mul)),
+    })
+    .collect()
+}
+
+/// A product's constant and its other factors, in order: `2·x·(3·y)` is `6` and `[x, y]`.
+fn factored(term: &Bound) -> (u64, Vec<Bound>) {
+    match term {
+        Bound::Const(value) => (*value, Vec::new()),
+        Bound::Mul(items) => items.iter().map(factored).fold(
+            (1, Vec::new()),
+            |(constant, mut factors), (more, others)| {
+                factors.extend(others);
+                (constant.saturating_mul(more), factors)
+            },
+        ),
+        other => (1, vec![other.clone()]),
     }
 }
 

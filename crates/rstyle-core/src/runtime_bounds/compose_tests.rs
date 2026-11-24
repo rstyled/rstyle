@@ -653,22 +653,24 @@ fn lengths_under_unshared_formals_are_opaque() {
     assert!(reason.contains("not a shared reference"), "{reason}");
 }
 
-#[test]
-fn composed_expressions_respect_the_symbolic_budget() {
-    let caller = Shape::new(&["m"])
+/// A caller scanning `m` that calls `w::linear` once per item with each of `arguments`.
+fn calling_linear_with(inputs: &[&'static str], arguments: &[&str]) -> Program {
+    let calls = arguments.iter().map(|argument| {
+        let argument = Argument::Scalar(Value::Input((*argument).into()));
+        call("w::linear", vec![argument])
+    });
+    Shape::new(inputs)
         .scalars()
         .scan("m")
-        .calls(
-            (0..8)
-                .map(|_| {
-                    call(
-                        "w::linear",
-                        vec![Argument::Scalar(Value::Input("m".into()))],
-                    )
-                })
-                .collect(),
-        )
-        .program();
+        .calls(calls.collect())
+        .program()
+}
+
+#[test]
+fn composed_expressions_respect_the_symbolic_budget() {
+    // Each call passes another input, so no two calls' terms are alike.
+    let inputs = ["m", "a", "b", "c", "d", "e", "f", "g", "h"];
+    let caller = calling_linear_with(&inputs, &inputs[1..]);
     let limits = Limits {
         expression_nodes: 12,
         ..Limits::default()
@@ -682,6 +684,23 @@ fn composed_expressions_respect_the_symbolic_budget() {
         matches!(composed, Composed::BudgetExceeded { .. }),
         "{composed:?}"
     );
+}
+
+#[test]
+fn calls_alike_compose_to_one_term_scaled_by_how_many_there_are() {
+    let caller = calling_linear_with(&["m"], &["m"; 8]);
+    let limits = Limits {
+        expression_nodes: 12,
+        ..Limits::default()
+    };
+    let composed = proven(compose_with(
+        vec![("w::linear", linear()), ("w::caller", caller)],
+        "w::caller",
+        limits,
+    ));
+    assert_eq!(composed.loop_body_entries.to_string(), "m + 8 * m * m");
+    assert_eq!(composed.workspace_invocations.to_string(), "8 * m");
+    assert_eq!(eval(&composed.loop_body_entries, &[("m", 3)]), 3 + 8 * 9);
 }
 
 /// `fn lookup(n: usize, map: &BTreeMap<..>) { for _ in 0..n { map.get(..); } }`
