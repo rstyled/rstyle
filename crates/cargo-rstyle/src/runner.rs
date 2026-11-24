@@ -41,8 +41,9 @@ pub(crate) struct RunArgs {
     /// Mine for shared abstractions. Shorthand for `--filter patterns`.
     #[arg(long)]
     patterns: bool,
-    /// What to run: check, patterns, bounds, flow, defects, or <frontend>:<analysis>. Comma-separated
-    /// or repeated [default: everything].
+    /// What to run: all, which is every core analysis and every one the frontend offers, or check,
+    /// patterns, bounds, flow, defects and <frontend>:<analysis>, comma-separated or repeated
+    /// [default: all].
     #[arg(long, value_delimiter = ',')]
     filter: Vec<String>,
     /// Save the run in this new directory instead of the default location.
