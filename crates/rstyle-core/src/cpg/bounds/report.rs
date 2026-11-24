@@ -9,6 +9,7 @@ use crate::{
         compose::{Analyzed, Composed, Composer},
     },
     suppress,
+    wording::Wording,
 };
 mod coverage;
 #[cfg(test)]
@@ -16,6 +17,7 @@ mod coverage_tests;
 
 pub use coverage::Coverage;
 use serde::Serialize;
+use std::borrow::Cow;
 use std::collections::{BTreeSet, HashMap};
 
 #[derive(Serialize)]
@@ -101,34 +103,87 @@ pub struct DocumentReport {
     rows: Vec<DocumentRow>,
 }
 
-/// The bounds of every authored function of a run, highest degree first, with callees
-/// resolved across all of its units.
-pub fn from_records(records: &[Record], top: Option<usize>) -> DocumentReport {
-    let mut index: HashMap<String, Option<&Record>> = HashMap::new();
-    for record in records {
-        index
-            .entry(record_key(record))
-            .and_modify(|entry| *entry = None)
-            .or_insert(Some(record));
-    }
-    let lookup = |id: &str| record_analyzed(index.get(id).copied().flatten()?);
-    let mut composer = Composer::new(lookup, Limits::default());
-    let mut rows: Vec<_> = records
-        .iter()
-        .filter_map(|record| {
-            let Measured::Known(facts) = &record.measured else {
-                return None;
-            };
-            Some(DocumentRow {
+/// What the bounds report reads of one record: its bounds input, and what names and places it.
+/// Owners taken out of a run's records let the records go on to other analyses while their
+/// bounds compose.
+pub(crate) struct Owner<'a> {
+    key: String,
+    wording: Wording,
+    roster: &'static str,
+    input: Cow<'a, Option<Input>>,
+    /// A function a person wrote, which the report has a row for.
+    written: Option<Written>,
+}
+
+struct Written {
+    name: String,
+    path: String,
+    context: FunctionContext,
+    allowed: bool,
+}
+
+impl<'a> Owner<'a> {
+    fn of(record: &Record, input: Cow<'a, Option<Input>>) -> Self {
+        let written = match &record.measured {
+            Measured::Known(facts) => Some(Written {
                 name: record.name.clone(),
                 path: facts.path.clone(),
                 context: FunctionContext::from(record),
-                evidence: record_evidence(record, &mut composer),
                 allowed: suppress::allows(&facts.preceding_line, RULE),
+            }),
+            _ => None,
+        };
+        Owner {
+            key: record_key(record),
+            wording: record.wording,
+            roster: coverage::roster(record),
+            input,
+            written,
+        }
+    }
+}
+
+/// Moves each record's bounds input out, with what the report reads of the record, so the
+/// records can go on to other analyses while [`from_owners`] composes their bounds.
+pub(crate) fn taken(records: &mut [Record]) -> Vec<Owner<'static>> {
+    records
+        .iter_mut()
+        .map(|record| {
+            let input = Cow::Owned(record.bounds.take());
+            Owner::of(record, input)
+        })
+        .collect()
+}
+
+/// The bounds of every authored function of a run, highest degree first, with callees
+/// resolved across all of its units.
+pub fn from_records(records: &[Record], top: Option<usize>) -> DocumentReport {
+    let owners = records
+        .iter()
+        .map(|record| Owner::of(record, Cow::Borrowed(&record.bounds)))
+        .collect();
+    from_owners(owners, top)
+}
+
+/// As [`from_records`], over what [`taken`] moved out of the records.
+pub(crate) fn from_owners(owners: Vec<Owner<'_>>, top: Option<usize>) -> DocumentReport {
+    let evidence = owners_evidence(&owners);
+    let roster: Vec<&'static str> = owners.iter().map(|owner| owner.roster).collect();
+    let mut rows: Vec<_> = owners
+        .into_iter()
+        .zip(evidence)
+        .filter_map(|(owner, evidence)| {
+            let written = owner.written?;
+            Some(DocumentRow {
+                name: written.name,
+                path: written.path,
+                context: written.context,
+                evidence: evidence?,
+                allowed: written.allowed,
             })
         })
         .collect();
-    let coverage = Coverage::new(records.iter(), rows.iter().map(|row| &row.evidence));
+    let coverage = Coverage::of(roster.into_iter(), rows.iter().map(|row| &row.evidence));
     let input_complete = coverage.input_complete();
     rows.sort_by_key(|row| std::cmp::Reverse(degree(&row.evidence)));
     rows.truncate(top.unwrap_or(usize::MAX));
@@ -140,6 +195,26 @@ pub fn from_records(records: &[Record], top: Option<usize>) -> DocumentReport {
         limitations: LIMITATIONS,
         rows,
     }
+}
+
+/// Each written owner's evidence, composed through the callees the owners resolve, in order.
+fn owners_evidence(owners: &[Owner<'_>]) -> Vec<Option<Evidence>> {
+    let mut index: HashMap<&str, Option<&Owner<'_>>> = HashMap::new();
+    for owner in owners {
+        index
+            .entry(&owner.key)
+            .and_modify(|entry| *entry = None)
+            .or_insert(Some(owner));
+    }
+    let lookup = |id: &str| owner_analyzed(index.get(id).copied().flatten()?);
+    let mut composer = Composer::new(lookup, Limits::default());
+    owners
+        .iter()
+        .map(|owner| {
+            let written = owner.written.as_ref()?;
+            Some(owner_evidence(owner, written, &mut composer))
+        })
+        .collect()
 }
 
 impl DocumentReport {
@@ -256,30 +331,31 @@ fn record_key(record: &Record) -> String {
     format!("{}/{}", record.compilation, record.identity)
 }
 
-fn record_analyzed(record: &Record) -> Option<Analyzed> {
-    let Some(Input::Captured { program }) = record.bounds.clone() else {
+fn owner_analyzed(owner: &Owner<'_>) -> Option<Analyzed> {
+    let Some(Input::Captured { program }) = owner.input.as_ref() else {
         return None;
     };
     Some(Analyzed {
-        outcome: runtime_bounds::analyze(&program),
-        program,
+        outcome: runtime_bounds::analyze(program),
+        program: program.clone(),
     })
 }
 
-fn record_evidence<F: FnMut(&str) -> Option<Analyzed>>(
-    record: &Record,
+fn owner_evidence<F: FnMut(&str) -> Option<Analyzed>>(
+    owner: &Owner<'_>,
+    written: &Written,
     composer: &mut Composer<F>,
 ) -> Evidence {
     let observation = Observation {
         schema: KEY.into(),
-        owner: record.identity.clone(),
-        krate: record.compilation.clone(),
-        input: record.bounds.clone().unwrap_or(Input::Unavailable {
+        owner: written.context.identity.clone(),
+        krate: written.context.compilation.clone(),
+        input: owner.input.as_ref().clone().unwrap_or(Input::Unavailable {
             reason: "Runtime bounds were not requested".into(),
         }),
     };
     let composed = matches!(observation.input, Input::Captured { .. })
-        .then(|| composer.composed(&record_key(record), record.wording));
+        .then(|| composer.composed(&owner.key, owner.wording));
     Evidence {
         composed,
         ..evidence(Ok(observation))

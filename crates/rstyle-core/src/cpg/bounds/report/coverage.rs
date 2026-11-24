@@ -27,8 +27,16 @@ impl Coverage {
         records: impl Iterator<Item = &'a Record>,
         evidence: impl Iterator<Item = &'a Evidence> + Clone,
     ) -> Self {
+        Self::of(records.map(roster), evidence)
+    }
+
+    /// As [`Coverage::new`], over each supplied owner's roster entry as [`roster`] names it.
+    pub(crate) fn of<'a>(
+        roster: impl Iterator<Item = &'static str>,
+        evidence: impl Iterator<Item = &'a Evidence> + Clone,
+    ) -> Self {
         Self {
-            roster: counts(records.map(roster)),
+            roster: counts(roster),
             capture: counts(evidence.clone().map(|item| item.capture_status)),
             local: counts(evidence.clone().map(local)),
             composed: counts(evidence.clone().map(composed)),
@@ -53,7 +61,7 @@ fn counts(items: impl Iterator<Item = &'static str>) -> Counts {
     counts
 }
 
-fn roster(record: &Record) -> &'static str {
+pub(super) fn roster(record: &Record) -> &'static str {
     match record.measured {
         Measured::Known(_) => "authored_functions",
         Measured::Body(_) => "non_function_bodies",
