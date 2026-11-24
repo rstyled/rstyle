@@ -364,6 +364,45 @@ fn partial_failed_build_discards_old_owner_index_before_successful_sibling_compi
     );
 }
 
+/// The units whose documents the run took from an earlier one.
+fn reused_units(report: &Value) -> usize {
+    std::fs::read_dir(run(report))
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            let name = entry.file_name();
+            name.to_str().unwrap().starts_with("invocation-reused-")
+        })
+        .count()
+}
+
+#[test]
+fn a_manifest_edit_recaptures_its_package_and_reuses_the_rest() {
+    let directory = workspace("pub fn leaf() {}\n");
+    let first = live(directory.path(), &[], 0);
+    let before = runs(&first);
+    // Cargo compiles nothing differently for it, but the caller's documents record its manifest.
+    let manifest = directory.path().join("caller/Cargo.toml");
+    let text = std::fs::read_to_string(&manifest).unwrap();
+    std::fs::write(
+        &manifest,
+        format!("{text}[package.metadata.note]\nedited=true\n"),
+    )
+    .unwrap();
+    let edited = live(directory.path(), &[], 0);
+    assert_eq!(runs(&edited), before + 1, "one attempt");
+    fresh(&edited, "leaf", true);
+    fresh(&edited, "caller", false);
+    assert!(reused_units(&edited) > 0);
+
+    // The same as capturing every unit again.
+    std::fs::remove_file(index(&edited)).unwrap();
+    let recaptured = live(directory.path(), &[], 0);
+    fresh(&recaptured, "leaf", false);
+    assert_eq!(reused_units(&recaptured), 0);
+    assert_eq!(edited["compiler_advisory"], recaptured["compiler_advisory"]);
+}
+
 fn rustflags(directory: &Path, value: &str) {
     std::fs::create_dir_all(directory.join(".cargo")).unwrap();
     std::fs::write(

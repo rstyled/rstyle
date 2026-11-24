@@ -15,6 +15,7 @@ use rstyle_core::cli_args::flag_value;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
+    collections::BTreeSet,
     num::NonZeroU8,
     path::{Path, PathBuf},
     process::Command,
@@ -67,7 +68,9 @@ impl Plan {
         }
     }
 
-    /// Whether another capture's documents serve this one. What each route then reads of them
+    /// Whether another capture's documents can serve this one's units: captured the same way,
+    /// whatever units each planned. Which of them still serve is each unit's own question, which
+    /// Cargo's freshness and the unit's target answer. What each route then reads of them
     /// doesn't matter: the driver writes the same documents for every route, on any threads.
     /// Where the driver is installed doesn't either: the owner index compares its bytes.
     fn same_capture(&self, other: &Self) -> bool {
@@ -80,8 +83,51 @@ impl Plan {
             compiler_runtime_bounds: false,
             driver_threads: one_thread(),
             driver: PathBuf::new(),
+            targets: Vec::new(),
+            primary_units: self.compilations(),
             ..self.clone()
         }
+    }
+
+    /// How the plan compiles its units, without the units: another profile or platform builds
+    /// apart, where Cargo can find units fresh that the previous capture never saw.
+    fn compilations(&self) -> Vec<Value> {
+        let ways: std::collections::BTreeMap<String, Value> = self
+            .primary_units
+            .iter()
+            .map(|unit| {
+                let way = serde_json::json!([unit["profile"], unit["platform"], unit["mode"]]);
+                (way.to_string(), way)
+            })
+            .collect();
+        ways.into_values().collect()
+    }
+
+    /// The packages Cargo compiles again before this capture: every one, unless a previous
+    /// capture serves it, and then only those it didn't plan as they are now.
+    fn stale_packages(&self, previous: Option<&Self>) -> BTreeSet<&str> {
+        match previous {
+            Some(previous) => self.replanned_packages(previous),
+            None => self.packages(),
+        }
+    }
+
+    /// The packages with a target `previous` didn't plan as it is now: new ones, and ones whose
+    /// manifest changed, which each target records and their documents carry. Cargo can find
+    /// such a package's units fresh, so they're compiled again rather than reused.
+    fn replanned_packages(&self, previous: &Self) -> BTreeSet<&str> {
+        self.targets
+            .iter()
+            .filter(|target| !previous.targets.contains(target))
+            .map(|target| target.package.as_str())
+            .collect()
+    }
+
+    fn packages(&self) -> BTreeSet<&str> {
+        self.targets
+            .iter()
+            .map(|target| target.package.as_str())
+            .collect()
     }
 
     fn planned_units(&self) -> impl Iterator<Item = &Value> {

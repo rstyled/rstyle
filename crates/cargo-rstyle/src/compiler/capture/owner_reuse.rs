@@ -106,9 +106,10 @@ impl Compile<'_> {
     fn prepare(&self, capture: &Capture, previous: Option<Index>) -> Result<Prepared, String> {
         let tools = tools(&capture.plan)?;
         let previous = previous.and_then(|index| reusable(index, capture, &tools));
-        if previous.is_none() {
-            build_lane::refresh_selected(capture, self.args)?;
-        }
+        let stale = capture
+            .plan
+            .stale_packages(previous.as_ref().map(|index| &index.plan));
+        build_lane::refresh(capture, self.args, &stale)?;
         Ok(Prepared { tools, previous })
     }
 
@@ -123,7 +124,7 @@ impl Compile<'_> {
 
     fn retry(&self, capture: &mut Capture) -> Result<Output, String> {
         restart(capture)?;
-        build_lane::refresh_selected(capture, self.args)?;
+        build_lane::refresh(capture, self.args, &capture.plan.packages())?;
         super::compile_output(capture, self.cli, self.args)
     }
 }
@@ -175,8 +176,9 @@ fn relocated(index: Index, capture: &Capture) -> Result<Index, String> {
     })
 }
 
-/// The previous index, moved into this checkout, when it can serve this capture: written in this
-/// schema by the same tools for the same plan, with each unit it names still stored.
+/// The previous index, moved into this checkout, when it can serve this capture's units: written
+/// in this schema by the same tools for a plan captured the same way, with each unit it names
+/// still stored. A plan with other units, as a manifest edit leaves, still serves those it shares.
 fn reusable(index: Index, capture: &Capture, tools: &[Tool]) -> Option<Index> {
     if index.schema != SCHEMA {
         return None;
