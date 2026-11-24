@@ -22,6 +22,9 @@
 //! of its bytes like any object. A map entry per unit names the packs its documents made in the last run that
 //! kept it, and a run looks its keys up in those.
 //!
+//! Each run also keeps a facts manifest, an object naming every map entry it read or wrote and
+//! every pack those name, so a store elsewhere can take this run's facts and nothing older.
+//!
 //! A document read from stored bytes is also kept whole: an entry under the sha256 of those bytes
 //! names its unit, its language and its pack. A run that reads the same bytes again takes every
 //! record from the pack, in order, without decoding or parsing the document. Its functions' keys
@@ -43,6 +46,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 /// The schema of a facts pack's index, and of each function's key.
 pub const FACTS_SCHEMA: &str = "rstyle.function-facts/0";
+/// The schema of a run's facts manifest.
+pub const FACTS_MANIFEST_SCHEMA: &str = "rstyle.facts-manifest/0";
 const MAGIC: &[u8; 6] = b"RSFACT";
 const INDEX_MAGIC: &[u8; 8] = b"RSFACTIX";
 /// The facts pack format's version, and the flags byte after it, which no version sets yet.
@@ -71,8 +76,19 @@ pub struct FunctionFacts {
     units: Mutex<HashMap<String, Arc<OnceLock<Index>>>>,
     /// The packs each unit's documents made in this run.
     written: Mutex<BTreeMap<String, BTreeSet<String>>>,
+    /// The entry of each document this run kept whole or read whole, by its key.
+    documents: Mutex<BTreeMap<String, Value>>,
     reused: AtomicUsize,
     derived: AtomicUsize,
+}
+
+/// What a run of a store's function facts kept: how many functions it reused and derived, and the
+/// object naming every entry and pack of its facts.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Kept {
+    pub reused: usize,
+    pub derived: usize,
+    pub manifest: String,
 }
 
 /// What a run of a store's function facts did.
@@ -128,6 +144,7 @@ impl FunctionFacts {
             verify,
             units: Mutex::default(),
             written: Mutex::default(),
+            documents: Mutex::default(),
             reused: AtomicUsize::new(0),
             derived: AtomicUsize::new(0),
         }
@@ -183,7 +200,8 @@ impl FunctionFacts {
         if self.verify {
             return None;
         }
-        let entry = std::fs::read(self.document_path(digest)).ok()?;
+        let key = self.entry_key(digest);
+        let entry = std::fs::read(self.root.join("maps").join(DOCUMENTS).join(&key)).ok()?;
         let entry: Value = serde_json::from_slice(&entry).ok()?;
         if entry["schema"] != FACTS_SCHEMA {
             return None;
@@ -204,6 +222,7 @@ impl FunctionFacts {
             _ => return None,
         };
         self.reused.fetch_add(records.len(), Ordering::Relaxed);
+        self.noted(key, entry);
         Some(KeptDocument { unit, records })
     }
 
@@ -229,7 +248,15 @@ impl FunctionFacts {
             "pack": pack,
         });
         let bytes = serde_json::to_vec(&entry).expect("a document entry serializes");
-        super::replace(&self.document_path(digest), &bytes)
+        super::replace(&self.document_path(digest), &bytes)?;
+        self.noted(self.entry_key(digest), entry);
+        Ok(())
+    }
+
+    /// Notes a document entry this run read or wrote, for its facts manifest.
+    fn noted(&self, key: String, entry: Value) {
+        let mut documents = self.documents.lock().expect("no panic while noting");
+        documents.insert(key, entry);
     }
 
     fn document_path(&self, digest: &str) -> PathBuf {
@@ -284,8 +311,12 @@ impl FunctionFacts {
 
     /// Where `map` keeps the entry for `name` under this store's scope.
     fn entry_path(&self, map: &str, name: &str) -> PathBuf {
-        let key = sha256(format!("{}\n{name}", self.scope).as_bytes());
-        self.root.join("maps").join(map).join(key)
+        self.root.join("maps").join(map).join(self.entry_key(name))
+    }
+
+    /// The file name a map keeps `name`'s entry under in this store's scope.
+    fn entry_key(&self, name: &str) -> String {
+        sha256(format!("{}\n{name}", self.scope).as_bytes())
     }
 
     // rstyle-allow(side_effect_density): IO boundary: reads the indexes of a unit's facts packs
@@ -371,16 +402,42 @@ impl FunctionFacts {
 
     // rstyle-allow(side_effect_density): IO boundary: records each unit's facts packs
     /// Records the packs each unit's documents made in this run, so the next run looks its
-    /// functions up in them, and says how many functions the run reused and derived.
-    pub fn finish(&self) -> Result<Counts, String> {
+    /// functions up in them, and keeps the run's facts manifest. Says how many functions the run
+    /// reused and derived, and the manifest's name.
+    pub fn finish(&self) -> Result<Kept, String> {
         let written = std::mem::take(&mut *self.written.lock().expect("no panic"));
+        let mut units = serde_json::Map::new();
         for (unit, packs) in written {
             let entry = json!({"schema": FACTS_SCHEMA, "unit": unit, "packs": packs});
             let bytes = serde_json::to_vec(&entry).expect("a map entry serializes");
             super::replace(&self.map_path(&unit), &bytes)?;
+            units.insert(self.entry_key(&unit), entry);
         }
-        Ok(self.counts())
+        let documents = std::mem::take(&mut *self.documents.lock().expect("no panic"));
+        let manifest = self.objects.put(&manifest(units, documents))?;
+        let Counts { reused, derived } = self.counts();
+        Ok(Kept {
+            reused,
+            derived,
+            manifest,
+        })
     }
+}
+
+/// A run's facts manifest: each map entry it read or wrote, by map and key, and each pack they
+/// name, so a store that copies these holds this run's facts.
+fn manifest(units: serde_json::Map<String, Value>, documents: BTreeMap<String, Value>) -> Vec<u8> {
+    let packs = units
+        .values()
+        .flat_map(|entry| entry["packs"].as_array().into_iter().flatten());
+    let pack = documents.values().map(|entry| &entry["pack"]);
+    let objects: BTreeSet<&str> = packs.chain(pack).filter_map(Value::as_str).collect();
+    let manifest = json!({
+        "schema": FACTS_MANIFEST_SCHEMA,
+        "maps": {MAP: units, DOCUMENTS: documents},
+        "objects": objects,
+    });
+    serde_json::to_vec(&manifest).expect("a facts manifest serializes")
 }
 
 /// The record a text holds, with the text, if it reads: a record nested deeper than serde_json

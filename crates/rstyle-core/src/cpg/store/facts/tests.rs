@@ -138,7 +138,7 @@ fn a_store_that_lost_or_spoiled_its_packs_derives_again() {
         (texts(&records), facts.finish().unwrap())
     };
     kept(store.path());
-    let packs: Vec<PathBuf> = walk(&store.path().join("objects"));
+    let packs: Vec<PathBuf> = packs_in(store.path());
     assert_eq!(packs.len(), 1);
 
     // A pack whose texts no longer decompress is derived again whole.
@@ -149,7 +149,7 @@ fn a_store_that_lost_or_spoiled_its_packs_derives_again() {
     assert_eq!(records, derived);
     assert_eq!((counts.reused, counts.derived), (0, 3));
     // The pack made again is the one that was spoiled, and is written again.
-    assert_eq!(walk(&store.path().join("objects")), packs);
+    assert_eq!(packs_in(store.path()), packs);
     assert_eq!(kept(store.path()).1.reused, 3);
 
     // A text that no longer reads as a record is derived again; the others still read.
@@ -164,12 +164,12 @@ fn a_store_that_lost_or_spoiled_its_packs_derives_again() {
     let (records, counts) = kept(store.path());
     assert_eq!(records, derived);
     assert_eq!((counts.reused, counts.derived), (2, 1));
-    assert_eq!(walk(&store.path().join("objects")), packs);
+    assert_eq!(packs_in(store.path()), packs);
     assert_eq!(kept(store.path()).1.reused, 3);
 
     // A pack that's gone, or isn't one, reads as holding nothing.
     for spoiled in [None, Some(b"not a pack".to_vec())] {
-        for pack in walk(&store.path().join("objects")) {
+        for pack in packs_in(store.path()) {
             match &spoiled {
                 Some(bytes) => std::fs::write(&pack, bytes).unwrap(),
                 None => std::fs::remove_file(&pack).unwrap(),
@@ -190,7 +190,7 @@ fn a_changed_document_over_a_spoiled_pack_keeps_a_pack_of_its_own() {
         (texts(&records), facts.finish().unwrap())
     };
     kept(&document(&example()));
-    let packs = walk(&store.path().join("objects"));
+    let packs = packs_in(store.path());
     let mut bytes = std::fs::read(&packs[0]).unwrap();
     bytes[MAGIC.len() + FORMAT.len() + 8] ^= 0xff;
     std::fs::write(&packs[0], &bytes).unwrap();
@@ -203,7 +203,7 @@ fn a_changed_document_over_a_spoiled_pack_keeps_a_pack_of_its_own() {
     let (records, counts) = kept(&changed);
     assert_eq!(records, texts(&records::records(&changed, ALL).unwrap()));
     assert_eq!((counts.reused, counts.derived), (0, 3));
-    assert_eq!(walk(&store.path().join("objects")).len(), 2);
+    assert_eq!(packs_in(store.path()).len(), 2);
     assert_eq!(kept(&changed).1.reused, 3);
 }
 
@@ -224,7 +224,7 @@ fn a_document_with_no_function_to_keep_writes_no_pack_unless_kept_whole() {
         let counts = facts.finish().unwrap();
         assert_eq!((counts.reused, counts.derived), (0, 2));
     }
-    assert!(!store.path().join("objects").exists());
+    assert!(packs_in(store.path()).is_empty());
 
     // Kept whole, the document's pack holds both, to read back without deriving either.
     let facts = FunctionFacts::new(store.path(), "build", ALL, false);
@@ -261,6 +261,19 @@ fn a_function_short_of_its_syntax_reads_back_with_why() {
         error.contains("no syntax gap reads A reason no build gives"),
         "{error}"
     );
+}
+
+/// The facts packs among a store's objects, whatever else a run keeps there, such as its facts
+/// manifest.
+fn packs_in(store: &Path) -> Vec<PathBuf> {
+    let objects = store.join("objects");
+    let found = if objects.exists() {
+        walk(&objects)
+    } else {
+        Vec::new()
+    };
+    let pack = |path: &PathBuf| std::fs::read(path).unwrap().starts_with(MAGIC);
+    found.into_iter().filter(pack).collect()
 }
 
 fn walk(directory: &Path) -> Vec<PathBuf> {
@@ -634,4 +647,46 @@ fn a_pool_takes_a_document_its_store_kept_whole_without_parsing_it() {
     let facts = FunctionFacts::new(store.path(), "build", ALL, false);
     let twice = stored_jobs(vec![example(), example()], Some(&facts), &parsed).unwrap_err();
     assert!(twice.contains("appears more than once in a run"), "{twice}");
+}
+
+#[test]
+fn a_run_s_facts_manifest_names_only_what_it_read_or_wrote() {
+    let store = tempfile::tempdir().unwrap();
+    let mut other = example();
+    other["unit"]["id"] = "unit:other".into();
+    let (one, two) = (document(&example()), document(&other));
+    let first = FunctionFacts::new(store.path(), "build", ALL, false);
+    first.records(&one, Some("sha256:one")).unwrap();
+    first.records(&two, Some("sha256:two")).unwrap();
+    let kept = first.finish().unwrap();
+    let manifest = |name: &str| -> Value {
+        let path = Objects::new(&store.path().join("objects"))
+            .path(name)
+            .unwrap();
+        serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+    };
+    let all = manifest(&kept.manifest);
+    assert_eq!(all["schema"], FACTS_MANIFEST_SCHEMA);
+    assert_eq!(all["maps"][MAP].as_object().unwrap().len(), 2);
+    assert_eq!(all["maps"][DOCUMENTS].as_object().unwrap().len(), 2);
+    assert_eq!(all["objects"].as_array().unwrap().len(), 2);
+
+    // A later run that reads one document whole names that document's entry and pack alone.
+    let again = FunctionFacts::new(store.path(), "build", ALL, false);
+    again.kept_document("sha256:one").unwrap();
+    let kept = again.finish().unwrap();
+    let one_only = manifest(&kept.manifest);
+    let documents = one_only["maps"][DOCUMENTS].as_object().unwrap();
+    assert_eq!(documents.len(), 1);
+    let entry = documents.values().next().unwrap();
+    assert_eq!(entry["unit"], one.unit.as_ref().unwrap().id);
+    assert_eq!(one_only["maps"][MAP].as_object().unwrap().len(), 1);
+    assert_eq!(one_only["objects"], json!([entry["pack"]]));
+    for (map, entries) in one_only["maps"].as_object().unwrap() {
+        for (key, entry) in entries.as_object().unwrap() {
+            let path = store.path().join("maps").join(map).join(key);
+            let kept: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+            assert_eq!(&kept, entry, "{map}/{key}");
+        }
+    }
 }

@@ -782,15 +782,17 @@ impl Plan<'_> {
     }
 
     // rstyle-allow(side_effect_density): IO boundary: records which facts the store keeps
-    /// Records where the store keeps each unit's function facts now, and says how many it reused.
+    /// Records where the store keeps each unit's function facts now, and says how many it reused
+    /// and which manifest names this run's facts, for a store elsewhere to copy.
     fn kept_facts(&self, facts: Option<&FunctionFacts>) -> Result<(), String> {
         let Some((facts, store)) = facts.zip(self.args.store.as_deref()) else {
             return Ok(());
         };
-        let counts = facts.finish()?;
-        let (reused, total) = (counts.reused, counts.reused + counts.derived);
+        let kept = facts.finish()?;
+        let (reused, total) = (kept.reused, kept.reused + kept.derived);
         let store = store.display();
         eprintln!("rstyle: reused {reused} of {total} functions' facts from {store}");
+        eprintln!("rstyle: facts kept in {store} as {}", kept.manifest);
         Ok(())
     }
 
