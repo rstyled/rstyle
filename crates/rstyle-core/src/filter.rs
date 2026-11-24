@@ -69,7 +69,8 @@ impl std::fmt::Display for FrontendAnalysis {
     }
 }
 
-/// What a run analyzes. Without a filter, that is everything.
+/// What a run analyzes. Without a filter, or with `all`, that is everything: every core analysis
+/// and every analysis the frontend offers.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum Filter {
     #[default]
@@ -81,7 +82,8 @@ pub enum Filter {
 }
 
 impl Filter {
-    /// Selects the named analyses; no names at all means everything.
+    /// Selects the named analyses. No names at all, or `all` alone, means everything; `all` beside
+    /// another name is refused, since it would leave that name unchecked.
     pub fn parse<S: AsRef<str>>(names: &[S]) -> Result<Self, String> {
         if names.is_empty() {
             return Ok(Self::Everything);
@@ -91,6 +93,8 @@ impl Filter {
 
         for name in names {
             match parsed(name.as_ref())? {
+                Selected::All if names.len() == 1 => return Ok(Self::Everything),
+                Selected::All => return Err(ALL_ALONE.into()),
                 Selected::Core(analysis) => core.insert(analysis),
                 Selected::Frontend(analysis) => frontend.insert(analysis),
             };
@@ -164,18 +168,28 @@ pub fn valid_name(name: &str) -> bool {
         && name.bytes().all(allowed)
 }
 
+/// The name that selects everything, as no filter does.
+pub const ALL: &str = "all";
+
+const ALL_ALONE: &str =
+    "`all` already runs every analysis, so it goes alone: drop it, or the other names";
+
 enum Selected {
+    All,
     Core(Analysis),
     Frontend(FrontendAnalysis),
 }
 
 fn parsed(name: &str) -> Result<Selected, String> {
+    if name == ALL {
+        return Ok(Selected::All);
+    }
     if let Some((frontend, analysis)) = name.split_once(':') {
         return frontend_analysis(name, frontend, analysis).map(Selected::Frontend);
     }
     Analysis::named(name).map(Selected::Core).ok_or_else(|| {
         format!(
-            "Unknown analysis `{name}`: expected check, patterns, bounds, flow, defects or <frontend>:<analysis>"
+            "Unknown analysis `{name}`: expected all, check, patterns, bounds, flow, defects or <frontend>:<analysis>"
         )
     })
 }
@@ -238,6 +252,20 @@ mod tests {
         assert!(filter.needs_documents());
         let demand = filter.demand();
         assert!(demand.graphs && demand.bounds && demand.flow && demand.defects);
+    }
+
+    #[test]
+    fn all_alone_selects_everything_as_no_filter_does() {
+        assert_eq!(only(&["all"]), Filter::Everything);
+        let offered = vec!["calls".to_string(), "taint".to_string()];
+        assert_eq!(
+            only(&["all"]).frontend_analyses("go", &offered).unwrap(),
+            offered
+        );
+        for names in [&["all", "check"][..], &["go:calls", "all"], &["all", "all"]] {
+            let error = Filter::parse(names).unwrap_err();
+            assert!(error.contains("goes alone"), "{names:?}: {error}");
+        }
     }
 
     #[test]

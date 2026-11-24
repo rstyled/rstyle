@@ -244,6 +244,16 @@ fn the_shorthands_and_filter_select_together() {
 
     let unified = report(&project.go(&["--filter", "flow", "--format", "json"]));
     assert!(unified["flow"]["functions"].is_array() && unified.get("check").is_none());
+
+    // `all` is what no filter runs, and goes alone.
+    let everything = without_run(report(&project.go(&["--format", "json"])));
+    let all = without_run(report(
+        &project.go(&["--filter", "all", "--format", "json"]),
+    ));
+    assert_eq!(all, everything);
+    let mixed = project.go(&["--check", "--filter", "all"]);
+    assert_eq!(mixed.status.code(), Some(2), "{mixed:?}");
+    assert!(stderr(&mixed).contains("goes alone"), "{mixed:?}");
 }
 
 #[test]
