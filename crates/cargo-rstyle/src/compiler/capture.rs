@@ -6,6 +6,7 @@ mod owner_reuse;
 mod relocation;
 mod retention;
 mod saved;
+mod stop;
 pub(in crate::compiler) use retention::{LIMIT_VARIABLE, hold};
 pub(in crate::compiler) use saved::load_saved;
 
@@ -15,6 +16,7 @@ use rstyle_core::cli_args::flag_value;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
+    collections::BTreeSet,
     num::NonZeroU8,
     path::{Path, PathBuf},
     process::Command,
@@ -67,7 +69,9 @@ impl Plan {
         }
     }
 
-    /// Whether another capture's documents serve this one. What each route then reads of them
+    /// Whether another capture's documents can serve this one's units: captured the same way,
+    /// whatever units each planned. Which of them still serve is each unit's own question, which
+    /// Cargo's freshness and the unit's target answer. What each route then reads of them
     /// doesn't matter: the driver writes the same documents for every route, on any threads.
     /// Where the driver is installed doesn't either: the owner index compares its bytes.
     fn same_capture(&self, other: &Self) -> bool {
@@ -80,8 +84,51 @@ impl Plan {
             compiler_runtime_bounds: false,
             driver_threads: one_thread(),
             driver: PathBuf::new(),
+            targets: Vec::new(),
+            primary_units: self.compilations(),
             ..self.clone()
         }
+    }
+
+    /// How the plan compiles its units, without the units: another profile or platform builds
+    /// apart, where Cargo can find units fresh that the previous capture never saw.
+    fn compilations(&self) -> Vec<Value> {
+        let ways: std::collections::BTreeMap<String, Value> = self
+            .primary_units
+            .iter()
+            .map(|unit| {
+                let way = serde_json::json!([unit["profile"], unit["platform"], unit["mode"]]);
+                (way.to_string(), way)
+            })
+            .collect();
+        ways.into_values().collect()
+    }
+
+    /// The packages Cargo compiles again before this capture: every one, unless a previous
+    /// capture serves it, and then only those it didn't plan as they are now.
+    fn stale_packages(&self, previous: Option<&Self>) -> BTreeSet<&str> {
+        match previous {
+            Some(previous) => self.replanned_packages(previous),
+            None => self.packages(),
+        }
+    }
+
+    /// The packages with a target `previous` didn't plan as it is now: new ones, and ones whose
+    /// manifest changed, which each target records and their documents carry. Cargo can find
+    /// such a package's units fresh, so they're compiled again rather than reused.
+    fn replanned_packages(&self, previous: &Self) -> BTreeSet<&str> {
+        self.targets
+            .iter()
+            .filter(|target| !previous.targets.contains(target))
+            .map(|target| target.package.as_str())
+            .collect()
+    }
+
+    fn packages(&self) -> BTreeSet<&str> {
+        self.targets
+            .iter()
+            .map(|target| target.package.as_str())
+            .collect()
     }
 
     fn planned_units(&self) -> impl Iterator<Item = &Value> {
@@ -583,29 +630,45 @@ fn save_logs(capture: &Capture, output: &std::process::Output) -> Result<(), Str
         .map_err(|e| e.to_string())
 }
 
+// rstyle-allow(side_effect_density): IO boundary: reads each unit's ledger
 fn reconcile(capture: &mut Capture, cargo: &[u8]) -> Result<(), String> {
     let artifacts = cargo_artifacts(cargo)?;
     for artifact in &artifacts {
         let Some(target) = selected_artifact(capture, artifact) else {
             continue;
         };
-        verify_planned_context(capture, artifact, target)?;
-        let test = artifact["profile"]["test"]
-            .as_bool()
-            .ok_or("missing artifact test context")?;
-        let unit_path = ledger::path(&capture.plan, &capture.directory, target, test)?;
-        let unit: Unit = read_json(&unit_path)?;
-        if &unit.target != target
-            || unit.compiler_runtime_bounds != capture.plan.compiler_runtime_bounds
-            || unit.test != test
-            || unit.directory.parent() != Some(capture.directory.as_path())
-        {
-            return Err("compiler-unit ledger disagrees with Cargo artifact".into());
-        }
+        let unit = ledger_unit(capture, artifact, target)?;
         capture.units.push(unit);
     }
     check_expected(capture);
     Ok(())
+}
+
+/// The unit Cargo reports as `artifact`, as its ledger in this run records it.
+fn ledger_unit(capture: &Capture, artifact: &Value, target: &Target) -> Result<Unit, String> {
+    verify_planned_context(capture, artifact, target)?;
+    let test = artifact["profile"]["test"]
+        .as_bool()
+        .ok_or("missing artifact test context")?;
+    let unit_path = ledger::path(&capture.plan, &capture.directory, target, test)?;
+    let unit: Unit = read_json(&unit_path)?;
+    if &unit.target != target
+        || unit.compiler_runtime_bounds != capture.plan.compiler_runtime_bounds
+        || unit.test != test
+        || unit.directory.parent() != Some(capture.directory.as_path())
+    {
+        return Err("compiler-unit ledger disagrees with Cargo artifact".into());
+    }
+    Ok(unit)
+}
+
+/// The artifacts Cargo reported before it stopped: its last line may be cut short.
+fn reported_artifacts(cargo: &[u8]) -> Vec<Value> {
+    cargo
+        .split(|b| *b == b'\n')
+        .filter_map(|line| serde_json::from_slice::<Value>(line).ok())
+        .filter(|record| record["reason"] == "compiler-artifact")
+        .collect()
 }
 
 fn cargo_artifacts(cargo: &[u8]) -> Result<Vec<Value>, String> {

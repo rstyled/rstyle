@@ -1,6 +1,7 @@
 //! Completed raw observations, reused only with the current Cargo freshness decision.
 use super::{
-    Args, Capture, Plan, Unit, build_lane, read_json, relocation::Relocation, retention, write_json,
+    Args, Capture, Plan, Target, Unit, build_lane, read_json, relocation::Relocation, retention,
+    stop, write_json,
 };
 use crate::Cli;
 use serde::{Deserialize, Serialize};
@@ -31,7 +32,7 @@ pub(super) struct Index {
 
 /// A program the capture ran, by its bytes: the same build reinstalled, as a fresh worker does,
 /// still serves the owners it captured, and a rebuilt one doesn't.
-#[derive(Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 struct Tool {
     checksum: String,
 }
@@ -97,18 +98,32 @@ struct Prepared {
 impl Compile<'_> {
     fn run(&self, capture: &mut Capture, previous: Option<Index>) -> Result<(), String> {
         let prepared = self.prepare(capture, previous)?;
-        let output = self.cached(capture, prepared.previous.as_ref())?;
+        let output = self.watched(capture, &prepared)?;
 
         super::compilation_result(capture, &output);
         publish_completed(capture, &output, prepared.tools)
     }
 
+    // rstyle-allow(side_effect_density): signal boundary: compiles while noting SIGTERM, and keeps what a stop left
+    /// Compiles as `cached` does, noting SIGTERM meanwhile rather than dying of it. A compile asked to stop keeps the
+    /// owners it finished and fails.
+    fn watched(&self, capture: &mut Capture, prepared: &Prepared) -> Result<Output, String> {
+        let watch = stop::watch();
+        let output = self.cached(capture, prepared.previous.as_ref());
+        drop(watch);
+        match stop::asked() {
+            true => keep_stopped(capture, &output?.stdout, prepared),
+            false => output,
+        }
+    }
+
     fn prepare(&self, capture: &Capture, previous: Option<Index>) -> Result<Prepared, String> {
         let tools = tools(&capture.plan)?;
         let previous = previous.and_then(|index| reusable(index, capture, &tools));
-        if previous.is_none() {
-            build_lane::refresh_selected(capture, self.args)?;
-        }
+        let stale = capture
+            .plan
+            .stale_packages(previous.as_ref().map(|index| &index.plan));
+        build_lane::refresh(capture, self.args, &stale)?;
         Ok(Prepared { tools, previous })
     }
 
@@ -123,7 +138,7 @@ impl Compile<'_> {
 
     fn retry(&self, capture: &mut Capture) -> Result<Output, String> {
         restart(capture)?;
-        build_lane::refresh_selected(capture, self.args)?;
+        build_lane::refresh(capture, self.args, &capture.plan.packages())?;
         super::compile_output(capture, self.cli, self.args)
     }
 }
@@ -175,8 +190,9 @@ fn relocated(index: Index, capture: &Capture) -> Result<Index, String> {
     })
 }
 
-/// The previous index, moved into this checkout, when it can serve this capture: written in this
-/// schema by the same tools for the same plan, with each unit it names still stored.
+/// The previous index, moved into this checkout, when it can serve this capture's units: written
+/// in this schema by the same tools for a plan captured the same way, with each unit it names
+/// still stored. A plan with other units, as a manifest edit leaves, still serves those it shares.
 fn reusable(index: Index, capture: &Capture, tools: &[Tool]) -> Option<Index> {
     if index.schema != SCHEMA {
         return None;
@@ -218,12 +234,7 @@ fn restore(capture: &Capture, cargo: &[u8], previous: Option<&Index>) -> Result<
         if artifact["fresh"] != true {
             continue;
         }
-        let entry = previous.and_then(|index| {
-            index.entries.iter().find(|entry| {
-                entry.unit.target == *target && same_artifact(&entry.artifact, artifact)
-            })
-        });
-        let Some(entry) = entry else {
+        let Some(entry) = previous_entry(previous, target, artifact) else {
             return Ok(false);
         };
         units.push(&entry.unit);
@@ -235,10 +246,23 @@ fn restore(capture: &Capture, cargo: &[u8], previous: Option<&Index>) -> Result<
     Ok(true)
 }
 
-fn materialize(capture: &Capture, original: &Unit) -> Result<(), String> {
+/// The previous capture's owner of the unit Cargo reports as `artifact`, if it captured that unit.
+fn previous_entry<'a>(
+    previous: Option<&'a Index>,
+    target: &Target,
+    artifact: &Value,
+) -> Option<&'a Entry> {
+    previous?
+        .entries
+        .iter()
+        .find(|entry| entry.unit.target == *target && same_artifact(&entry.artifact, artifact))
+}
+
+fn materialize(capture: &Capture, original: &Unit) -> Result<Unit, String> {
     let unit = reused_unit(capture, original)?;
     copy_snapshot(original, &unit)?;
-    super::publish_ledger(&capture.plan, &capture.directory, &unit)
+    super::publish_ledger(&capture.plan, &capture.directory, &unit)?;
+    Ok(unit)
 }
 
 fn reused_unit(capture: &Capture, original: &Unit) -> Result<Unit, String> {
@@ -281,11 +305,11 @@ fn restart(capture: &mut Capture) -> Result<(), String> {
 fn publish(capture: &Capture, cargo: &[u8], tools: Vec<Tool>) -> Result<(), String> {
     persist_index(
         index_path(capture),
-        &completed_index(capture, cargo, tools)?,
+        &owners_index(capture, tools, entries(capture, cargo)?)?,
     )
 }
 
-fn completed_index(capture: &Capture, cargo: &[u8], tools: Vec<Tool>) -> Result<Index, String> {
+fn owners_index(capture: &Capture, tools: Vec<Tool>, entries: Vec<Entry>) -> Result<Index, String> {
     Ok(Index {
         schema: SCHEMA,
         runs: capture
@@ -295,8 +319,52 @@ fn completed_index(capture: &Capture, cargo: &[u8], tools: Vec<Tool>) -> Result<
             .to_path_buf(),
         plan: capture.plan.clone(),
         tools,
-        entries: entries(capture, cargo)?,
+        entries,
     })
+}
+
+// rstyle-allow(side_effect_density): IO boundary: writes the owner index a stopped capture leaves
+/// Keeps the owners a capture asked to stop had finished, as the index the next capture reuses them from, and fails
+/// saying it stopped. Cargo keeps every unit it finished, so the next capture compiles only the rest.
+fn keep_stopped(capture: &Capture, cargo: &[u8], prepared: &Prepared) -> Result<Output, String> {
+    let kept = match finished(capture, cargo, prepared.previous.as_ref())? {
+        Some(entries) if !entries.is_empty() => {
+            let count = entries.len();
+            let index = owners_index(capture, prepared.tools.clone(), entries)?;
+            persist_index(index_path(capture), &index)?;
+            count
+        }
+        _ => 0,
+    };
+    Err(format!(
+        "Capture stopped: kept {kept} finished owners for the next capture"
+    ))
+}
+
+// rstyle-allow(side_effect_density): IO boundary: reads the stopped capture's ledgers and links reused owners
+/// The owners a stopped capture finished, by the artifacts Cargo reported before it stopped: each from its ledger in
+/// this run or, for one Cargo found fresh, from the previous index. None when one has neither, since the next capture
+/// would find that unit fresh with nothing it captured.
+fn finished(
+    capture: &Capture,
+    cargo: &[u8],
+    previous: Option<&Index>,
+) -> Result<Option<Vec<Entry>>, String> {
+    let mut entries = Vec::new();
+    for artifact in super::reported_artifacts(cargo) {
+        let Some(target) = super::selected_artifact(capture, &artifact) else {
+            continue;
+        };
+        let unit = match super::ledger_unit(capture, &artifact, target) {
+            Ok(unit) => unit,
+            Err(_) => match previous_entry(previous, target, &artifact) {
+                Some(entry) if artifact["fresh"] == true => materialize(capture, &entry.unit)?,
+                _ => return Ok(None),
+            },
+        };
+        entries.push(Entry { artifact, unit });
+    }
+    Ok(Some(entries))
 }
 
 fn persist_index(path: PathBuf, index: &Index) -> Result<(), String> {

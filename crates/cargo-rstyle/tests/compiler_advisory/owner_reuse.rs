@@ -364,6 +364,193 @@ fn partial_failed_build_discards_old_owner_index_before_successful_sibling_compi
     );
 }
 
+/// The units whose documents the run took from an earlier one.
+fn reused_units(report: &Value) -> usize {
+    std::fs::read_dir(run(report))
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            let name = entry.file_name();
+            name.to_str().unwrap().starts_with("invocation-reused-")
+        })
+        .count()
+}
+
+#[test]
+fn a_manifest_edit_recaptures_its_package_and_reuses_the_rest() {
+    let directory = workspace("pub fn leaf() {}\n");
+    let first = live(directory.path(), &[], 0);
+    let before = runs(&first);
+    // Cargo compiles nothing differently for it, but the caller's documents record its manifest.
+    let manifest = directory.path().join("caller/Cargo.toml");
+    let text = std::fs::read_to_string(&manifest).unwrap();
+    std::fs::write(
+        &manifest,
+        format!("{text}[package.metadata.note]\nedited=true\n"),
+    )
+    .unwrap();
+    let edited = live(directory.path(), &[], 0);
+    assert_eq!(runs(&edited), before + 1, "one attempt");
+    fresh(&edited, "leaf", true);
+    fresh(&edited, "caller", false);
+    assert!(reused_units(&edited) > 0);
+
+    // The same as capturing every unit again.
+    std::fs::remove_file(index(&edited)).unwrap();
+    let recaptured = live(directory.path(), &[], 0);
+    fresh(&recaptured, "leaf", false);
+    assert_eq!(reused_units(&recaptured), 0);
+    assert_eq!(edited["compiler_advisory"], recaptured["compiler_advisory"]);
+}
+
+/// Captures `directory`'s workspace in a process group of its own and, once `ready` says so, asks the group to stop,
+/// as a job past its time does.
+#[cfg(unix)]
+fn stopped_capture(directory: &Path, ready: impl Fn() -> bool) -> Output {
+    use std::os::unix::process::CommandExt;
+    let child = Command::new(cargo_bin("cargo-rstyle"))
+        .args(["advisory", "--format", "json", "--compiler-advisory"])
+        .current_dir(directory)
+        .env("RSTYLE_DRIVER", driver())
+        .env_remove("CARGO_TARGET_DIR")
+        .process_group(0)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let group = child.id() as libc::pid_t;
+    let waited = std::time::Instant::now();
+    while !ready() {
+        if waited.elapsed().as_secs() > 120 {
+            // SAFETY: the capture's process group is the child's own, made above.
+            unsafe { libc::killpg(group, libc::SIGKILL) };
+            panic!("the capture never got there");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    // SAFETY: as above.
+    unsafe { libc::killpg(group, libc::SIGTERM) };
+    child.wait_with_output().unwrap()
+}
+
+/// Every ledger the captures under `directory` published.
+fn ledgers(directory: &Path) -> usize {
+    let runs = directory.join("target/rstyle/runs");
+    let Ok(entries) = std::fs::read_dir(runs) else {
+        return 0;
+    };
+    entries
+        .filter_map(Result::ok)
+        .filter_map(|run| std::fs::read_dir(run.path()).ok())
+        .flatten()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_name().to_str().unwrap().starts_with("unit-t"))
+        .count()
+}
+
+/// Gives `directory`'s caller a build script that, while `caller/hold` exists, writes the file this returns and waits
+/// to be stopped. The leaf needs no build script, so it can finish while the caller holds.
+#[cfg(unix)]
+fn holding_caller(directory: &Path) -> std::path::PathBuf {
+    let started = directory.join("build-script-started");
+    let script = format!(
+        "fn main() {{ if std::path::Path::new(\"hold\").exists() {{ std::fs::write({started:?}, \"\").unwrap(); \
+         std::thread::sleep(std::time::Duration::from_secs(600)); }} }}\n"
+    );
+    std::fs::write(directory.join("caller/build.rs"), script).unwrap();
+    started
+}
+
+/// What a capture says when it's stopped while the caller's build script holds, once `ready` also holds, and long
+/// enough after for Cargo to have reported every unit it finished.
+#[cfg(unix)]
+fn stopped_while_held(directory: &Path, started: &Path, ready: impl Fn() -> bool) -> String {
+    let hold = directory.join("caller/hold");
+    if started.exists() {
+        std::fs::remove_file(started).unwrap();
+    }
+    std::fs::write(&hold, "").unwrap();
+    let stopped = stopped_capture(directory, || {
+        started.exists() && ready() && {
+            std::thread::sleep(std::time::Duration::from_secs(2));
+            true
+        }
+    });
+    std::fs::remove_file(hold).unwrap();
+    format!(
+        "{:?} {}",
+        stopped.status,
+        String::from_utf8_lossy(&stopped.stdout)
+    )
+}
+
+#[cfg(unix)]
+#[test]
+fn a_capture_stopped_while_compiling_keeps_what_it_finished_for_the_next() {
+    let directory = workspace("pub fn leaf() {}\n");
+    let started = holding_caller(directory.path());
+    let said = stopped_while_held(directory.path(), &started, || {
+        ledgers(directory.path()) >= 1
+    });
+    // The report says so, among the capture's failures.
+    let kept = ledgers(directory.path());
+    let message = format!("Capture stopped: kept {kept} finished owners for the next capture");
+    assert!(said.contains(&message), "{said}");
+    let owners = directory
+        .path()
+        .join("target/rstyle/runs/advisory-owners.json");
+    assert!(owners.is_file());
+
+    // Stopped again before the caller finishes, as a job out of time twice is: Cargo finds the leaf fresh, and the
+    // capture keeps the owners it reused for it.
+    let again = stopped_while_held(directory.path(), &started, || true);
+    assert!(again.contains(&message), "{again}");
+    assert!(owners.is_file());
+
+    let next = live(directory.path(), &[], 0);
+    assert_eq!(runs(&next), 3, "one attempt after the two stopped ones");
+    fresh(&next, "leaf", true);
+    fresh(&next, "caller", false);
+    assert_eq!(
+        reused_units(&next),
+        kept,
+        "the leaf's owners, as the stopped captures kept them"
+    );
+
+    // The same as capturing every unit again.
+    std::fs::remove_file(index(&next)).unwrap();
+    let recaptured = live(directory.path(), &[], 0);
+    fresh(&recaptured, "leaf", false);
+    assert_eq!(next["compiler_advisory"], recaptured["compiler_advisory"]);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_stopped_capture_keeps_nothing_when_cargo_finds_a_unit_fresh_that_no_owner_serves() {
+    let directory = workspace("pub fn leaf() {}\n");
+    let started = holding_caller(directory.path());
+    let first = live(directory.path(), &[], 0);
+    // The index misses the leaf, as one does when a stop lands after Cargo finished a unit but before it said so.
+    let path = index(&first);
+    let mut owners: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let entries = owners["entries"].as_array_mut().unwrap();
+    entries.retain(|entry| entry["artifact"]["target"]["name"] != "leaf");
+    assert!(!entries.is_empty(), "the caller's owners stay");
+    std::fs::write(&path, serde_json::to_vec(&owners).unwrap()).unwrap();
+
+    // Kept, the caller's owners would leave the next capture a fresh leaf with nothing it captured.
+    let said = stopped_while_held(directory.path(), &started, || true);
+    let message = "Capture stopped: kept 0 finished owners for the next capture";
+    assert!(said.contains(message), "{said}");
+    assert!(!path.exists());
+
+    let next = live(directory.path(), &[], 0);
+    fresh(&next, "leaf", false);
+    fresh(&next, "caller", false);
+    assert_eq!(reused_units(&next), 0);
+    assert_eq!(first["compiler_advisory"], next["compiler_advisory"]);
+}
+
 fn rustflags(directory: &Path, value: &str) {
     std::fs::create_dir_all(directory.join(".cargo")).unwrap();
     std::fs::write(

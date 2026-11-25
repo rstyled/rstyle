@@ -136,4 +136,37 @@ mod tests {
         };
         assert!(!one.same_capture(&other));
     }
+
+    #[test]
+    fn a_plan_with_other_units_serves_the_ones_it_planned_the_same() {
+        let previous = plan(vec![target("a"), target("b")]);
+        let edited = Target {
+            manifest_dir: "/b/edited".into(),
+            ..target("b")
+        };
+        let unit = |package: &str, profile: &str| serde_json::json!({"pkg_id": package, "profile": {"name": profile}, "platform": null});
+        let previous = Plan {
+            primary_units: vec![unit("a", "dev"), unit("b", "dev")],
+            ..previous
+        };
+        let current = Plan {
+            primary_units: vec![unit("a", "dev"), unit("b", "dev"), unit("c", "dev")],
+            ..plan(vec![target("a"), edited, target("c")])
+        };
+        assert!(current.same_capture(&previous));
+        let release = Plan {
+            primary_units: vec![unit("a", "release"), unit("b", "release")],
+            ..previous.clone()
+        };
+        assert!(!release.same_capture(&previous));
+        assert_eq!(
+            current.stale_packages(Some(&previous)),
+            ["b", "c"].into_iter().collect()
+        );
+        assert!(previous.stale_packages(Some(&previous)).is_empty());
+        assert_eq!(
+            current.stale_packages(None),
+            ["a", "b", "c"].into_iter().collect()
+        );
+    }
 }

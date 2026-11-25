@@ -49,8 +49,18 @@ pub(super) fn open_lock(path: PathBuf) -> Result<File, String> {
         .map_err(|error| format!("Cannot open lock {}: {error}", path.display()))
 }
 
-pub(super) fn refresh_selected(capture: &Capture, args: &Args) -> Result<(), String> {
-    let mut command = clean_command(capture, args);
+/// Makes Cargo compile `packages` again, and with them each package that depends on them, so the
+/// driver captures their units. None leaves the build as it is: `cargo clean` named no package
+/// would clean every one.
+pub(super) fn refresh(
+    capture: &Capture,
+    args: &Args,
+    packages: &BTreeSet<&str>,
+) -> Result<(), String> {
+    if packages.is_empty() {
+        return Ok(());
+    }
+    let mut command = clean_command(capture, args, packages);
     perform_clean(capture, &mut command, "cargo-clean.stderr")?;
 
     let platforms: BTreeSet<_> = capture
@@ -60,7 +70,7 @@ pub(super) fn refresh_selected(capture: &Capture, args: &Args) -> Result<(), Str
         .filter_map(|unit| unit["platform"].as_str())
         .collect();
     for (index, platform) in platforms.into_iter().enumerate() {
-        let mut command = clean_command(capture, args);
+        let mut command = clean_command(capture, args, packages);
         command.arg("--target").arg(platform);
         perform_clean(
             capture,
@@ -89,7 +99,7 @@ fn clean_result(output: &std::process::Output) -> Result<(), String> {
     }
 }
 
-fn clean_command(capture: &Capture, args: &Args) -> Command {
+fn clean_command(capture: &Capture, args: &Args, packages: &BTreeSet<&str>) -> Command {
     let mut command = super::cargo_command();
     command
         .args(["clean", "--manifest-path"])
@@ -102,9 +112,8 @@ fn clean_command(capture: &Capture, args: &Args) -> Command {
         }
     }
 
-    // Clean all profiles of selected packages: Cargo must invoke the wrapper again
+    // Clean all profiles of the packages: Cargo must invoke the wrapper again
     // even when source bytes, features and compiler options have not changed.
-    let packages: BTreeSet<_> = capture.plan.targets.iter().map(|t| &t.package).collect();
     for package in packages {
         command.arg("--package").arg(package);
     }
