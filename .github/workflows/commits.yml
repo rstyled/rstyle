@@ -1,0 +1,14 @@
+name: Conventional commits
+
+# knope versions each release from the Conventional Commits since the last one, so a pull request's title and commits
+# must be ones (rstyled/release, "Commits").
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  commits:
+    uses: rstyled/release/.github/workflows/commits.yml@v0.0

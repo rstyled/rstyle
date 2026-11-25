@@ -1,10 +1,12 @@
 name: Publish
 
-# Builds what rstyle-mcp-server's Check image takes from this repository (publish/Dockerfile): cargo-rstyle,
-# rstyle-driver and rstyle, for release on rstyle's base image. Publishes them as ghcr.io/rstyled/rstyle:<commit> and
-# :latest; the Check image pins a commit (its versions.json core) and pulls it with its own GITHUB_TOKEN (this package's
-# Actions access must list rstyled/rstyle-mcp-server, with Read). The base is private, so a fork's pull request can't
-# build it; a pull request from this repository that changes how it's built builds it without publishing.
+# What rstyle-mcp-server's Check image takes from this repository (publish/Dockerfile): cargo-rstyle, rstyle-driver and
+# rstyle, built for release on rstyle's base image. The Check image pins a commit or a version (its versions.json core).
+# rstyled/release's image workflow builds it and, from main, publishes it as ghcr.io/rstyled/rstyle:<commit> and
+# :latest, and, when the commit is a release, as :X.Y.Z, then tags the commit vX.Y.Z with a GitHub release. A commit is
+# a release when a feat, fix, perf or breaking commit landed since the last one (Conventional Commits; rstyled/release's
+# README). The Check image pulls it with its own GITHUB_TOKEN (this package's Actions access must list
+# rstyled/rstyle-mcp-server, with Read). A pull request that changes how it's built builds it without publishing.
 on:
   pull_request:
     paths: ['publish/**', '.github/workflows/publish.yml', 'rust-toolchain.toml']
@@ -13,7 +15,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 concurrency:
@@ -22,25 +24,8 @@ concurrency:
 
 jobs:
   publish:
-    name: Publish to GHCR
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Build, and from main publish
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          IMAGE: ghcr.io/${{ github.repository }}
-        run: |
-          set -eu
-          # The base is private: pulling it takes this repository's login.
-          echo "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
-          set -- --file publish/Dockerfile --provenance=false --tag "$IMAGE:$GITHUB_SHA"
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            set -- "$@" --tag "$IMAGE:latest" --push
-          fi
-          docker buildx build "$@" .
-          docker logout ghcr.io
+    uses: rstyled/release/.github/workflows/image.yml@v0.0
+    with:
+      dockerfile: publish/Dockerfile
+      runs-on: ubuntu-24.04
+      timeout-minutes: 60
