@@ -448,44 +448,73 @@ fn ledgers(directory: &Path) -> usize {
         .count()
 }
 
+/// Gives `directory`'s caller a build script that, while `caller/hold` exists, writes the file this returns and waits
+/// to be stopped. The leaf needs no build script, so it can finish while the caller holds.
 #[cfg(unix)]
-#[test]
-fn a_capture_stopped_while_compiling_keeps_what_it_finished_for_the_next() {
-    let directory = workspace("pub fn leaf() {}\n");
-    // The caller's build script holds until the capture is stopped: by then the leaf, which needs no build script, is
-    // captured.
-    let caller = directory.path().join("caller");
-    let started = directory.path().join("build-script-started");
+fn holding_caller(directory: &Path) -> std::path::PathBuf {
+    let started = directory.join("build-script-started");
     let script = format!(
         "fn main() {{ if std::path::Path::new(\"hold\").exists() {{ std::fs::write({started:?}, \"\").unwrap(); \
          std::thread::sleep(std::time::Duration::from_secs(600)); }} }}\n"
     );
-    std::fs::write(caller.join("build.rs"), script).unwrap();
-    std::fs::write(caller.join("hold"), "").unwrap();
-    let stopped = stopped_capture(directory.path(), || {
-        // Long enough after the leaf's ledger appears for Cargo to have reported it finished.
-        started.exists() && ledgers(directory.path()) >= 1 && {
+    std::fs::write(directory.join("caller/build.rs"), script).unwrap();
+    started
+}
+
+/// What a capture says when it's stopped while the caller's build script holds, once `ready` also holds, and long
+/// enough after for Cargo to have reported every unit it finished.
+#[cfg(unix)]
+fn stopped_while_held(directory: &Path, started: &Path, ready: impl Fn() -> bool) -> String {
+    let hold = directory.join("caller/hold");
+    if started.exists() {
+        std::fs::remove_file(started).unwrap();
+    }
+    std::fs::write(&hold, "").unwrap();
+    let stopped = stopped_capture(directory, || {
+        started.exists() && ready() && {
             std::thread::sleep(std::time::Duration::from_secs(2));
             true
         }
     });
+    std::fs::remove_file(hold).unwrap();
+    format!(
+        "{:?} {}",
+        stopped.status,
+        String::from_utf8_lossy(&stopped.stdout)
+    )
+}
+
+#[cfg(unix)]
+#[test]
+fn a_capture_stopped_while_compiling_keeps_what_it_finished_for_the_next() {
+    let directory = workspace("pub fn leaf() {}\n");
+    let started = holding_caller(directory.path());
+    let said = stopped_while_held(directory.path(), &started, || {
+        ledgers(directory.path()) >= 1
+    });
     // The report says so, among the capture's failures.
-    let said = String::from_utf8_lossy(&stopped.stdout);
     let kept = ledgers(directory.path());
     let message = format!("Capture stopped: kept {kept} finished owners for the next capture");
-    assert!(said.contains(&message), "{:?} {said}", stopped.status);
-    let runs_directory = directory.path().join("target/rstyle/runs");
-    assert!(runs_directory.join("advisory-owners.json").is_file());
+    assert!(said.contains(&message), "{said}");
+    let owners = directory
+        .path()
+        .join("target/rstyle/runs/advisory-owners.json");
+    assert!(owners.is_file());
 
-    std::fs::remove_file(caller.join("hold")).unwrap();
+    // Stopped again before the caller finishes, as a job out of time twice is: Cargo finds the leaf fresh, and the
+    // capture keeps the owners it reused for it.
+    let again = stopped_while_held(directory.path(), &started, || true);
+    assert!(again.contains(&message), "{again}");
+    assert!(owners.is_file());
+
     let next = live(directory.path(), &[], 0);
-    assert_eq!(runs(&next), 2, "one attempt after the stopped one");
+    assert_eq!(runs(&next), 3, "one attempt after the two stopped ones");
     fresh(&next, "leaf", true);
     fresh(&next, "caller", false);
     assert_eq!(
         reused_units(&next),
         kept,
-        "the leaf's owners, as the stopped capture kept them"
+        "the leaf's owners, as the stopped captures kept them"
     );
 
     // The same as capturing every unit again.
@@ -493,6 +522,33 @@ fn a_capture_stopped_while_compiling_keeps_what_it_finished_for_the_next() {
     let recaptured = live(directory.path(), &[], 0);
     fresh(&recaptured, "leaf", false);
     assert_eq!(next["compiler_advisory"], recaptured["compiler_advisory"]);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_stopped_capture_keeps_nothing_when_cargo_finds_a_unit_fresh_that_no_owner_serves() {
+    let directory = workspace("pub fn leaf() {}\n");
+    let started = holding_caller(directory.path());
+    let first = live(directory.path(), &[], 0);
+    // The index misses the leaf, as one does when a stop lands after Cargo finished a unit but before it said so.
+    let path = index(&first);
+    let mut owners: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let entries = owners["entries"].as_array_mut().unwrap();
+    entries.retain(|entry| entry["artifact"]["target"]["name"] != "leaf");
+    assert!(!entries.is_empty(), "the caller's owners stay");
+    std::fs::write(&path, serde_json::to_vec(&owners).unwrap()).unwrap();
+
+    // Kept, the caller's owners would leave the next capture a fresh leaf with nothing it captured.
+    let said = stopped_while_held(directory.path(), &started, || true);
+    let message = "Capture stopped: kept 0 finished owners for the next capture";
+    assert!(said.contains(message), "{said}");
+    assert!(!path.exists());
+
+    let next = live(directory.path(), &[], 0);
+    fresh(&next, "leaf", false);
+    fresh(&next, "caller", false);
+    assert_eq!(reused_units(&next), 0);
+    assert_eq!(first["compiler_advisory"], next["compiler_advisory"]);
 }
 
 fn rustflags(directory: &Path, value: &str) {
