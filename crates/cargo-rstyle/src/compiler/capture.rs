@@ -6,6 +6,7 @@ mod owner_reuse;
 mod relocation;
 mod retention;
 mod saved;
+mod stop;
 pub(in crate::compiler) use retention::{LIMIT_VARIABLE, hold};
 pub(in crate::compiler) use saved::load_saved;
 
@@ -629,29 +630,45 @@ fn save_logs(capture: &Capture, output: &std::process::Output) -> Result<(), Str
         .map_err(|e| e.to_string())
 }
 
+// rstyle-allow(side_effect_density): IO boundary: reads each unit's ledger
 fn reconcile(capture: &mut Capture, cargo: &[u8]) -> Result<(), String> {
     let artifacts = cargo_artifacts(cargo)?;
     for artifact in &artifacts {
         let Some(target) = selected_artifact(capture, artifact) else {
             continue;
         };
-        verify_planned_context(capture, artifact, target)?;
-        let test = artifact["profile"]["test"]
-            .as_bool()
-            .ok_or("missing artifact test context")?;
-        let unit_path = ledger::path(&capture.plan, &capture.directory, target, test)?;
-        let unit: Unit = read_json(&unit_path)?;
-        if &unit.target != target
-            || unit.compiler_runtime_bounds != capture.plan.compiler_runtime_bounds
-            || unit.test != test
-            || unit.directory.parent() != Some(capture.directory.as_path())
-        {
-            return Err("compiler-unit ledger disagrees with Cargo artifact".into());
-        }
+        let unit = ledger_unit(capture, artifact, target)?;
         capture.units.push(unit);
     }
     check_expected(capture);
     Ok(())
+}
+
+/// The unit Cargo reports as `artifact`, as its ledger in this run records it.
+fn ledger_unit(capture: &Capture, artifact: &Value, target: &Target) -> Result<Unit, String> {
+    verify_planned_context(capture, artifact, target)?;
+    let test = artifact["profile"]["test"]
+        .as_bool()
+        .ok_or("missing artifact test context")?;
+    let unit_path = ledger::path(&capture.plan, &capture.directory, target, test)?;
+    let unit: Unit = read_json(&unit_path)?;
+    if &unit.target != target
+        || unit.compiler_runtime_bounds != capture.plan.compiler_runtime_bounds
+        || unit.test != test
+        || unit.directory.parent() != Some(capture.directory.as_path())
+    {
+        return Err("compiler-unit ledger disagrees with Cargo artifact".into());
+    }
+    Ok(unit)
+}
+
+/// The artifacts Cargo reported before it stopped: its last line may be cut short.
+fn reported_artifacts(cargo: &[u8]) -> Vec<Value> {
+    cargo
+        .split(|b| *b == b'\n')
+        .filter_map(|line| serde_json::from_slice::<Value>(line).ok())
+        .filter(|record| record["reason"] == "compiler-artifact")
+        .collect()
 }
 
 fn cargo_artifacts(cargo: &[u8]) -> Result<Vec<Value>, String> {

@@ -403,6 +403,98 @@ fn a_manifest_edit_recaptures_its_package_and_reuses_the_rest() {
     assert_eq!(edited["compiler_advisory"], recaptured["compiler_advisory"]);
 }
 
+/// Captures `directory`'s workspace in a process group of its own and, once `ready` says so, asks the group to stop,
+/// as a job past its time does.
+#[cfg(unix)]
+fn stopped_capture(directory: &Path, ready: impl Fn() -> bool) -> Output {
+    use std::os::unix::process::CommandExt;
+    let child = Command::new(cargo_bin("cargo-rstyle"))
+        .args(["advisory", "--format", "json", "--compiler-advisory"])
+        .current_dir(directory)
+        .env("RSTYLE_DRIVER", driver())
+        .env_remove("CARGO_TARGET_DIR")
+        .process_group(0)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let group = child.id() as libc::pid_t;
+    let waited = std::time::Instant::now();
+    while !ready() {
+        if waited.elapsed().as_secs() > 120 {
+            // SAFETY: the capture's process group is the child's own, made above.
+            unsafe { libc::killpg(group, libc::SIGKILL) };
+            panic!("the capture never got there");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    // SAFETY: as above.
+    unsafe { libc::killpg(group, libc::SIGTERM) };
+    child.wait_with_output().unwrap()
+}
+
+/// Every ledger the captures under `directory` published.
+fn ledgers(directory: &Path) -> usize {
+    let runs = directory.join("target/rstyle/runs");
+    let Ok(entries) = std::fs::read_dir(runs) else {
+        return 0;
+    };
+    entries
+        .filter_map(Result::ok)
+        .filter_map(|run| std::fs::read_dir(run.path()).ok())
+        .flatten()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_name().to_str().unwrap().starts_with("unit-t"))
+        .count()
+}
+
+#[cfg(unix)]
+#[test]
+fn a_capture_stopped_while_compiling_keeps_what_it_finished_for_the_next() {
+    let directory = workspace("pub fn leaf() {}\n");
+    // The caller's build script holds until the capture is stopped: by then the leaf, which needs no build script, is
+    // captured.
+    let caller = directory.path().join("caller");
+    let started = directory.path().join("build-script-started");
+    let script = format!(
+        "fn main() {{ if std::path::Path::new(\"hold\").exists() {{ std::fs::write({started:?}, \"\").unwrap(); \
+         std::thread::sleep(std::time::Duration::from_secs(600)); }} }}\n"
+    );
+    std::fs::write(caller.join("build.rs"), script).unwrap();
+    std::fs::write(caller.join("hold"), "").unwrap();
+    let stopped = stopped_capture(directory.path(), || {
+        // Long enough after the leaf's ledger appears for Cargo to have reported it finished.
+        started.exists() && ledgers(directory.path()) >= 1 && {
+            std::thread::sleep(std::time::Duration::from_secs(2));
+            true
+        }
+    });
+    // The report says so, among the capture's failures.
+    let said = String::from_utf8_lossy(&stopped.stdout);
+    let kept = ledgers(directory.path());
+    let message = format!("Capture stopped: kept {kept} finished owners for the next capture");
+    assert!(said.contains(&message), "{:?} {said}", stopped.status);
+    let runs_directory = directory.path().join("target/rstyle/runs");
+    assert!(runs_directory.join("advisory-owners.json").is_file());
+
+    std::fs::remove_file(caller.join("hold")).unwrap();
+    let next = live(directory.path(), &[], 0);
+    assert_eq!(runs(&next), 2, "one attempt after the stopped one");
+    fresh(&next, "leaf", true);
+    fresh(&next, "caller", false);
+    assert_eq!(
+        reused_units(&next),
+        kept,
+        "the leaf's owners, as the stopped capture kept them"
+    );
+
+    // The same as capturing every unit again.
+    std::fs::remove_file(index(&next)).unwrap();
+    let recaptured = live(directory.path(), &[], 0);
+    fresh(&recaptured, "leaf", false);
+    assert_eq!(next["compiler_advisory"], recaptured["compiler_advisory"]);
+}
+
 fn rustflags(directory: &Path, value: &str) {
     std::fs::create_dir_all(directory.join(".cargo")).unwrap();
     std::fs::write(
