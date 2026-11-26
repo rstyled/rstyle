@@ -1,7 +1,8 @@
 # What Python's standard library takes input from and where input is dangerous, keyed by a callee's
 # name, which is its qualified name as typeshed declares it: `pickle.loads` is `_pickle.loads`. A
-# receiver is position 0, and otherwise the first argument is. A keyword argument is at the position
-# of the parameter it names.
+# position is the callee's own parameter, as it declares them: `self` or `cls` is 0, so what a call of
+# a class passes its `__init__` first is at 1, and otherwise the first argument is 0. A keyword
+# argument is at the position of the parameter it names.
 #
 # Only these are read, so a call to anything else isn't an endpoint. A project adds its own under
 # [taint] in rstyle.toml, as it would a framework's.
@@ -39,7 +40,7 @@ callees = [
 ]
 
 # subprocess runs its arguments through a shell only when it's told to, by passing `shell` a literal
-# `True`, by keyword or in its place.
+# `True`, by keyword or in its place. `Popen.__init__`'s command is after its `self`.
 [[sinks]]
 risk = "command injection"
 cwe = "CWE-78"
@@ -49,8 +50,14 @@ callees = [
     "subprocess.call",
     "subprocess.check_call",
     "subprocess.check_output",
-    "subprocess.Popen.__init__",
 ]
+when = { parameter = "shell", literal = "true" }
+
+[[sinks]]
+risk = "command injection"
+cwe = "CWE-78"
+arguments = [1]
+callees = ["subprocess.Popen.__init__"]
 when = { parameter = "shell", literal = "true" }
 
 # Otherwise it runs a program, which is what's dangerous, as in Go. Its first argument is the program
@@ -65,8 +72,15 @@ callees = [
     "subprocess.call",
     "subprocess.check_call",
     "subprocess.check_output",
-    "subprocess.Popen.__init__",
 ]
+argv = true
+shell = { executables = ["sh", "bash", "dash", "ksh", "zsh"], flag = "-c" }
+
+[[sinks]]
+risk = "command injection"
+cwe = "CWE-78"
+arguments = [1]
+callees = ["subprocess.Popen.__init__"]
 argv = true
 shell = { executables = ["sh", "bash", "dash", "ksh", "zsh"], flag = "-c" }
 

@@ -501,6 +501,44 @@ fn input_is_followed_in_what_a_python_frontend_writes() {
     );
 }
 
+/// Each argument reaches the parameter its callee numbers it by: a class's call binds its
+/// `__init__`'s `self` itself, a class method's call its `cls`, and a static method called through
+/// an instance, or a method read through a class object, isn't passed the receiver.
+#[test]
+fn input_reaches_the_parameter_its_callee_binds_it_to() {
+    let document: Value =
+        serde_json::from_str(include_str!("../cpg/testdata/arguments-py.cpg.json")).unwrap();
+    let report = report_of(vec![document], &Config::default());
+    assert!(report.unknown.is_empty(), "{:?}", report.unknown);
+    let taint = report.defects.iter().filter(|row| row.rule == "taint_flow");
+    let found: Vec<(usize, &str)> = taint
+        .map(|row| (row.line, row.message.split(" reaches").next().unwrap()))
+        .collect();
+    let from =
+        |sink: usize, input: usize| (sink, format!("input from `builtins.input` on line {input}"));
+    let expected = [
+        from(14, 63),   // `OpensData("a.txt", input())` passes `path`
+        from(19, 67),   // `OpensByKeyword(path=input(), name="a")`
+        from(30, 75),   // `tools.run(input())`, a static method through an instance
+        from(38, 83),   // `Tools.make("label", input())`, a class method through its class
+        from(48, 91),   // `tools.built("label", input())`, and through an instance
+        from(52, 55),   // `type(self).again(self, input())`, whose `self` is `self`
+        from(95, 95),   // `subprocess.Popen(input(), shell=True)`
+        from(99, 99),   // `subprocess.Popen([input(), "-v"])`
+        from(103, 103), // `subprocess.Popen(shell=True, args=input())`
+        from(107, 107), // `subprocess.run(input(), shell=True)`
+    ];
+    let expected: Vec<(usize, &str)> = expected
+        .iter()
+        .map(|(line, text)| (*line, text.as_str()))
+        .collect();
+    assert_eq!(
+        found, expected,
+        "`OpensPath(\"a.txt\", input())`, `OpensNamed(name=input(), ..)`, `tools.pair(input(), ..)` \
+         and `Tools.labeled(input(), ..)` pass input where no sink reads it"
+    );
+}
+
 #[test]
 fn without_bindings_a_python_keyword_is_numbered_where_its_written() {
     let mut document: Value =

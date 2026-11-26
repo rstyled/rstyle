@@ -150,10 +150,13 @@ pub(super) fn returns_its_receiver(
             Some(Dispatch::Method | Dispatch::Dynamic)
         )
     });
-    let Some(receiver) = node.children.first().filter(|_| on_a_receiver) else {
+    if !on_a_receiver {
         return Ok(false);
-    };
-    let Some(receiver) = reading.body.node(receiver)?.ty.as_deref() else {
+    }
+    // A receiver that binds nothing, as a static method's, isn't passed, so it can't come back.
+    let arguments = reading.body.arguments(node)?;
+    let receiver = arguments.first().filter(|it| it.position == Some(0));
+    let Some(receiver) = receiver.and_then(|it| it.node.ty.as_deref()) else {
         return Ok(false);
     };
 

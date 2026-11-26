@@ -1,10 +1,24 @@
-//! Summary arguments follow formal positions; evaluating them follows source order.
+//! Summary arguments follow the callee's own parameter positions, a receiver first when it takes
+//! one; evaluating them follows source order.
 
 use super::super::model::{Callable, Dispatch, Node, RefStatus};
+use super::super::tree::Argument as TreeArgument;
 use super::Collector;
 use crate::advisory::runtime_bounds::MAX_VARIABLES;
 use crate::runtime_bounds::Argument;
 use std::collections::BTreeSet;
+
+/// How a call's arguments can bind its callee's parameters.
+#[derive(Clone, Copy)]
+struct Layout {
+    /// The callee's parameters, its receiver included.
+    count: usize,
+    /// The first parameter an argument can bind: 1 where the call makes the receiver itself.
+    first: usize,
+    /// Whether the call passes a receiver the callee doesn't take, as a static method called
+    /// through an instance does.
+    unpassed_receiver: bool,
+}
 
 impl<'a> Collector<'_, '_, 'a> {
     /// Missing, unpacked or ambiguous bindings supply no size information. In particular,
@@ -17,12 +31,12 @@ impl<'a> Collector<'_, '_, 'a> {
             Some(_) => None,
             None => self.argument_layout(call),
         };
-        let count = layout.map_or(passed.len(), |(count, _)| count);
+        let count = layout.map_or(passed.len(), |layout| layout.count);
         if count > MAX_VARIABLES || !self.charge(count) {
             return Ok(Vec::new());
         }
         let mut inputs = vec![Argument::Opaque; count];
-        let Some((_, offset)) = layout else {
+        let Some(layout) = layout else {
             return Ok(inputs);
         };
         let bindings = self
@@ -33,31 +47,59 @@ impl<'a> Collector<'_, '_, 'a> {
         {
             return Ok(inputs);
         }
-        let positions: Option<Vec<usize>> = passed
-            .iter()
-            .map(|argument| {
-                argument
-                    .position?
-                    .checked_add(offset)
-                    .filter(|&at| at < count)
-            })
-            .collect();
-        let Some(positions) = positions else {
+        let Some(placed) = self.bound_arguments(call, &passed, layout) else {
             return Ok(inputs);
         };
-        let mut occupied = BTreeSet::new();
-        if positions.iter().any(|position| !occupied.insert(*position)) {
-            return Ok(inputs);
-        }
-        for (argument, position) in passed.iter().zip(positions) {
+        for (argument, position) in placed {
             inputs[position] = self.argument(argument.value)?;
         }
         Ok(inputs)
     }
 
+    /// Each argument that binds a parameter, at that parameter, or nothing when one's position
+    /// isn't known or doesn't fit the callee. A receiver bound by binding nothing is left out: a
+    /// method's that a class object reads, and a static method's, which no number may give.
+    /// Where the call makes the receiver itself, no argument may bind it. A document that numbers
+    /// arguments by the call rather than by the callee breaks one of those, so it binds none.
+    fn bound_arguments<'p>(
+        &self,
+        call: &Node,
+        passed: &'p [TreeArgument<'a>],
+        layout: Layout,
+    ) -> Option<Vec<(&'p TreeArgument<'a>, usize)>> {
+        let method = self.facts.reference(call).is_some_and(|reference| {
+            matches!(
+                reference.dispatch,
+                Some(Dispatch::Method | Dispatch::Dynamic)
+            )
+        });
+        let bound = self
+            .facts
+            .reference(call)
+            .is_some_and(|reference| reference.arguments.is_some());
+        let receiver = passed.first().filter(|_| method);
+        let unbound_receiver = receiver.is_some_and(|it| bound && it.position.is_none());
+        if layout.unpassed_receiver && !unbound_receiver {
+            return None;
+        }
+        let binding = &passed[usize::from(unbound_receiver)..];
+
+        let mut occupied = BTreeSet::new();
+        let mut placed = Vec::with_capacity(binding.len());
+        for argument in binding {
+            let position = argument.position?;
+            let fits = (layout.first..layout.count).contains(&position);
+            if !fits || !occupied.insert(position) {
+                return None;
+            }
+            placed.push((argument, position));
+        }
+        Some(placed)
+    }
+
     /// A positional call number identifies a formal only for a fixed, known interface.
     /// Variadic elements can otherwise occupy the numbers of later formal parameters.
-    fn argument_layout(&self, call: &'a Node) -> Option<(usize, usize)> {
+    fn argument_layout(&self, call: &'a Node) -> Option<Layout> {
         let callable = self.argument_callable(call)?;
         let reference = self.facts.reference(call)?;
         // A call read in method form without a recorded dispatch holds its receiver first, where
@@ -70,14 +112,18 @@ impl<'a> Collector<'_, '_, 'a> {
             reference.dispatch,
             Some(Dispatch::Method | Dispatch::Dynamic)
         );
-        if method && callable.receiver.is_none() {
-            return None;
-        }
         let callee = self.facts.body.child(call, 0).ok()?;
-        let made = self.facts.type_call(call, callee).is_some();
-        let receiver = usize::from(callable.receiver.is_some());
-        let count = callable.parameters.len().checked_add(receiver)?;
-        Some((count, usize::from(made) * receiver))
+        let made = !method && self.facts.type_call(call, callee).is_some();
+        let receiver = callable.receiver.is_some();
+        let count = callable
+            .parameters
+            .len()
+            .checked_add(usize::from(receiver))?;
+        Some(Layout {
+            count,
+            first: usize::from(made && receiver),
+            unpassed_receiver: method && !receiver,
+        })
     }
 
     /// Use the implementation that summary composition selects, rather than an interface's

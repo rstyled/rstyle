@@ -286,6 +286,17 @@ pub struct Definition {
     pub extensions: BTreeMap<String, serde_json::Value>,
 }
 
+impl Definition {
+    /// Whether the callee's own parameters start with a receiver, so an argument bound to its
+    /// first other parameter is numbered 1. A definition with no `callable` says so by its kind.
+    pub fn takes_receiver(&self) -> bool {
+        match &self.callable {
+            Some(callable) => callable.receiver.is_some(),
+            None => self.kind == DefinitionKind::Method,
+        }
+    }
+}
+
 /// The interface a call to a function or method sees.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -790,7 +801,7 @@ pub struct Ref {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ArgumentBinding {
-    /// What a positional argument for the parameter would be numbered: a receiver is 0.
+    /// The parameter it binds to, as the callee numbers its own parameters: a receiver is 0.
     pub position: Option<usize>,
     pub parameter: Option<String>,
     /// The child of the argument holding what it passes, when the argument isn't that itself.
