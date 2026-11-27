@@ -2,6 +2,8 @@
 //! post-dominators, reaching definitions, control dependence and the dependence graph they
 //! give. Frontends emit the flow and the accesses; all of this is derived, never emitted.
 
+mod iteration_storage;
+
 use super::model::{
     AccessMode, CfgEdge, ClosureFlow, Coverage, Declarations, Exit, Function, NodeKind, Origin,
     PlaceMode, Status,
@@ -637,6 +639,9 @@ pub struct ExecutionEdge {
 /// A function's derived flow facts, in terms of the node IDs of its document.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Derived {
+    /// Address-taking and closure sites with a known loop binding lifetime.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub iteration_storage: Vec<iteration_storage::IterationStorage>,
     pub standing: Standing,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reasons: Vec<String>,
@@ -664,6 +669,7 @@ impl Derived {
     fn unknown(reason: String) -> Self {
         Self {
             standing: Standing::Unknown,
+            iteration_storage: Vec::new(),
             reasons: vec![reason],
             assumptions: Vec::new(),
             dominators: BTreeMap::new(),
@@ -888,6 +894,7 @@ fn derived_of(
         data,
         control,
         execution: execution_edges(flow, &dominators),
+        iteration_storage: iteration_storage::derive(function, flow, &dominators),
         loops: loops(flow),
         closures: BTreeMap::new(),
     }

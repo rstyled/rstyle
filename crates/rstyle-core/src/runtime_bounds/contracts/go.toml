@@ -11,6 +11,14 @@
 schema = "rstyle.library-contracts/1"
 namespace = "go"
 
+[scalar]
+true_constant = "go:true"
+false_constant = "go:false"
+unary_plus = "go:plus"
+byte_length = "go:len"
+byte_constants = "go:exact-constants"
+exact_integer_types = ["go:untyped-int", "go:untyped-rune"]
+
 [[allocation]]
 basis = "The built-in allocator creates a fresh native slice header and backing storage with exactly the requested length; replacing an element invokes no setter and leaves the header's length unchanged. The type operand is static; length evaluation and allocation costs remain separate."
 storage = "FreshNativeSequence"

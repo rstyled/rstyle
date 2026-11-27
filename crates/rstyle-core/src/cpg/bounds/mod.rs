@@ -21,6 +21,7 @@ mod loops;
 mod primitive;
 pub mod report;
 mod roles;
+mod scalars;
 mod writes;
 
 use super::model::{Node, NodeKind};
@@ -39,6 +40,7 @@ pub fn lower(facts: &Facts<'_, '_>, arithmetic: Arithmetic) -> Result<Input, Str
 pub(crate) struct Collector<'f, 'b, 'a> {
     facts: &'f Facts<'b, 'a>,
     program: Program,
+    exact: BTreeMap<&'a str, scalars::Scalar>,
     /// A stable number for each symbol, standing in for the frontend's own.
     numbers: BTreeMap<&'a str, u32>,
     locals: BTreeMap<&'a str, u32>,
@@ -62,6 +64,7 @@ impl<'f, 'b, 'a> Collector<'f, 'b, 'a> {
         Self {
             facts,
             program: empty(arithmetic),
+            exact: scalars::known(facts, arithmetic),
             numbers: facts.symbol_numbers(),
             locals: BTreeMap::new(),
             loops: Vec::new(),

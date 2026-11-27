@@ -15,6 +15,7 @@ pub struct Tables<'a> {
     wording: Wording,
     /// The unit's language, the namespace of its contracts.
     language: &'a str,
+    extensions: Option<&'a serde_json::Map<String, serde_json::Value>>,
 }
 
 impl<'a> Tables<'a> {
@@ -25,12 +26,18 @@ impl<'a> Tables<'a> {
             unbounded_integers: unit.semantics.integer_overflow == "unbounded",
             wording: Wording::of(&unit.language.name),
             language: &unit.language.name,
+            extensions: unit.extensions.as_ref(),
         })
     }
 
     /// The unit's language, such as `cxx`, which keys its contracts.
     pub fn language(&self) -> &'a str {
         self.language
+    }
+
+    /// A registered, namespaced unit fact, if this producer emitted it.
+    pub fn extension(&self, key: &str) -> Option<&'a serde_json::Value> {
+        self.extensions?.get(key)
     }
 
     /// The terms the unit's messages use.

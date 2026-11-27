@@ -139,6 +139,11 @@ impl<'a> Collector<'_, '_, 'a> {
     }
 
     pub(super) fn value(&self, expression: &'a Node) -> Value {
+        if let Some(super::scalars::Scalar::Int(n)) = self.exact.get(expression.id.as_str())
+            && let Ok(n) = u64::try_from(*n)
+        {
+            return Value::Const(n);
+        }
         if let Some(variable) = self.local_id(expression) {
             return Value::Variable(variable);
         }

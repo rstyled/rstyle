@@ -85,6 +85,7 @@ pub struct Contract {
 struct File {
     schema: String,
     namespace: String,
+    scalar: Option<ScalarProfile>,
     #[serde(default)]
     contract: Vec<Entry>,
     #[serde(default)]
@@ -121,10 +122,26 @@ struct Entry {
     operations: Vec<String>,
 }
 
+/// A frontend opting into fixed-width, two's-complement scalar evaluation supplies
+/// canonical operation keys. Division truncates toward zero, shifts do not mask their
+/// count, and string indices and lengths count bytes. Arithmetic also requires a
+/// unit that explicitly declares wrapping overflow.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScalarProfile {
+    pub true_constant: String,
+    pub false_constant: String,
+    pub unary_plus: String,
+    pub byte_length: String,
+    pub byte_constants: String,
+    pub exact_integer_types: Vec<String>,
+}
+
 /// Contracts by namespaced operation key.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Contracts {
     operations: BTreeMap<String, Contract>,
+    scalar: BTreeMap<String, ScalarProfile>,
     stages: BTreeMap<String, Iteration<StageEffect>>,
     consumers: BTreeMap<String, Iteration<ConsumerEffect>>,
     extents: BTreeMap<String, Extent>,
@@ -168,6 +185,10 @@ fn declare<'a, T: Clone>(
 }
 
 impl Contracts {
+    pub fn scalar(&self, namespace: &str) -> Option<&ScalarProfile> {
+        self.scalar.get(namespace)
+    }
+
     /// The contracts compiled into the engine.
     pub fn embedded() -> &'static Self {
         static CONTRACTS: OnceLock<Contracts> = OnceLock::new();
@@ -199,6 +220,14 @@ impl Contracts {
         let file = File::parse(text)?;
 
         let namespace = file.namespace.as_str();
+        if let Some(profile) = &file.scalar
+            && self
+                .scalar
+                .insert(namespace.into(), profile.clone())
+                .is_some()
+        {
+            return Err(format!("Duplicate scalar semantics for {namespace}"));
+        }
         let steps = file.contract.iter().map(|entry| {
             let contract = Contract {
                 steps: entry.steps.clone(),
