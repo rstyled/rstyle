@@ -6,12 +6,17 @@ use super::{Node, NodeKind, Scalar, TypeKind, Walk};
 pub(in crate::cpg::bounds) enum Address {
     Local(String),
     Heap(usize),
+    Array(super::storage::View),
     Cell(usize, usize),
     Field(Box<Address>, String),
 }
 
 impl<'a> Walk<'_, '_, 'a> {
     pub(super) fn fresh_pointer(&mut self, value: Scalar) -> Option<Scalar> {
+        if let Scalar::Sequence(items) = value {
+            let view = self.array_view(items)?;
+            return Some(Scalar::Pointer(Some(Address::Array(view))));
+        }
         if self.heap.len() >= super::storage::MAX_ITEMS {
             return None;
         }
@@ -75,6 +80,12 @@ impl<'a> Walk<'_, '_, 'a> {
 
     pub(super) fn pointed(&self, addr: &Address) -> Option<Scalar> {
         match addr {
+            Address::Array(view) => {
+                let items = (0..view.len)
+                    .map(|i| self.element(*view, i).cloned())
+                    .collect::<Option<Vec<_>>>()?;
+                Some(Scalar::Sequence(items.into()))
+            }
             Address::Local(id) => self.local_value(id),
             Address::Heap(i) => self.heap.get(*i).cloned(),
             Address::Cell(slot, i) => self.buffers.get(*slot)?.get(*i).cloned(),
@@ -89,6 +100,18 @@ impl<'a> Walk<'_, '_, 'a> {
 
     pub(super) fn write_address(&mut self, addr: &Address, value: Scalar) -> Option<()> {
         match addr {
+            Address::Array(view) => {
+                let Scalar::Sequence(items) = value else {
+                    return None;
+                };
+                if view.len != items.len() {
+                    return None;
+                }
+                for (i, x) in items.iter().enumerate() {
+                    self.set(*view, i, x.clone())?;
+                }
+                Some(())
+            }
             Address::Local(id) => {
                 let (&symbol, _) = self.locals.get_key_value(id.as_str())?;
                 self.store(symbol, value)

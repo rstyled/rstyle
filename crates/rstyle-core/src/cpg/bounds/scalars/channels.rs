@@ -83,6 +83,51 @@ impl<'a> Walk<'_, '_, 'a> {
         Some(Scalar::Nil)
     }
 
+    pub(super) fn channel_range(
+        &mut self,
+        node: &'a Node,
+        slot: usize,
+        depth: usize,
+    ) -> Option<()> {
+        let bind = self.child(node, 0)?;
+        let body = self.child(node, 2)?;
+        if !self.channels.get(slot)?.closed || !self.range_body(body, depth)? {
+            return None;
+        }
+        let symbol = match bind.kind {
+            NodeKind::PatternBinding => Some(self.binding(bind)?),
+            NodeKind::PatternWildcard => None,
+            _ => return None,
+        };
+        while let Some(item) = self.channels.get_mut(slot)?.queue.pop_front() {
+            if let Some(s) = symbol {
+                self.store(s, self.for_storage(bind, item)?)?;
+            }
+            // A repeated node can have a different value on every visit. Record
+            // only the state at subsequent, singly reached expression sites.
+            let outer = std::mem::take(&mut self.values);
+            let done = self.statement(body, depth + 1);
+            self.values = outer;
+            done?;
+        }
+        Some(())
+    }
+
+    fn range_body(&mut self, node: &Node, depth: usize) -> Option<bool> {
+        self.enter(node, depth)?;
+        // Each declared iteration variable has fresh addressable storage.
+        // Stop before its address or a closure could retain a prior instance.
+        if matches!(node.kind, NodeKind::Reference | NodeKind::Closure) {
+            return Some(false);
+        }
+        for id in &node.children {
+            if !self.range_body(self.facts.body.node(id).ok()?, depth + 1)? {
+                return Some(false);
+            }
+        }
+        Some(true)
+    }
+
     pub(super) fn send(&mut self, node: &'a Node, depth: usize) -> Option<()> {
         let source = self.child(node, 0)?;
         let Scalar::Channel(Some(slot)) = self.value(source, depth)? else {

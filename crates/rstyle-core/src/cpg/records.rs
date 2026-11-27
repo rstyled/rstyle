@@ -427,6 +427,9 @@ fn flow_of(
         super::flow::attach_range_items(tables, function, &mut derived);
         super::flow::attach_iterator_calls(tables, function, &mut derived);
         super::flow::attach_go_frames(tables, function, &mut derived);
+        super::flow::attach_output(tables, function, &mut derived);
+        super::flow::attach_call_returns(tables, function, &mut derived);
+        super::flow::attach_panic_paths(tables, function, &mut derived);
         super::flow::attach_select_cases(function, &mut derived);
         derived
     })

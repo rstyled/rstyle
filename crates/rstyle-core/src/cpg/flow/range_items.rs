@@ -13,6 +13,8 @@ const ITEM_LIMIT: usize = 256;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RangeItems {
     pub order: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub map_updates: BTreeMap<String, super::map_updates::Update>,
     /// Whether array/slice iteration needs to read the stored element.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub load_element: Option<bool>,
@@ -170,7 +172,7 @@ impl Range<'_> {
             .children
             .get(1)
             .and_then(|id| self.body.node(id).ok());
-        binding.kind == NodeKind::PatternTuple
+        matches!(binding.kind, NodeKind::Tuple | NodeKind::PatternTuple)
             && second.is_some_and(|n| {
                 n.kind != NodeKind::PatternWildcard && n.original_kind != "Ident.blank"
             })
@@ -218,6 +220,7 @@ impl Range<'_> {
             }
         };
         Some(RangeItems {
+            map_updates: BTreeMap::new(),
             load_element: (ty.kind == TypeKind::Sequence).then(|| self.loads_element(head)),
             order: order.into(),
             components,
@@ -268,13 +271,17 @@ pub(crate) fn attach(tables: &Tables<'_>, function: &Function, derived: &mut Der
         body: &body,
         values,
     };
-    super::each_reached(function, derived, |_, reached, own| {
+    super::each_reached(function, derived, |graph, reached, own| {
         for head in function.nodes.iter().filter(|n| {
             n.kind == NodeKind::For
                 && n.original_kind == "RangeStmt"
                 && reached.contains(n.id.as_str())
         }) {
-            if let Some(result) = ranges.result(head) {
+            if let Some(mut result) = ranges.result(head) {
+                if result.order == "unspecified" {
+                    result.map_updates =
+                        super::map_updates::derive(function, graph, (&body, tables), head);
+                }
                 own.range_items.insert(head.id.clone(), result);
             }
         }

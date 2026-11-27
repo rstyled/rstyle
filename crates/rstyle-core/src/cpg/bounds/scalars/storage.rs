@@ -5,7 +5,7 @@ use super::{Node, NodeKind, Scalar, Walk};
 use crate::cpg::model::{Type, TypeKind};
 use std::sync::Arc;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(in crate::cpg::bounds) struct View {
     slot: Option<usize>,
     first: usize,
@@ -14,8 +14,35 @@ pub(in crate::cpg::bounds) struct View {
 }
 
 impl View {
+    pub(super) fn array_address(self, n: usize) -> Option<Scalar> {
+        if n > self.len {
+            return None;
+        }
+        Some(Scalar::Pointer(self.slot.map(|_| {
+            super::pointers::Address::Array(Self {
+                len: n,
+                capacity: Some(n),
+                ..self
+            })
+        })))
+    }
     pub(super) fn position(self, index: usize) -> Option<(usize, usize)> {
         (index < self.len).then_some((self.slot?, self.first + index))
+    }
+    pub(super) fn window(slot: usize, first: usize, len: usize) -> Self {
+        Self {
+            slot: Some(slot),
+            first,
+            len,
+            capacity: Some(len),
+        }
+    }
+    pub(super) fn data(self) -> Option<Option<(usize, usize)>> {
+        if self == Self::nil() {
+            return Some(None);
+        }
+        (self.len > 0 || self.capacity.is_some_and(|c| c > 0))
+            .then_some(Some((self.slot?, self.first)))
     }
     pub(super) fn nil() -> Self {
         Self {
@@ -43,11 +70,13 @@ impl<'a> Walk<'_, '_, 'a> {
         Some(match ty.kind {
             TypeKind::Integer => Scalar::Int(0),
             TypeKind::Bool => Scalar::Bool(false),
+            TypeKind::Interface => Scalar::Interface(None),
             TypeKind::Float if matches!(ty.bits, Some(32 | 64)) => Scalar::Real(0.),
             TypeKind::Opaque if self.complex_width(ty).is_some() => Scalar::Complex(0., 0.),
             TypeKind::String => Scalar::Text(Vec::new()),
             TypeKind::Map => Scalar::Map(None),
             TypeKind::Reference => Scalar::Pointer(None),
+            TypeKind::Pointer if self.raw_type(ty) => Scalar::RawPointer(None, None),
             TypeKind::Opaque if self.channel_element(ty).is_some() => Scalar::Channel(None),
             TypeKind::Sequence if ty.fixed == Some(false) => Scalar::Slice(View::nil()),
             TypeKind::Sequence if ty.fixed == Some(true) => {
@@ -136,7 +165,12 @@ impl<'a> Walk<'_, '_, 'a> {
                 child
             };
             if next >= fixed.unwrap_or(MAX_ITEMS)
-                || entries.insert(next, self.value(value, depth)?).is_some()
+                || entries
+                    .insert(
+                        next,
+                        self.item_value(self.facts.type_of(ty.element.as_deref()?)?, value, depth)?,
+                    )
+                    .is_some()
             {
                 return None;
             }
@@ -166,9 +200,45 @@ impl<'a> Walk<'_, '_, 'a> {
         }))
     }
 
+    pub(super) fn array_view(&mut self, items: Arc<[Scalar]>) -> Option<View> {
+        let n = items.len();
+        let slot = self.allocate(items)?;
+        Some(View {
+            slot: Some(slot),
+            first: 0,
+            len: n,
+            capacity: Some(n),
+        })
+    }
+
+    fn array_address_view(&self, addr: &super::pointers::Address, n: usize) -> Option<View> {
+        match addr {
+            super::pointers::Address::Array(v) => (v.len == n).then_some(*v),
+            super::pointers::Address::Local(id) => {
+                let slot = *self.array_slots.get(id.as_str())?;
+                (self.buffers.get(slot)?.len() == n).then_some(View {
+                    slot: Some(slot),
+                    first: 0,
+                    len: n,
+                    capacity: Some(n),
+                })
+            }
+            _ => None,
+        }
+    }
+
     pub(super) fn view(&mut self, node: &'a Node, depth: usize) -> Option<View> {
         match self.value(node, depth)? {
             Scalar::Slice(view) => Some(view),
+            Scalar::Pointer(Some(a)) => {
+                let target = self
+                    .facts
+                    .type_of(self.facts.ty(node)?.target.as_deref()?)?;
+                if target.kind != TypeKind::Sequence || target.fixed != Some(true) {
+                    return None;
+                }
+                self.array_address_view(&a, usize::try_from(target.length?).ok()?)
+            }
             Scalar::Sequence(_) => {
                 let slot = *self.array_slots.get(self.facts.local(node)?)?;
                 // Without a declared length, trailing zero-value array elements might be missing.
@@ -252,17 +322,8 @@ impl<'a> Walk<'_, '_, 'a> {
 
     pub(super) fn builtin(&mut self, node: &'a Node, op: &str, depth: usize) -> Option<Scalar> {
         let arg = self.child(node, 1)?;
-        if op == self.profile.new_variable && node.children.len() == 2 {
-            let ptr = self.facts.ty(node)?;
-            if ptr.kind != TypeKind::Reference || ptr.target != arg.ty || ptr.target.is_none() {
-                return None;
-            }
-            let value = if arg.kind == NodeKind::TypeAnnotation {
-                self.zero(self.facts.ty(arg)?)?
-            } else {
-                self.value(arg, depth)?
-            };
-            return self.fresh_pointer(value);
+        if op == self.profile.new_variable {
+            return self.new_variable(node, arg, depth);
         }
         if self.channel_element(self.facts.ty(arg)?).is_some() {
             return self.channel_builtin(node, op, depth);
@@ -305,9 +366,27 @@ impl<'a> Walk<'_, '_, 'a> {
         None
     }
 
+    fn new_variable(&mut self, node: &Node, arg: &'a Node, depth: usize) -> Option<Scalar> {
+        let ptr = self.facts.ty(node)?;
+        if node.children.len() != 2
+            || ptr.kind != TypeKind::Reference
+            || ptr.target != arg.ty
+            || ptr.target.is_none()
+        {
+            return None;
+        }
+        let value = if arg.kind == NodeKind::TypeAnnotation {
+            self.zero(self.facts.ty(arg)?)?
+        } else {
+            self.value(arg, depth)?
+        };
+        self.fresh_pointer(value)
+    }
+
     fn size(&mut self, arg: &'a Node, op: &str, depth: usize) -> Option<Scalar> {
         let size = match self.value(arg, depth)? {
             Scalar::Text(bytes) if op == self.profile.byte_length => bytes.len(),
+            Scalar::StringView(view) if op == self.profile.byte_length => view.len,
             Scalar::Slice(v) => {
                 if op == self.profile.capacity {
                     v.capacity?

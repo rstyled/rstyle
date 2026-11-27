@@ -8,6 +8,10 @@ pub(super) enum Key {
     Int(i128),
     Bool(bool),
     Bytes(Vec<u8>),
+    Array(Vec<Key>),
+    Dynamic(String, Box<Key>),
+    NilInterface,
+    Record(Vec<(String, Key)>),
 }
 
 type Items = BTreeMap<Key, Scalar>;
@@ -15,16 +19,70 @@ pub(super) type Maps = Vec<Items>;
 
 impl Key {
     pub(super) fn of(v: Scalar) -> Option<Self> {
+        let mut remaining = super::storage::MAX_ITEMS;
+        Self::part(&v, &mut remaining)
+    }
+
+    fn part(v: &Scalar, remaining: &mut usize) -> Option<Self> {
+        *remaining = remaining.checked_sub(1)?;
         match v {
-            Scalar::Int(n) => Some(Self::Int(n)),
-            Scalar::Bool(b) => Some(Self::Bool(b)),
-            Scalar::Text(s) => Some(Self::Bytes(s)),
+            Scalar::Int(n) => Some(Self::Int(*n)),
+            Scalar::Bool(b) => Some(Self::Bool(*b)),
+            Scalar::Text(s) => Some(Self::Bytes(s.clone())),
+            Scalar::Interface(None) => Some(Self::NilInterface),
+            // Any dynamic key's type must be canonicalized by map_key first.
+            Scalar::Sequence(a) => Some(Self::Array(
+                a.iter()
+                    .map(|x| Self::part(x, remaining))
+                    .collect::<Option<_>>()?,
+            )),
+            Scalar::Record(fields) => Some(Self::Record(
+                fields
+                    .iter()
+                    .filter(|(name, _)| name.as_str() != "_")
+                    .map(|(n, v)| Some((n.clone(), Self::part(v, remaining)?)))
+                    .collect::<Option<_>>()?,
+            )),
             _ => None,
         }
     }
 }
 
 impl<'a> Walk<'_, '_, 'a> {
+    pub(super) fn map_key(&mut self, map: &Node, node: &'a Node, depth: usize) -> Option<Key> {
+        let declared = self
+            .facts
+            .type_of(self.facts.ty(map)?.key_type.as_deref()?)?;
+        let v = self.value(node, depth)?;
+        if declared.kind != TypeKind::Interface {
+            return Key::of(v);
+        }
+        let Scalar::Interface(pair) = self.interface_value(declared, node, v)? else {
+            return None;
+        };
+        let Some(pair) = pair else {
+            return Some(Key::NilInterface);
+        };
+        let ty = self.facts.type_of(&pair.0)?;
+        // Structural identities (including type aliases in a composite) require a
+        // canonical identity before they can be used as a dynamic map key.
+        if !matches!(
+            ty.kind,
+            TypeKind::Integer | TypeKind::String | TypeKind::Bool
+        ) {
+            return None;
+        }
+        let identity = if ty.definition.is_some() {
+            ty.id.as_str()
+        } else {
+            super::interfaces::primitive(ty)?
+        };
+        Some(Key::Dynamic(
+            identity.to_owned(),
+            Box::new(Key::of(pair.1)?),
+        ))
+    }
+
     fn map(&mut self, items: Items) -> Option<Scalar> {
         if self.maps.len() >= super::storage::MAX_ITEMS {
             return None;
@@ -45,8 +103,13 @@ impl<'a> Walk<'_, '_, 'a> {
             if pair.kind != NodeKind::Tuple || pair.children.len() != 2 {
                 return None;
             }
-            let key = Key::of(self.value(self.child(pair, 0)?, depth)?)?;
-            let value = self.value(self.child(pair, 1)?, depth)?;
+            let key = self.map_key(node, self.child(pair, 0)?, depth)?;
+            let value = self.item_value(
+                self.facts
+                    .type_of(self.facts.ty(node)?.value_type.as_deref()?)?,
+                self.child(pair, 1)?,
+                depth,
+            )?;
             // The specification leaves the order of conflicting map literal stores open.
             if items.insert(key, value).is_some() {
                 return None;
@@ -101,7 +164,7 @@ impl<'a> Walk<'_, '_, 'a> {
             return Some(Scalar::Nil);
         }
         if op == self.profile.delete && node.children.len() == 3 {
-            let key = Key::of(self.value(self.child(node, 2)?, depth)?)?;
+            let key = self.map_key(arg, self.child(node, 2)?, depth)?;
             if let Some(i) = slot {
                 self.maps.get_mut(i)?.remove(&key);
             }
@@ -126,7 +189,7 @@ impl<'a> Walk<'_, '_, 'a> {
         let Scalar::Map(slot) = self.value(base, depth)? else {
             return None;
         };
-        let key = Key::of(self.value(self.child(rhs, 1)?, depth)?)?;
+        let key = self.map_key(base, self.child(rhs, 1)?, depth)?;
         let (item, hit) = self.lookup(base, slot, key)?;
         self.pair_bindings(pattern, item, hit)
     }

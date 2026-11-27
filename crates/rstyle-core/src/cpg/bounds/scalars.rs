@@ -4,16 +4,19 @@
 //! that might change a local outside this model, transfer control, or call user code
 //! ends the walk. The ordinary bounds lowering still accounts for all execution costs.
 
+mod address_words;
 mod aggregates;
 mod calls;
 mod channels;
 mod constants;
 mod conversions;
 mod floats;
+mod interfaces;
 mod maps;
 mod operations;
 mod pointers;
 mod storage;
+mod unsafe_memory;
 
 use super::super::model::{DefinitionKind, Literal, Node, NodeKind, RefStatus, TypeKind};
 use super::facts::Facts;
@@ -29,12 +32,17 @@ pub(super) enum Scalar {
     Real(f64),
     Complex(f64, f64),
     Text(Vec<u8>),
+    StringView(storage::View),
+    RawPointer(Option<pointers::Address>, Option<String>),
+    AddressWord(address_words::Word),
     Sequence(Arc<[Scalar]>),
     Slice(storage::View),
     Map(Option<usize>),
     Channel(Option<usize>),
     Pointer(Option<pointers::Address>),
     Callable(String),
+    BoundMethod(String, Box<Scalar>),
+    Interface(Option<Box<(String, Scalar)>>),
     Nil,
     Record(Arc<BTreeMap<String, Scalar>>),
 }
@@ -130,43 +138,40 @@ impl<'a> Walk<'_, '_, 'a> {
     }
 
     fn for_storage(&self, place: &Node, value: Scalar) -> Option<Scalar> {
-        match (&value, self.facts.ty(place)?.kind) {
+        let ty = self.facts.ty(place)?;
+        match (&value, ty.kind) {
+            (Scalar::AddressWord(_), TypeKind::Integer) if self.uintptr(ty) => Some(value),
             (Scalar::Int(n), TypeKind::Integer)
-                if operations::narrow(*n, self.facts.integer(self.facts.ty(place))?) == *n =>
+                if operations::narrow(*n, self.facts.integer(Some(ty))?) == *n =>
             {
                 Some(value)
             }
             (Scalar::Int(_), TypeKind::Opaque) if self.unbounded_integer(place) => Some(value),
-            (Scalar::Nil, TypeKind::Sequence) if self.facts.ty(place)?.fixed == Some(false) => {
+            (Scalar::Nil, TypeKind::Sequence) if ty.fixed == Some(false) => {
                 Some(Scalar::Slice(storage::View::nil()))
             }
             (Scalar::Real(_), TypeKind::Float) => Some(value),
-            (Scalar::Complex(_, _), TypeKind::Opaque)
-                if self.complex_width(self.facts.ty(place)?).is_some() =>
-            {
+            (Scalar::Complex(_, _), TypeKind::Opaque) if self.complex_width(ty).is_some() => {
                 Some(value)
             }
             (Scalar::Nil, TypeKind::Map) => Some(Scalar::Map(None)),
+            (v @ Scalar::Interface(_), TypeKind::Interface) => Some(v.clone()),
             (Scalar::Map(_), TypeKind::Map)
             | (Scalar::Pointer(_), TypeKind::Reference)
-            | (Scalar::Callable(_), TypeKind::Function) => Some(value),
+            | (Scalar::Callable(_) | Scalar::BoundMethod(_, _), TypeKind::Function) => Some(value),
+            (Scalar::RawPointer(_, _), TypeKind::Pointer) if self.raw_type(ty) => Some(value),
+            (Scalar::Nil, TypeKind::Pointer) if self.raw_type(ty) => {
+                Some(Scalar::RawPointer(None, None))
+            }
             (Scalar::Nil, TypeKind::Reference) => Some(Scalar::Pointer(None)),
-            (Scalar::Channel(_), TypeKind::Opaque)
-                if self.channel_element(self.facts.ty(place)?).is_some() =>
-            {
+            (Scalar::Channel(_), TypeKind::Opaque) if self.channel_element(ty).is_some() => {
                 Some(value)
             }
-            (Scalar::Nil, TypeKind::Opaque)
-                if self.channel_element(self.facts.ty(place)?).is_some() =>
-            {
+            (Scalar::Nil, TypeKind::Opaque) if self.channel_element(ty).is_some() => {
                 Some(Scalar::Channel(None))
             }
-            (Scalar::Slice(_), TypeKind::Sequence)
-                if self.facts.ty(place)?.fixed == Some(false) =>
-            {
-                Some(value)
-            }
-            (Scalar::Text(_), TypeKind::String)
+            (Scalar::Slice(_), TypeKind::Sequence) if ty.fixed == Some(false) => Some(value),
+            (Scalar::Text(_) | Scalar::StringView(_), TypeKind::String)
             | (Scalar::Bool(_), TypeKind::Bool)
             | (Scalar::Sequence(_), TypeKind::Sequence)
             | (Scalar::Record(_), TypeKind::Record) => Some(value),
@@ -199,8 +204,12 @@ impl<'a> Walk<'_, '_, 'a> {
             ) => self.assignment_statement(node, depth),
             (NodeKind::If, 2 | 3) => self.branch(node, depth),
             (NodeKind::For, 3) => {
-                self.value(self.child(node, 1)?, depth + 1);
-                None
+                let operand = self.child(node, 1)?;
+                let source = self.value(operand, depth + 1)?;
+                let Scalar::Channel(Some(slot)) = source else {
+                    return None;
+                };
+                self.channel_range(node, slot, depth + 1)
             }
             (NodeKind::Call, _) => {
                 self.write_at = Some(&node.id);
@@ -294,6 +303,11 @@ impl<'a> Walk<'_, '_, 'a> {
                 self.map_literal(node, depth + 1)?
             }
             (NodeKind::Array, _) => self.array(node, depth + 1)?,
+            (NodeKind::Extension, 1)
+                if node.extension.as_deref() == Some(&self.profile.method_value) =>
+            {
+                self.method_value(node, depth)?
+            }
             (NodeKind::Extension, _)
                 if node.extension.as_deref() == Some(self.profile.slice_expression.as_str()) =>
             {
@@ -354,23 +368,9 @@ impl<'a> Walk<'_, '_, 'a> {
                 TypeKind::Float | TypeKind::Opaque,
             ) => self.convert_numeric(&v, self.facts.ty(node)?)?,
             (v @ Scalar::Nil, _) => v,
-            (v @ Scalar::Map(_), TypeKind::Map)
-            | (v @ Scalar::Pointer(_), TypeKind::Reference)
-            | (v @ Scalar::Callable(_), TypeKind::Function) => v,
-            (v @ Scalar::Channel(_), TypeKind::Opaque)
-                if self.channel_element(self.facts.ty(node)?).is_some() =>
-            {
-                v
+            (v, _) if !matches!(v, Scalar::Int(_) | Scalar::Real(_) | Scalar::Complex(_, _)) => {
+                self.for_storage(node, v)?
             }
-            (v @ Scalar::Slice(_), TypeKind::Sequence)
-                if self.facts.ty(node)?.fixed == Some(false) =>
-            {
-                v
-            }
-            (v @ Scalar::Bool(_), TypeKind::Bool)
-            | (v @ Scalar::Text(_), TypeKind::String)
-            | (v @ Scalar::Sequence(_), TypeKind::Sequence)
-            | (v @ Scalar::Record(_), TypeKind::Record) => v,
             _ => return None,
         };
         if runtime {
@@ -466,6 +466,38 @@ impl<'a> Walk<'_, '_, 'a> {
             2 => Some(self.value(self.child(node, 1)?, depth + 1)?),
             _ => None,
         };
+        self.binary_value(node, (first, second), depth)
+    }
+
+    fn binary_value(
+        &mut self,
+        node: &'a Node,
+        (first, second): (Scalar, Option<Scalar>),
+        depth: usize,
+    ) -> Option<Scalar> {
+        let op = node.operator.as_deref()?;
+        if matches!(first, Scalar::AddressWord(_)) || matches!(second, Some(Scalar::AddressWord(_)))
+        {
+            return self.word_operation(op, first, second?);
+        }
+        if matches!(first, Scalar::StringView(_)) || matches!(second, Some(Scalar::StringView(_))) {
+            let a = self.read_string(first)?;
+            let b = self.read_string(second?)?;
+            return operations::apply(self.profile, op, (a, Some(b)), (None, false));
+        }
+        if matches!(op, "eq" | "ne")
+            && second.is_some()
+            && (matches!(
+                first,
+                Scalar::Interface(_) | Scalar::Sequence(_) | Scalar::Record(_)
+            ) || matches!(second, Some(Scalar::Interface(_)))
+                || matches!(
+                    (&first, &second),
+                    (Scalar::Pointer(_), Some(Scalar::Pointer(_)))
+                ))
+        {
+            return self.equality(node, (first, second?), depth);
+        }
         if matches!(first, Scalar::Real(_) | Scalar::Complex(_, _)) {
             return self.floating_op(node, op, (first, second));
         }
@@ -479,24 +511,35 @@ impl<'a> Walk<'_, '_, 'a> {
 
     fn index_value(&mut self, node: &'a Node, depth: usize) -> Option<Scalar> {
         let base = self.value(self.child(node, 0)?, depth + 1)?;
+        if let Scalar::Map(slot) = base {
+            let map = self.child(node, 0)?;
+            let key = self.map_key(map, self.child(node, 1)?, depth + 1)?;
+            return Some(self.lookup(map, slot, key)?.0);
+        }
         let key = self.value(self.child(node, 1)?, depth + 1)?;
+        let Scalar::Int(i) = key else {
+            return None;
+        };
+        let i = usize::try_from(i).ok()?;
         Some(match base {
-            Scalar::Map(slot) => {
-                self.lookup(self.child(node, 0)?, slot, maps::Key::of(key)?)?
-                    .0
-            }
-            base => {
-                let Scalar::Int(i) = key else {
+            Scalar::Pointer(Some(addr)) => {
+                let elem = self
+                    .facts
+                    .type_of(self.facts.ty(self.child(node, 0)?)?.target.as_deref()?)?
+                    .element
+                    .as_deref()?;
+                if Some(elem) != node.ty.as_deref() {
+                    return None;
+                }
+                let Scalar::Sequence(items) = self.pointed(&addr)? else {
                     return None;
                 };
-                let i = usize::try_from(i).ok()?;
-                match base {
-                    Scalar::Text(s) => Scalar::Int(i128::from(*s.get(i)?)),
-                    Scalar::Sequence(items) => items.get(i)?.clone(),
-                    Scalar::Slice(view) => self.element(view, i)?.clone(),
-                    _ => return None,
-                }
+                items.get(i)?.clone()
             }
+            Scalar::Text(s) => Scalar::Int(i128::from(*s.get(i)?)),
+            Scalar::Sequence(items) => items.get(i)?.clone(),
+            Scalar::Slice(view) | Scalar::StringView(view) => self.element(view, i)?.clone(),
+            _ => return None,
         })
     }
 }

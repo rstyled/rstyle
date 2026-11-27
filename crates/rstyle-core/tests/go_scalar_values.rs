@@ -84,3 +84,106 @@ fn a_field_bound_to_the_wrong_pointer_target_cannot_produce_a_value() {
     named["target"] = int_id;
     assert_eq!(result(doc)["namedPtr"], None);
 }
+
+fn methods() -> Value {
+    serde_json::from_str(include_str!("../src/cpg/testdata/methods-go.cpg.json")).unwrap()
+}
+
+#[test]
+fn dynamic_and_bound_calls_follow_the_receiver_value() {
+    let values = result(methods());
+    for (name, n) in [
+        ("callA", 6),
+        ("callB", 12),
+        ("bound", 13),
+        ("assertA", 4),
+        ("assertB", 3),
+    ] {
+        assert_eq!(
+            values[name],
+            Some(ExactValue::Integer(n.to_string())),
+            "{name}"
+        );
+    }
+    assert_eq!(values["typedNil"], Some(ExactValue::Boolean(false)));
+    assert_eq!(values["incomparable"], None);
+}
+
+#[test]
+fn a_missing_dynamic_method_target_cannot_select_a_body() {
+    let mut input = methods();
+    let unit = input["unit"].as_object_mut().unwrap();
+    unit["extensions"]
+        .as_object_mut()
+        .unwrap()
+        .remove("go:method-targets");
+    let values = result(input);
+    assert_eq!(values["callA"], None);
+    assert_eq!(values["callB"], None);
+    assert_eq!(values["bound"], Some(ExactValue::Integer("13".to_string())));
+}
+
+#[test]
+fn array_pointer_writes_map_key_types_and_channel_termination_are_preserved() {
+    let values = result(
+        serde_json::from_str(include_str!(
+            "../src/cpg/testdata/array-channel-go.cpg.json"
+        ))
+        .unwrap(),
+    );
+    for (name, n) in [("arrayView", 676), ("mapKeys", 239), ("drained", 37)] {
+        assert_eq!(
+            values[name],
+            Some(ExactValue::Integer(n.to_string())),
+            "{name}"
+        );
+    }
+    assert_eq!(values["dynamicKey"], Some(ExactValue::Boolean(false)));
+    assert_eq!(values["zeroPointer"], Some(ExactValue::Boolean(true)));
+    assert_eq!(values["shortSlice"], None);
+    assert_eq!(values["openChannel"], None);
+}
+
+fn memory_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../src/cpg/testdata/unsafe-memory-go.cpg.json"
+    ))
+    .unwrap()
+}
+
+#[test]
+fn memory_views_and_symbolic_addresses_agree_with_native_go() {
+    let values = result(memory_fixture());
+    for (name, n) in [("shifted", 3), ("window", 25), ("text", 9), ("align", 3)] {
+        assert_eq!(
+            values[name],
+            Some(ExactValue::Integer(n.to_string())),
+            "{name}"
+        );
+    }
+    assert_eq!(values["field"], Some(ExactValue::Boolean(true)));
+}
+
+#[test]
+fn layout_and_operation_controls_change_the_affected_memory_result() {
+    let mut doc = memory_fixture();
+    let layouts = doc["unit"]["extensions"]["go:address-layouts"]
+        .as_object_mut()
+        .unwrap();
+    let rec = layouts
+        .values_mut()
+        .find(|lay| lay.get("offsets").is_some())
+        .unwrap();
+    rec["offsets"][1] = serde_json::json!(0);
+    let def = doc["unit"]["definitions"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|d| d["operation"] == "go:unsafe.SliceData")
+        .unwrap();
+    def["standard"] = serde_json::json!(false);
+    let values = result(doc);
+    assert_eq!(values["field"], Some(ExactValue::Boolean(false)));
+    assert_eq!(values["window"], None);
+    assert_eq!(values["shifted"], Some(ExactValue::Integer("3".into())));
+}

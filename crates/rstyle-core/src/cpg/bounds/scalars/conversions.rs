@@ -36,16 +36,28 @@ fn runes(mut bytes: &[u8]) -> Option<Vec<Scalar>> {
 
 impl<'a> Walk<'_, '_, 'a> {
     pub(super) fn convert(&mut self, node: &'a Node, depth: usize) -> Option<Scalar> {
+        if node.original_kind == self.profile.type_assertion {
+            let (v, ok) = self.asserted(node, depth, false)?;
+            return ok.then_some(v);
+        }
         let arg = self.child(node, 0)?;
         let to = self.facts.ty(node)?;
         let from = self.facts.ty(arg)?;
-        let saved = self.round_at;
-        if to.id == from.id && (to.kind == TypeKind::Float || self.complex_width(to).is_some()) {
-            self.round_at = Some(&arg.id);
+        let value = self.rounded_argument(arg, to, depth)?;
+        if to.kind == TypeKind::Interface {
+            return self.interface_value(to, arg, value);
         }
-        let value = self.value(arg, depth);
-        self.round_at = saved;
-        let value = value?;
+        if let Scalar::Slice(view) = &value
+            && to.kind == TypeKind::Reference
+        {
+            return self.slice_pointer(*view, (from, to));
+        }
+        if value == Scalar::Nil {
+            return self.for_storage(node, value);
+        }
+        if self.raw_type(to) || self.raw_type(from) {
+            return self.pointer_cast(to, from, value);
+        }
         if let Some(v) = self.convert_numeric(&value, to) {
             return Some(v);
         }
@@ -66,17 +78,50 @@ impl<'a> Walk<'_, '_, 'a> {
             (Scalar::Slice(view), TypeKind::Sequence)
                 if to.fixed == Some(true) && from.element == to.element =>
             {
-                let length = usize::try_from(to.length?).ok()?;
-                if length > view.len {
-                    return None;
-                }
-                let items = (0..length)
-                    .map(|i| self.element(view, i).cloned())
-                    .collect::<Option<Vec<_>>>()?;
-                Some(Scalar::Sequence(items.into()))
+                self.slice_array(view, usize::try_from(to.length?).ok()?)
             }
             _ => None,
         }
+    }
+    fn slice_array(&self, view: super::storage::View, length: usize) -> Option<Scalar> {
+        if length > view.len {
+            return None;
+        }
+        let items = (0..length)
+            .map(|index| self.element(view, index).cloned())
+            .collect::<Option<Vec<_>>>()?;
+        Some(Scalar::Sequence(items.into()))
+    }
+
+    fn slice_pointer(
+        &self,
+        view: super::storage::View,
+        (from, to): (&crate::cpg::model::Type, &crate::cpg::model::Type),
+    ) -> Option<Scalar> {
+        let array = self.facts.type_of(to.target.as_deref()?)?;
+        if from.kind != TypeKind::Sequence
+            || from.fixed != Some(false)
+            || array.fixed != Some(true)
+            || array.element != from.element
+        {
+            return None;
+        }
+        view.array_address(usize::try_from(array.length?).ok()?)
+    }
+    fn rounded_argument(
+        &mut self,
+        arg: &'a Node,
+        to: &crate::cpg::model::Type,
+        depth: usize,
+    ) -> Option<Scalar> {
+        let from = self.facts.ty(arg)?;
+        let saved = self.round_at;
+        if to.id == from.id && (to.kind == TypeKind::Float || self.complex_width(to).is_some()) {
+            self.round_at = Some(&arg.id);
+        }
+        let value = self.value(arg, depth);
+        self.round_at = saved;
+        value
     }
     fn text_slice(&mut self, bytes: Vec<u8>, to: &crate::cpg::model::Type) -> Option<Scalar> {
         let element = self

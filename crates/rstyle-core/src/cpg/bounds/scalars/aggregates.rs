@@ -25,6 +25,20 @@ impl<'a> Walk<'_, '_, 'a> {
         depth: usize,
     ) -> Option<()> {
         if place.kind == NodeKind::PatternTuple
+            && rhs.kind == NodeKind::Cast
+            && kind == NodeKind::LocalDeclaration
+        {
+            let (item, ok) = self.asserted(rhs, depth, true)?;
+            return self.pair_bindings(place, item, ok);
+        }
+        if place.kind == NodeKind::Tuple
+            && rhs.kind == NodeKind::Tuple
+            && kind == NodeKind::Assignment
+            && place.children.len() == rhs.children.len()
+        {
+            return self.parallel_bindings(place, rhs, depth);
+        }
+        if place.kind == NodeKind::PatternTuple
             && rhs.kind == NodeKind::Operator
             && rhs.operator.as_deref() == Some(&self.profile.receive)
             && rhs.children.len() == 1
@@ -85,12 +99,17 @@ impl<'a> Walk<'_, '_, 'a> {
         if place.kind == NodeKind::PatternWildcard {
             return Some(());
         }
-        if matches!(value, Scalar::Pointer(Some(_)))
+        if self.facts.ty(place)?.kind != TypeKind::Interface
+            && matches!(value, Scalar::Pointer(Some(_)))
             && self.facts.ty(place)?.target != self.facts.ty(rhs)?.target
         {
             return None;
         }
-        let value = self.for_storage(place, value)?;
+        let value = if self.facts.ty(place)?.kind == TypeKind::Interface {
+            self.interface_value(self.facts.ty(place)?, rhs, value)?
+        } else {
+            self.for_storage(place, value)?
+        };
         if let Some((view, i)) = indexed {
             return self.set(view, i, value);
         }
@@ -105,7 +124,13 @@ impl<'a> Walk<'_, '_, 'a> {
     }
 
     pub(super) fn record(&mut self, node: &'a Node, depth: usize) -> Option<Scalar> {
-        let fields = self.facts.ty(node)?.fields.as_deref()?;
+        let ty = self.facts.ty(node)?;
+        let record = if ty.kind == TypeKind::Reference {
+            self.facts.type_of(ty.target.as_deref()?)?
+        } else {
+            ty
+        };
+        let fields = record.fields.as_deref()?;
         if fields.len() > 128 || node.children.len() > fields.len() {
             return None;
         }
@@ -123,7 +148,11 @@ impl<'a> Walk<'_, '_, 'a> {
                 None => &fields.get(i)?.name,
             };
             let def = fields.iter().find(|field| &field.name == name)?;
-            let value = self.value(self.facts.body.node(child).ok()?, depth)?;
+            let value = self.item_value(
+                self.facts.type_of(&def.ty)?,
+                self.facts.body.node(child).ok()?,
+                depth,
+            )?;
             if items.insert(def.name.clone(), value).is_some() {
                 return None;
             }
@@ -134,14 +163,19 @@ impl<'a> Walk<'_, '_, 'a> {
                 items.insert(field.name.clone(), zero);
             }
         }
-        Some(Scalar::Record(Arc::new(items)))
+        let value = Scalar::Record(Arc::new(items));
+        if ty.kind == TypeKind::Reference {
+            self.fresh_pointer(value)
+        } else {
+            Some(value)
+        }
     }
     fn map_assign(&mut self, place: &'a Node, rhs: &'a Node, depth: usize) -> Option<()> {
         let Scalar::Map(Some(slot)) = self.value(self.child(place, 0)?, depth)? else {
             return None;
         };
-        let key = super::maps::Key::of(self.value(self.child(place, 1)?, depth)?)?;
-        let value = self.value(rhs, depth)?;
+        let key = self.map_key(self.child(place, 0)?, self.child(place, 1)?, depth)?;
+        let value = self.item_value(self.facts.ty(place)?, rhs, depth)?;
         let stored = self.for_storage(place, value)?;
         let map = self.maps.get_mut(slot)?;
         if map.len() >= super::storage::MAX_ITEMS && !map.contains_key(&key) {
@@ -157,7 +191,9 @@ impl<'a> Walk<'_, '_, 'a> {
         for (p, v) in place.children.iter().zip(&rhs.children) {
             let p = self.facts.body.node(p).ok()?;
             let value = self.value(self.facts.body.node(v).ok()?, depth)?;
-            bindings.push((self.binding(p)?, self.for_storage(p, value)?));
+            if p.kind != NodeKind::PatternWildcard {
+                bindings.push((self.binding(p)?, self.for_storage(p, value)?));
+            }
         }
         for (symbol, value) in bindings {
             self.store(symbol, value)?;

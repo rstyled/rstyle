@@ -2,13 +2,20 @@
 //! post-dominators, reaching definitions, control dependence and the dependence graph they
 //! give. Frontends emit the flow and the accesses; all of this is derived, never emitted.
 
+mod call_returns;
+pub(crate) use call_returns::attach as attach_call_returns;
+mod output;
+pub(crate) use output::attach as attach_output;
 mod go_frames;
 pub(crate) use go_frames::attach as attach_go_frames;
 mod iterator_calls;
 pub(crate) use iterator_calls::attach as attach_iterator_calls;
+mod panics;
+pub(crate) use panics::attach as attach_panic_paths;
 mod selects;
 pub(crate) use selects::attach as attach_select_cases;
 mod iteration_storage;
+mod map_updates;
 mod range_items;
 mod type_switch;
 pub(crate) use range_items::attach as attach_range_items;
@@ -654,6 +661,18 @@ pub struct ExecutionEdge {
 /// A function's derived flow facts, in terms of the node IDs of its document.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Derived {
+    /// Reachable returns at the program boundary and their effect on pending goroutines.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub program_return_exits: BTreeMap<String, String>,
+    /// Goroutine registrations with a forced unhandled panic from their entry function.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub goroutine_panics: BTreeMap<String, panics::PanicPath>,
+    /// Forced panic sources and the reachable outcomes of unwinding this frame.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub panic_paths: BTreeMap<String, panics::PanicPath>,
+    /// Ordinary calls of a function containing a direct recover, which returns nil in this invocation.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub ordinary_recovers: BTreeMap<String, Vec<String>>,
     /// Eligible communication alternatives and ordered receive destinations.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub select_cases: BTreeMap<String, selects::Selection>,
@@ -663,6 +682,10 @@ pub struct Derived {
     /// Deferred and asynchronous invocations, their saved operands and execution boundaries.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub scheduled_calls: BTreeMap<String, go_frames::Invocation>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub output: BTreeMap<String, output::Output>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub call_returns: BTreeMap<String, call_returns::CallReturn>,
     /// Result slots initialized on entry, and their explicit or implicit sources at return.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub result_slots: Vec<go_frames::ResultSlot>,
@@ -677,6 +700,9 @@ pub struct Derived {
     /// Ordered concrete type-case matches for local static call sites.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub type_switches: Vec<type_switch::TypeSwitch>,
+    /// Counted loop declaration and renewal boundaries.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub iteration_phases: Vec<iteration_storage::IterationPhase>,
     /// Address-taking and closure sites with a known loop binding lifetime.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub iteration_storage: Vec<iteration_storage::IterationStorage>,
@@ -708,13 +734,20 @@ impl Derived {
         Self {
             standing: Standing::Unknown,
             iteration_storage: Vec::new(),
+            iteration_phases: Vec::new(),
             type_switches: Vec::new(),
             permanent_blocks: BTreeMap::new(),
             range_items: BTreeMap::new(),
+            ordinary_recovers: BTreeMap::new(),
+            panic_paths: BTreeMap::new(),
+            program_return_exits: BTreeMap::new(),
+            goroutine_panics: BTreeMap::new(),
             select_cases: BTreeMap::new(),
             range_callbacks: BTreeMap::new(),
             result_slots: Vec::new(),
             scheduled_calls: BTreeMap::new(),
+            output: BTreeMap::new(),
+            call_returns: BTreeMap::new(),
             return_sources: BTreeMap::new(),
             reasons: vec![reason],
             assumptions: Vec::new(),
@@ -944,6 +977,8 @@ fn derived_of(
     let read = (data.is_some(), capabilities, wording);
     let mut reasons = limits((function, flow), read, &aliased);
     reasons.extend(too_large);
+    let (iteration_storage, iteration_phases) =
+        iteration_storage::derive(function, flow, &dominators);
 
     Derived {
         standing: match reasons.is_empty() {
@@ -960,15 +995,22 @@ fn derived_of(
         data,
         control,
         execution: execution_edges(flow, &dominators),
-        iteration_storage: iteration_storage::derive(function, flow, &dominators),
+        iteration_storage,
+        iteration_phases,
         type_switches: Vec::new(),
         loops: loops(flow),
         permanent_blocks: permanent_blocks(function, flow),
         range_items: BTreeMap::new(),
+        ordinary_recovers: BTreeMap::new(),
+        panic_paths: BTreeMap::new(),
+        program_return_exits: BTreeMap::new(),
+        goroutine_panics: BTreeMap::new(),
         select_cases: BTreeMap::new(),
         range_callbacks: BTreeMap::new(),
         result_slots: Vec::new(),
         scheduled_calls: BTreeMap::new(),
+        output: BTreeMap::new(),
+        call_returns: BTreeMap::new(),
         return_sources: BTreeMap::new(),
         closures: BTreeMap::new(),
     }
