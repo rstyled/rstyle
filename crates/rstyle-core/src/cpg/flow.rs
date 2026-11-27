@@ -2,6 +2,12 @@
 //! post-dominators, reaching definitions, control dependence and the dependence graph they
 //! give. Frontends emit the flow and the accesses; all of this is derived, never emitted.
 
+mod go_frames;
+pub(crate) use go_frames::attach as attach_go_frames;
+mod iterator_calls;
+pub(crate) use iterator_calls::attach as attach_iterator_calls;
+mod selects;
+pub(crate) use selects::attach as attach_select_cases;
 mod iteration_storage;
 mod range_items;
 mod type_switch;
@@ -648,6 +654,20 @@ pub struct ExecutionEdge {
 /// A function's derived flow facts, in terms of the node IDs of its document.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Derived {
+    /// Eligible communication alternatives and ordered receive destinations.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub select_cases: BTreeMap<String, selects::Selection>,
+    /// Function-range callback argument transport and legal continuations.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub range_callbacks: BTreeMap<String, iterator_calls::Callback>,
+    /// Deferred and asynchronous invocations, their saved operands and execution boundaries.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub scheduled_calls: BTreeMap<String, go_frames::Invocation>,
+    /// Result slots initialized on entry, and their explicit or implicit sources at return.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub result_slots: Vec<go_frames::ResultSlot>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub return_sources: BTreeMap<String, Vec<go_frames::ResultSource>>,
     /// Types and finite items offered by range iteration.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub range_items: BTreeMap<String, range_items::RangeItems>,
@@ -691,6 +711,11 @@ impl Derived {
             type_switches: Vec::new(),
             permanent_blocks: BTreeMap::new(),
             range_items: BTreeMap::new(),
+            select_cases: BTreeMap::new(),
+            range_callbacks: BTreeMap::new(),
+            result_slots: Vec::new(),
+            scheduled_calls: BTreeMap::new(),
+            return_sources: BTreeMap::new(),
             reasons: vec![reason],
             assumptions: Vec::new(),
             dominators: BTreeMap::new(),
@@ -709,17 +734,17 @@ impl Derived {
 fn each_reached<'f>(
     function: &'f Function,
     derived: &mut Derived,
-    mut apply: impl FnMut(HashSet<&'f str>, &mut Derived),
+    mut apply: impl FnMut(&Flow<'f>, HashSet<&'f str>, &mut Derived),
 ) {
     if let Some(flow) = Flow::of(function) {
-        apply(flow.reached(), derived);
+        apply(&flow, flow.reached(), derived);
     }
     for closure in &function.cfg.closures {
         if let (Some(flow), Some(own)) = (
             Flow::of_closure(closure),
             derived.closures.get_mut(&closure.node),
         ) {
-            apply(flow.reached(), own);
+            apply(&flow, flow.reached(), own);
         }
     }
 }
@@ -940,6 +965,11 @@ fn derived_of(
         loops: loops(flow),
         permanent_blocks: permanent_blocks(function, flow),
         range_items: BTreeMap::new(),
+        select_cases: BTreeMap::new(),
+        range_callbacks: BTreeMap::new(),
+        result_slots: Vec::new(),
+        scheduled_calls: BTreeMap::new(),
+        return_sources: BTreeMap::new(),
         closures: BTreeMap::new(),
     }
 }

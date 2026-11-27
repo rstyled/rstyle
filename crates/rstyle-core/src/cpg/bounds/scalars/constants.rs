@@ -4,6 +4,7 @@ impl Walk<'_, '_, '_> {
     pub(super) fn literal(&self, node: &Node, value: &Literal) -> Option<Scalar> {
         match value.kind.as_str() {
             "integer" => Some(Scalar::Int(value.value.as_deref()?.parse().ok()?)),
+            "float" => self.floating_literal(node, value.value.as_deref()?),
             "bool" => Some(Scalar::Bool(value.value.as_deref()?.parse().ok()?)),
             "char" => {
                 let mut chars = value.value.as_deref()?.chars();
@@ -70,7 +71,46 @@ impl Walk<'_, '_, '_> {
                         .is_ok_and(|n| self.constant_tree(n, depth + 1))
                 })
             }
+            NodeKind::Call if self.constant_builtin(node) => node.children[1..].iter().all(|id| {
+                self.facts
+                    .body
+                    .node(id)
+                    .is_ok_and(|n| self.constant_tree(n, depth + 1))
+            }),
             _ => false,
         }
+    }
+
+    fn constant_builtin(&self, node: &Node) -> bool {
+        let Some(callee) = self.child(node, 0) else {
+            return false;
+        };
+        let Some(reference) = self.facts.reference(node) else {
+            return false;
+        };
+        let Some((_, def)) = self.facts.resolved(node) else {
+            return false;
+        };
+        let Some(op) = def.operation.as_deref() else {
+            return false;
+        };
+        let arity = if op == self.profile.complex_value {
+            2
+        } else if op == self.profile.real_component || op == self.profile.imaginary_component {
+            1
+        } else {
+            return false;
+        };
+        reference.status == RefStatus::Resolved
+            && reference.dispatch == Some(crate::cpg::model::Dispatch::Builtin)
+            && def.standard
+            && def.kind == DefinitionKind::Function
+            && node.children.len() == 1 + arity
+            && callee.kind == NodeKind::Identifier
+            && callee.children.is_empty()
+            && self
+                .facts
+                .resolved(callee)
+                .is_some_and(|(_, target)| target.id == def.id)
     }
 }

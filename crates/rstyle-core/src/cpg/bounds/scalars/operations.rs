@@ -30,13 +30,19 @@ fn compare(order: Ordering, op: &str) -> Option<Scalar> {
 pub(super) fn apply(
     profile: &ScalarProfile,
     op: &str,
-    a: Scalar,
-    b: Option<Scalar>,
-    width: Option<Integer>,
-    runtime: bool,
+    (a, b): (Scalar, Option<Scalar>),
+    (width, runtime): (Option<Integer>, bool),
 ) -> Option<Scalar> {
     use Scalar::*;
     match (a, b) {
+        (Pointer(a), Some(Pointer(b)))
+            if (op == "eq" || op == "ne") && (a == b || a.is_none() || b.is_none()) =>
+        {
+            Some(Bool((a == b) == (op == "eq")))
+        }
+        (Pointer(addr), Some(Nil)) | (Nil, Some(Pointer(addr))) if op == "eq" || op == "ne" => {
+            Some(Bool(addr.is_none() == (op == "eq")))
+        }
         (Channel(a), Some(Channel(b))) if op == "eq" || op == "ne" => {
             Some(Bool((a == b) == (op == "eq")))
         }
@@ -70,54 +76,63 @@ pub(super) fn apply(
             Some(Text(a))
         }
         (Text(a), Some(Text(b))) => compare(a.cmp(&b), op),
-        (Int(a), Some(Int(b))) => {
-            if let Some(value) = compare(a.cmp(&b), op) {
-                return Some(value);
-            }
-            let bits = width.map_or(128, |ty| i128::from(ty.bits));
-            Some(Int(match op {
-                "add" => a.checked_add(b)?,
-                "sub" => a.checked_sub(b)?,
-                "mul" if runtime => a.wrapping_mul(b),
-                "mul" => a.checked_mul(b)?,
-                "div" => a.checked_div(b)?,
-                "rem" => a.checked_rem(b)?,
-                "bit_and" => a & b,
-                "bit_or" => a | b,
-                "bit_xor" => a ^ b,
-                "bit_clear" => a & !b,
-                "shl" if !runtime && b >= 0 => {
-                    if a == 0 {
-                        0
-                    } else if b < 127 {
-                        a.checked_mul(1i128 << b)?
-                    } else {
-                        return None;
-                    }
-                }
-                "shr" if !runtime && b >= 127 => {
-                    if a < 0 {
-                        -1
-                    } else {
-                        0
-                    }
-                }
-                "shr" if !runtime && b >= 0 => a >> b,
-                "shl" if b >= bits => 0,
-                "shr" if b >= bits => {
-                    if a < 0 {
-                        -1
-                    } else {
-                        0
-                    }
-                }
-                "shl" if b >= 0 => a << b,
-                "shr" if b >= 0 => a >> b,
-                _ => return None,
-            }))
-        }
+        (Int(a), Some(Int(b))) => integers(op, (a, b), width, runtime),
         _ => None,
     }
+}
+
+fn integers(
+    op: &str,
+    (a, b): (i128, i128),
+    width: Option<Integer>,
+    runtime: bool,
+) -> Option<Scalar> {
+    use Scalar::Int;
+
+    if let Some(value) = compare(a.cmp(&b), op) {
+        return Some(value);
+    }
+    let bits = width.map_or(128, |ty| i128::from(ty.bits));
+    Some(Int(match op {
+        "add" => a.checked_add(b)?,
+        "sub" => a.checked_sub(b)?,
+        "mul" if runtime => a.wrapping_mul(b),
+        "mul" => a.checked_mul(b)?,
+        "div" => a.checked_div(b)?,
+        "rem" => a.checked_rem(b)?,
+        "bit_and" => a & b,
+        "bit_or" => a | b,
+        "bit_xor" => a ^ b,
+        "bit_clear" => a & !b,
+        "shl" if !runtime && b >= 0 => {
+            if a == 0 {
+                0
+            } else if b < 127 {
+                a.checked_mul(1i128 << b)?
+            } else {
+                return None;
+            }
+        }
+        "shr" if !runtime && b >= 127 => {
+            if a < 0 {
+                -1
+            } else {
+                0
+            }
+        }
+        "shr" if !runtime && b >= 0 => a >> b,
+        "shl" if b >= bits => 0,
+        "shr" if b >= bits => {
+            if a < 0 {
+                -1
+            } else {
+                0
+            }
+        }
+        "shl" if b >= 0 => a << b,
+        "shr" if b >= 0 => a >> b,
+        _ => return None,
+    }))
 }
 
 #[cfg(test)]
@@ -126,14 +141,12 @@ mod tests {
     use crate::runtime_bounds::contracts::Contracts;
     use Scalar::Int;
 
-    fn op(key: &str, left: i128, right: i128, ty: Integer, runtime: bool) -> Option<Scalar> {
+    fn op(key: &str, (left, right): (i128, i128), ty: Integer, runtime: bool) -> Option<Scalar> {
         apply(
             Contracts::embedded().scalar("go").unwrap(),
             key,
-            Int(left),
-            Some(Int(right)),
-            Some(ty),
-            runtime,
+            (Int(left), Some(Int(right))),
+            (Some(ty), runtime),
         )
     }
 
@@ -143,23 +156,22 @@ mod tests {
             bits: 8,
             signed: true,
         };
-        assert_eq!(Some(Int(-2)), op("div", -7, 3, ty, true));
-        assert_eq!(Some(Int(-1)), op("rem", -7, 3, ty, true));
-        assert_eq!(None, op("div", -7, 0, ty, true));
+        assert_eq!(Some(Int(-2)), op("div", (-7, 3), ty, true));
+        assert_eq!(Some(Int(-1)), op("rem", (-7, 3), ty, true));
+        assert_eq!(None, op("div", (-7, 0), ty, true));
         assert_eq!(-128, narrow(128, ty));
     }
 
     #[test]
     fn operand_width_never_masks_shift_distance() {
         let ty = Integer::unsigned(8);
-        assert_eq!(Some(Int(0)), op("shl", 1, 8, ty, true));
-        assert_eq!(Some(Int(256)), op("shl", 1, 8, ty, false));
+        assert_eq!(Some(Int(0)), op("shl", (1, 8), ty, true));
+        assert_eq!(Some(Int(256)), op("shl", (1, 8), ty, false));
         assert_eq!(
             Some(Int(-1)),
             op(
                 "shr",
-                -10,
-                1000,
+                (-10, 1000),
                 Integer {
                     bits: 8,
                     signed: true
@@ -167,17 +179,17 @@ mod tests {
                 true
             )
         );
-        assert_eq!(None, op("shl", 1, -1, ty, true));
+        assert_eq!(None, op("shl", (1, -1), ty, true));
     }
 
     #[test]
     fn unsupported_constant_magnitude_stays_unknown_before_a_later_narrowing() {
         let ty = Integer::unsigned(64);
-        assert_eq!(Some(Int(1i128 << 66)), op("shl", 1, 66, ty, false));
-        assert_eq!(None, op("shl", 1, 130, ty, false));
-        assert_eq!(None, op("mul", i128::MAX, 2, ty, false));
+        assert_eq!(Some(Int(1i128 << 66)), op("shl", (1, 66), ty, false));
+        assert_eq!(None, op("shl", (1, 130), ty, false));
+        assert_eq!(None, op("mul", (i128::MAX, 2), ty, false));
         let top = i128::from(u64::MAX);
-        let Some(Int(product)) = op("mul", top, top, ty, true) else {
+        let Some(Int(product)) = op("mul", (top, top), ty, true) else {
             panic!("modeled unsigned product")
         };
         assert_eq!(1, narrow(product, ty));

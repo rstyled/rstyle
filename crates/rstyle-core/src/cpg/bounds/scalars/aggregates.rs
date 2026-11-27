@@ -12,14 +12,15 @@ impl<'a> Walk<'_, '_, 'a> {
         {
             self.bindings.get(place.id.as_str()).copied()
         } else {
-            None
+            self.facts
+                .local(place)
+                .filter(|id| self.locals.contains_key(id))
         }
     }
 
     pub(super) fn assign(
         &mut self,
-        place: &'a Node,
-        rhs: &'a Node,
+        (place, rhs): (&'a Node, &'a Node),
         kind: NodeKind,
         depth: usize,
     ) -> Option<()> {
@@ -43,35 +44,31 @@ impl<'a> Walk<'_, '_, 'a> {
             && kind == NodeKind::Assignment
             && self.facts.ty(self.child(place, 0)?)?.kind == TypeKind::Map
         {
-            let Scalar::Map(Some(slot)) = self.value(self.child(place, 0)?, depth)? else {
-                return None;
-            };
-            let key = super::maps::Key::of(self.value(self.child(place, 1)?, depth)?)?;
-            let value = self.value(rhs, depth)?;
-            let stored = self.for_storage(place, value)?;
-            let map = self.maps.get_mut(slot)?;
-            if map.len() >= super::storage::MAX_ITEMS && !map.contains_key(&key) {
-                return None;
-            }
-            map.insert(key, stored);
-            return Some(());
+            return self.map_assign(place, rhs, depth);
         }
         if place.kind == NodeKind::PatternTuple
             && kind == NodeKind::LocalDeclaration
             && rhs.kind == NodeKind::Tuple
             && place.children.len() == rhs.children.len()
         {
-            // Evaluate all right-hand expressions against the incoming state before storing any.
-            let mut bindings = Vec::new();
-            for (p, v) in place.children.iter().zip(&rhs.children) {
-                let p = self.facts.body.node(p).ok()?;
-                let value = self.value(self.facts.body.node(v).ok()?, depth)?;
-                bindings.push((self.binding(p)?, self.for_storage(p, value)?));
-            }
-            for (symbol, value) in bindings {
-                self.store(symbol, value)?;
-            }
-            return Some(());
+            return self.parallel_bindings(place, rhs, depth);
+        }
+        self.assign_one((place, rhs), kind, depth)
+    }
+
+    fn assign_one(
+        &mut self,
+        (place, rhs): (&'a Node, &'a Node),
+        kind: NodeKind,
+        depth: usize,
+    ) -> Option<()> {
+        if kind == NodeKind::Assignment
+            && (place.kind == NodeKind::FieldAccess
+                || (place.kind == NodeKind::Operator && place.operator.as_deref() == Some("deref")))
+        {
+            let address = self.address(place, depth)?;
+            let value = self.value(rhs, depth)?;
+            return self.write_address(&address, self.for_storage(place, value)?);
         }
         let indexed = if place.kind == NodeKind::IndexAccess && kind == NodeKind::Assignment {
             let view = self.view(self.child(place, 0)?, depth)?;
@@ -88,20 +85,14 @@ impl<'a> Walk<'_, '_, 'a> {
         if place.kind == NodeKind::PatternWildcard {
             return Some(());
         }
+        if matches!(value, Scalar::Pointer(Some(_)))
+            && self.facts.ty(place)?.target != self.facts.ty(rhs)?.target
+        {
+            return None;
+        }
         let value = self.for_storage(place, value)?;
         if let Some((view, i)) = indexed {
             return self.set(view, i, value);
-        }
-        if place.kind == NodeKind::FieldAccess
-            && kind == NodeKind::Assignment
-            && place.children.len() == 1
-        {
-            let symbol = self.facts.local(self.child(place, 0)?)?;
-            let Scalar::Record(fields) = self.locals.get_mut(symbol)? else {
-                return None;
-            };
-            *Arc::make_mut(fields).get_mut(place.member.as_deref()?)? = value;
-            return Some(());
         }
         let symbol = if kind == NodeKind::LocalDeclaration {
             self.binding(place)?
@@ -139,15 +130,38 @@ impl<'a> Walk<'_, '_, 'a> {
         }
         for field in fields {
             if !items.contains_key(&field.name) {
-                let zero = match self.facts.type_of(&field.ty)?.kind {
-                    TypeKind::Integer => Scalar::Int(0),
-                    TypeKind::Bool => Scalar::Bool(false),
-                    TypeKind::String => Scalar::Text(Vec::new()),
-                    _ => return None,
-                };
+                let zero = self.zero(self.facts.type_of(&field.ty)?)?;
                 items.insert(field.name.clone(), zero);
             }
         }
         Some(Scalar::Record(Arc::new(items)))
+    }
+    fn map_assign(&mut self, place: &'a Node, rhs: &'a Node, depth: usize) -> Option<()> {
+        let Scalar::Map(Some(slot)) = self.value(self.child(place, 0)?, depth)? else {
+            return None;
+        };
+        let key = super::maps::Key::of(self.value(self.child(place, 1)?, depth)?)?;
+        let value = self.value(rhs, depth)?;
+        let stored = self.for_storage(place, value)?;
+        let map = self.maps.get_mut(slot)?;
+        if map.len() >= super::storage::MAX_ITEMS && !map.contains_key(&key) {
+            return None;
+        }
+        map.insert(key, stored);
+        Some(())
+    }
+
+    fn parallel_bindings(&mut self, place: &'a Node, rhs: &'a Node, depth: usize) -> Option<()> {
+        // Evaluate all right-hand expressions against the incoming state before storing any.
+        let mut bindings = Vec::new();
+        for (p, v) in place.children.iter().zip(&rhs.children) {
+            let p = self.facts.body.node(p).ok()?;
+            let value = self.value(self.facts.body.node(v).ok()?, depth)?;
+            bindings.push((self.binding(p)?, self.for_storage(p, value)?));
+        }
+        for (symbol, value) in bindings {
+            self.store(symbol, value)?;
+        }
+        Some(())
     }
 }

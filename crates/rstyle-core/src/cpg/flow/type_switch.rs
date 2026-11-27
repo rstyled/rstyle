@@ -2,7 +2,7 @@
 //! the calling instantiation. A missing row makes no assertion about that type.
 
 use super::{Derived, Flow};
-use crate::cpg::model::{Dispatch, Function, Node, NodeKind, RefStatus, TypeKind};
+use crate::cpg::model::{Dispatch, Function, Node, NodeKind, Ref, RefStatus, TypeKind};
 use crate::cpg::tree::{Body, Tables};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -113,7 +113,7 @@ pub(crate) fn attach(tables: &Tables<'_>, caller: &Function, flow: &mut Derived)
     {
         return;
     }
-    super::each_reached(caller, flow, |reached, own| {
+    super::each_reached(caller, flow, |_, reached, own| {
         for reference in &caller.refs {
             if !reached.contains(reference.node.as_str()) {
                 continue;
@@ -131,37 +131,41 @@ pub(crate) fn attach(tables: &Tables<'_>, caller: &Function, flow: &mut Derived)
             else {
                 continue;
             };
-            let switches = callee
-                .nodes
-                .iter()
-                .filter(|n| n.kind == NodeKind::Match && n.original_kind == "TypeSwitchStmt");
-            let mut switches = switches.peekable();
-            if switches.peek().is_none() {
-                continue;
-            };
-            let Ok(body) = Body::new(callee) else {
-                continue;
-            };
-            let args = reference.instance_arguments.as_deref().unwrap_or_default();
-            let Some(callee_flow) = Flow::of(callee) else {
-                continue;
-            };
-            let reached = callee_flow.reached();
-            for switch in switches.filter(|n| {
-                n.children
-                    .first()
-                    .is_some_and(|guard| reached.contains(guard.as_str()))
-            }) {
-                own.type_switches
-                    .extend(selected(tables, &body, switch, args).into_iter().map(
-                        |(dynamic_type, arm)| TypeSwitch {
-                            call: reference.node.clone(),
-                            switch_node: switch.id.clone(),
-                            dynamic_type,
-                            arm: arm.to_owned(),
-                        },
-                    ));
-            }
+            attach_callee(tables, reference, callee, own);
         }
     });
+}
+
+fn attach_callee(tables: &Tables<'_>, reference: &Ref, callee: &Function, own: &mut Derived) {
+    let switches = callee
+        .nodes
+        .iter()
+        .filter(|n| n.kind == NodeKind::Match && n.original_kind == "TypeSwitchStmt");
+    let mut switches = switches.peekable();
+    if switches.peek().is_none() {
+        return;
+    };
+    let Ok(body) = Body::new(callee) else {
+        return;
+    };
+    let args = reference.instance_arguments.as_deref().unwrap_or_default();
+    let Some(callee_flow) = Flow::of(callee) else {
+        return;
+    };
+    let reached = callee_flow.reached();
+    for switch in switches.filter(|n| {
+        n.children
+            .first()
+            .is_some_and(|guard| reached.contains(guard.as_str()))
+    }) {
+        own.type_switches
+            .extend(selected(tables, &body, switch, args).into_iter().map(
+                |(dynamic_type, arm)| TypeSwitch {
+                    call: reference.node.clone(),
+                    switch_node: switch.id.clone(),
+                    dynamic_type,
+                    arm: arm.to_owned(),
+                },
+            ));
+    }
 }

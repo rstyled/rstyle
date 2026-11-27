@@ -158,6 +158,24 @@ impl Range<'_> {
         Some(rows)
     }
 
+    fn type_name(&self, id: Option<&str>) -> Option<String> {
+        self.tables.ty(id?).ok().map(|ty| ty.spelling.clone())
+    }
+
+    fn loads_element(&self, head: &Node) -> bool {
+        let Some(binding) = head.children.first().and_then(|id| self.body.node(id).ok()) else {
+            return false;
+        };
+        let second = binding
+            .children
+            .get(1)
+            .and_then(|id| self.body.node(id).ok());
+        binding.kind == NodeKind::PatternTuple
+            && second.is_some_and(|n| {
+                n.kind != NodeKind::PatternWildcard && n.original_kind != "Ident.blank"
+            })
+    }
+
     fn result(&self, head: &Node) -> Option<RangeItems> {
         let n = self.body.node(head.children.get(1)?).ok()?;
         let mut ty = self.tables.ty(n.ty.as_deref()?).ok()?;
@@ -176,29 +194,14 @@ impl Range<'_> {
             ),
             TypeKind::Sequence => (
                 "ascending",
-                vec![
-                    "int".into(),
-                    self.tables
-                        .ty(ty.element.as_deref()?)
-                        .ok()?
-                        .spelling
-                        .clone(),
-                ],
+                vec!["int".into(), self.type_name(ty.element.as_deref())?],
                 self.positions(n, ty),
             ),
             TypeKind::Map => (
                 "unspecified",
                 vec![
-                    self.tables
-                        .ty(ty.key_type.as_deref()?)
-                        .ok()?
-                        .spelling
-                        .clone(),
-                    self.tables
-                        .ty(ty.value_type.as_deref()?)
-                        .ok()?
-                        .spelling
-                        .clone(),
+                    self.type_name(ty.key_type.as_deref())?,
+                    self.type_name(ty.value_type.as_deref())?,
                 ],
                 self.entries(n),
             ),
@@ -209,34 +212,13 @@ impl Range<'_> {
                 }
                 (
                     "receive",
-                    vec![
-                        self.tables
-                            .ty(ch["element"].as_str()?)
-                            .ok()?
-                            .spelling
-                            .clone(),
-                    ],
+                    vec![self.type_name(ch["element"].as_str())?],
                     None,
                 )
             }
         };
-        let load_element = if ty.kind == TypeKind::Sequence {
-            let binding = self.body.node(head.children.first()?).ok()?;
-            let second = binding
-                .children
-                .get(1)
-                .and_then(|id| self.body.node(id).ok());
-            Some(
-                binding.kind == NodeKind::PatternTuple
-                    && second.is_some_and(|n| {
-                        n.kind != NodeKind::PatternWildcard && n.original_kind != "Ident.blank"
-                    }),
-            )
-        } else {
-            None
-        };
         Some(RangeItems {
-            load_element,
+            load_element: (ty.kind == TypeKind::Sequence).then(|| self.loads_element(head)),
             order: order.into(),
             components,
             items,
@@ -286,7 +268,7 @@ pub(crate) fn attach(tables: &Tables<'_>, function: &Function, derived: &mut Der
         body: &body,
         values,
     };
-    super::each_reached(function, derived, |reached, own| {
+    super::each_reached(function, derived, |_, reached, own| {
         for head in function.nodes.iter().filter(|n| {
             n.kind == NodeKind::For
                 && n.original_kind == "RangeStmt"

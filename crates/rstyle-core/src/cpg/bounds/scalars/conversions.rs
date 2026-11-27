@@ -39,7 +39,16 @@ impl<'a> Walk<'_, '_, 'a> {
         let arg = self.child(node, 0)?;
         let to = self.facts.ty(node)?;
         let from = self.facts.ty(arg)?;
-        let value = self.value(arg, depth)?;
+        let saved = self.round_at;
+        if to.id == from.id && (to.kind == TypeKind::Float || self.complex_width(to).is_some()) {
+            self.round_at = Some(&arg.id);
+        }
+        let value = self.value(arg, depth);
+        self.round_at = saved;
+        let value = value?;
+        if let Some(v) = self.convert_numeric(&value, to) {
+            return Some(v);
+        }
         match (value, to.kind) {
             (v @ Scalar::Int(_), TypeKind::Integer) if self.facts.integer(Some(to)).is_some() => {
                 Some(v)
@@ -51,49 +60,9 @@ impl<'a> Walk<'_, '_, 'a> {
                 Some(Scalar::Text(rune(n).to_string().into_bytes()))
             }
             (Scalar::Text(bytes), TypeKind::Sequence) if to.fixed == Some(false) => {
-                let element = self
-                    .facts
-                    .integer(self.facts.type_of(to.element.as_deref()?))?;
-                let items = match element {
-                    Integer {
-                        bits: 8,
-                        signed: false,
-                    } if bytes.len() <= super::storage::MAX_ITEMS => bytes
-                        .into_iter()
-                        .map(|b| Scalar::Int(i128::from(b)))
-                        .collect(),
-                    Integer {
-                        bits: 32,
-                        signed: true,
-                    } => runes(&bytes)?,
-                    _ => return None,
-                };
-                // Conversion creates a nonnil value even for an empty string. Its capacity may exceed its length.
-                self.fresh_slice(items, None)
+                self.text_slice(bytes, to)
             }
-            (Scalar::Slice(view), TypeKind::String) => {
-                let element = self
-                    .facts
-                    .integer(self.facts.type_of(from.element.as_deref()?))?;
-                let mut bytes = Vec::new();
-                for i in 0..view.len {
-                    let Scalar::Int(n) = self.element(view, i)? else {
-                        return None;
-                    };
-                    match element {
-                        Integer {
-                            bits: 8,
-                            signed: false,
-                        } => bytes.push(u8::try_from(*n).ok()?),
-                        Integer {
-                            bits: 32,
-                            signed: true,
-                        } => bytes.extend_from_slice(rune(*n).encode_utf8(&mut [0; 4]).as_bytes()),
-                        _ => return None,
-                    }
-                }
-                Some(Scalar::Text(bytes))
-            }
+            (Scalar::Slice(view), TypeKind::String) => self.slice_text(view, from),
             (Scalar::Slice(view), TypeKind::Sequence)
                 if to.fixed == Some(true) && from.element == to.element =>
             {
@@ -108,6 +77,55 @@ impl<'a> Walk<'_, '_, 'a> {
             }
             _ => None,
         }
+    }
+    fn text_slice(&mut self, bytes: Vec<u8>, to: &crate::cpg::model::Type) -> Option<Scalar> {
+        let element = self
+            .facts
+            .integer(self.facts.type_of(to.element.as_deref()?))?;
+        let items = match element {
+            Integer {
+                bits: 8,
+                signed: false,
+            } if bytes.len() <= super::storage::MAX_ITEMS => bytes
+                .into_iter()
+                .map(|b| Scalar::Int(i128::from(b)))
+                .collect(),
+            Integer {
+                bits: 32,
+                signed: true,
+            } => runes(&bytes)?,
+            _ => return None,
+        };
+        // Conversion creates a nonnil value even for an empty string. Its capacity may exceed its length.
+        self.fresh_slice(items, None)
+    }
+
+    fn slice_text(
+        &self,
+        view: super::storage::View,
+        from: &crate::cpg::model::Type,
+    ) -> Option<Scalar> {
+        let element = self
+            .facts
+            .integer(self.facts.type_of(from.element.as_deref()?))?;
+        let mut bytes = Vec::new();
+        for i in 0..view.len {
+            let Scalar::Int(n) = self.element(view, i)? else {
+                return None;
+            };
+            match element {
+                Integer {
+                    bits: 8,
+                    signed: false,
+                } => bytes.push(u8::try_from(*n).ok()?),
+                Integer {
+                    bits: 32,
+                    signed: true,
+                } => bytes.extend_from_slice(rune(*n).encode_utf8(&mut [0; 4]).as_bytes()),
+                _ => return None,
+            }
+        }
+        Some(Scalar::Text(bytes))
     }
 }
 

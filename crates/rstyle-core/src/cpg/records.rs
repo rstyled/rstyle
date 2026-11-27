@@ -282,23 +282,9 @@ pub(super) fn read_some(
                 (&tables, &sources),
             )
             .map(|record| Record {
-                exact_values: demand.values.then(|| {
-                    super::tree::Body::new(function)
-                        .map(|body| {
-                            let facts = super::bounds::facts::Facts {
-                                body: &body,
-                                tables: &tables,
-                                sources: &sources,
-                                pointer_bits: unit.target.pointer_width as u8,
-                                destructors_are_calls: false,
-                            };
-                            super::bounds::exact_values(
-                                &facts,
-                                super::arithmetic(&unit.semantics.integer_overflow),
-                            )
-                        })
-                        .unwrap_or_default()
-                }),
+                exact_values: demand
+                    .values
+                    .then(|| exact_values(unit, function, &tables, &sources)),
                 test: sources.marks(located(function)).test,
                 syntax_gap: super::flow::syntax_gap(&document.coverage, function),
                 ..with_graph_facts(record, function, demand, &tables)
@@ -308,6 +294,26 @@ pub(super) fn read_some(
         .collect::<Result<Vec<_>, String>>()?;
     let records = with_own_text(records, (functions, &places), &sources)?;
     Ok((records, failed))
+}
+
+fn exact_values(
+    unit: &super::model::Unit,
+    function: &Function,
+    tables: &Tables<'_>,
+    sources: &Sources<'_>,
+) -> BTreeMap<String, super::bounds::ExactValue> {
+    super::tree::Body::new(function)
+        .map(|body| {
+            let facts = super::bounds::facts::Facts {
+                body: &body,
+                tables,
+                sources,
+                pointer_bits: unit.target.pointer_width as u8,
+                destructors_are_calls: false,
+            };
+            super::bounds::exact_values(&facts, super::arithmetic(&unit.semantics.integer_overflow))
+        })
+        .unwrap_or_default()
 }
 
 /// The runtime-bound program of each of the `count` functions `wanted`, when the demand asks.
@@ -419,6 +425,9 @@ fn flow_of(
         let mut derived = super::flow::derive(&document.coverage, function, tables.wording());
         super::flow::attach_type_switches(tables, function, &mut derived);
         super::flow::attach_range_items(tables, function, &mut derived);
+        super::flow::attach_iterator_calls(tables, function, &mut derived);
+        super::flow::attach_go_frames(tables, function, &mut derived);
+        super::flow::attach_select_cases(function, &mut derived);
         derived
     })
 }
