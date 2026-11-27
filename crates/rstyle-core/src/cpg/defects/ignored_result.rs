@@ -13,6 +13,7 @@ use super::super::model::{
 use super::super::tree::{self, Tables};
 use super::Reading;
 use crate::config::IgnoredResultConfig;
+use crate::runtime_bounds::contracts::Contracts;
 use std::collections::BTreeSet;
 
 pub const RULE: &str = "ignored_result";
@@ -58,7 +59,7 @@ fn call_that_counts(reading: &Reading<'_>, node: &Node) -> Result<Option<ResultU
     let Some(callee) = declared_callee(reading, node)? else {
         return Ok(None);
     };
-    if !gives_a_result(reading, node)? {
+    if converts(callee) || !gives_a_result(reading, node)? {
         return Ok(None);
     }
 
@@ -121,6 +122,15 @@ pub(super) fn declared_callee<'r>(
         DefinitionKind::Function | DefinitionKind::Method
     )
     .then_some(definition))
+}
+
+/// Whether a callee makes a value of one of the language's own types from what it's handed, as the
+/// library contracts say Python's `float(x)` does. Code calls one as often for what converting
+/// does, raising on a bad argument or running the argument's own method, as for the value, so
+/// whether a call keeps it says nothing.
+fn converts(callee: &Definition) -> bool {
+    let operation = callee.operation.as_deref();
+    operation.is_some_and(|operation| Contracts::embedded().conversion(operation))
 }
 
 /// Whether a call hands back something of its own: not nothing, not what the frontend can't

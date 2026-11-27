@@ -160,7 +160,12 @@ Dropping means the call is all of a statement. These don't count either way:
 | A method that returns what it was called on, such as `x.SetUint64(1)` | The result is only there so calls can chain |
 | A `defer`, or anything else an extension runs | It says how the call runs, not what becomes of its result |
 | A call of a function value, or one nothing resolves | No callee to weigh it against |
+| A conversion to a builtin type, such as Python's `float(x)`, `str(x)` or `list(xs)` | It's called as often for what converting does as for the value, as `float(arg)` in a `try` checks that `arg` is a number |
 | A statement a lowering made up, or a call a macro wrote | Nobody wrote it |
+
+Which calls are conversions is data, a `[[conversion]]` role in a language's library contracts. Python's are `bool`, `int`,
+`float`, `complex`, `str`, `bytes`, `list`, `tuple`, `set`, `frozenset` and `dict`. Go's conversions aren't calls, and Rust's
+and C++'s, such as `String::from` and `std::to_string`, are called for their value, so they have none.
 
 Giving a result a name to discard it, as in `_ = f()` or `let _ = f();`, uses it, since that says it's deliberate.
 

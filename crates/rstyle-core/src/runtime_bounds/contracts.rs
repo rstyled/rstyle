@@ -111,6 +111,8 @@ struct File {
     range: Vec<ranges::RangeEntry>,
     #[serde(default)]
     traversal: Vec<ranges::TraversalEntry>,
+    #[serde(default)]
+    conversion: Vec<ConversionEntry>,
 }
 
 #[derive(Deserialize)]
@@ -118,6 +120,16 @@ struct File {
 struct Entry {
     basis: String,
     steps: Steps,
+    operations: Vec<String>,
+}
+
+/// Calls that make a value of one of the language's own types from what they're handed, as
+/// Python's `float(x)` does.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ConversionEntry {
+    #[serde(rename = "basis")]
+    _basis: String,
     operations: Vec<String>,
 }
 
@@ -137,6 +149,7 @@ pub struct Contracts {
     operators: BTreeMap<String, OperatorRole>,
     ranges: BTreeMap<String, Vec<RangeForm>>,
     traversals: BTreeMap<String, Traversal>,
+    conversions: BTreeMap<String, ()>,
 }
 
 impl File {
@@ -245,6 +258,7 @@ impl Contracts {
         self.extend_forms(file)
     }
 
+    /// The roles a file gives what a call runs, and to the calls that convert what they're handed.
     fn extend_invocations(&mut self, file: &File) -> Result<(), String> {
         let namespace = file.namespace.as_str();
         let roles = file
@@ -256,6 +270,13 @@ impl Contracts {
             &mut self.state_callback_free,
             namespace,
             &file.state_callback_free,
+        )?;
+        let conversions = file.conversion.iter();
+        let conversions = conversions.map(|entry| Ok((&entry.operations[..], ())));
+        declare(
+            &mut self.conversions,
+            (namespace, "conversion"),
+            conversions,
         )
     }
 
@@ -370,6 +391,12 @@ impl Contracts {
     /// `py:enumerate.__new__`'s first.
     pub fn traversal(&self, operation: &str) -> Option<&Traversal> {
         self.traversals.get(operation)
+    }
+
+    /// Whether an operation makes a value of one of the language's own types from what it's
+    /// handed, such as `py:float.__new__`. This declares no cost, purity or callback role.
+    pub fn conversion(&self, operation: &str) -> bool {
+        self.conversions.contains_key(operation)
     }
 
     /// The form of a loop by the frontend's original kind of it, such as `cxx:DoStmt`.
@@ -747,6 +774,48 @@ mod tests {
             Contracts::parse_all(&[&outside]).unwrap_err(),
             "Traversal role over 1 has arities [1]"
         );
+    }
+
+    #[test]
+    fn conversion_roles_name_the_calls_that_make_a_language_type() {
+        let contracts = Contracts::embedded();
+        for operation in [
+            "py:bool.__new__",
+            "py:bytes.__new__",
+            "py:complex.__new__",
+            "py:dict.__init__",
+            "py:float.__new__",
+            "py:frozenset.__new__",
+            "py:int.__new__",
+            "py:list.__init__",
+            "py:set.__init__",
+            "py:str.__new__",
+            "py:tuple.__new__",
+        ] {
+            assert!(contracts.conversion(operation), "{operation}");
+        }
+        for operation in [
+            "py:str.join",
+            "py:len",
+            "py:bytearray.__init__",
+            "float.__new__",
+        ] {
+            assert!(!contracts.conversion(operation), "{operation}");
+        }
+        // Go's conversions aren't calls, and Rust's and C++'s are called for their value.
+        let others = contracts
+            .conversions
+            .keys()
+            .find(|key| !key.starts_with("py:"));
+        assert_eq!(others, None);
+
+        let role = "[[conversion]]\nbasis = \"b\"\noperations = [\"C.new\"]\n";
+        let one = Contracts::parse_all(&[&file(role)]).unwrap();
+        assert!(one.conversion("t:C.new"));
+        let twice = Contracts::parse_all(&[&file(role), &file(role)]).unwrap_err();
+        assert_eq!(twice, "Library operation t:C.new has two conversion roles");
+        let unbased = file(&role.replace("basis = \"b\"\n", ""));
+        assert!(Contracts::parse_all(&[&unbased]).is_err());
     }
 
     #[test]
