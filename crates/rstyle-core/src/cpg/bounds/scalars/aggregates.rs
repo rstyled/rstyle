@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 impl<'a> Walk<'_, '_, 'a> {
-    fn binding(&self, place: &Node) -> Option<&'a str> {
+    pub(super) fn binding(&self, place: &Node) -> Option<&'a str> {
         if place.kind == NodeKind::PatternBinding
             && place.children.is_empty()
             && place.binding_mode.as_deref().unwrap_or("value") == "value"
@@ -24,6 +24,39 @@ impl<'a> Walk<'_, '_, 'a> {
         depth: usize,
     ) -> Option<()> {
         if place.kind == NodeKind::PatternTuple
+            && rhs.kind == NodeKind::Operator
+            && rhs.operator.as_deref() == Some(&self.profile.receive)
+            && rhs.children.len() == 1
+            && kind == NodeKind::LocalDeclaration
+            && self.facts.reference(rhs).is_none()
+        {
+            let (item, ready) = self.receive(rhs, depth)?;
+            return self.pair_bindings(place, item, ready);
+        }
+        if place.kind == NodeKind::PatternTuple
+            && rhs.kind == NodeKind::IndexAccess
+            && kind == NodeKind::LocalDeclaration
+        {
+            return self.map_bindings(place, rhs, depth);
+        }
+        if place.kind == NodeKind::IndexAccess
+            && kind == NodeKind::Assignment
+            && self.facts.ty(self.child(place, 0)?)?.kind == TypeKind::Map
+        {
+            let Scalar::Map(Some(slot)) = self.value(self.child(place, 0)?, depth)? else {
+                return None;
+            };
+            let key = super::maps::Key::of(self.value(self.child(place, 1)?, depth)?)?;
+            let value = self.value(rhs, depth)?;
+            let stored = self.for_storage(place, value)?;
+            let map = self.maps.get_mut(slot)?;
+            if map.len() >= super::storage::MAX_ITEMS && !map.contains_key(&key) {
+                return None;
+            }
+            map.insert(key, stored);
+            return Some(());
+        }
+        if place.kind == NodeKind::PatternTuple
             && kind == NodeKind::LocalDeclaration
             && rhs.kind == NodeKind::Tuple
             && place.children.len() == rhs.children.len()
@@ -35,11 +68,30 @@ impl<'a> Walk<'_, '_, 'a> {
                 let value = self.value(self.facts.body.node(v).ok()?, depth)?;
                 bindings.push((self.binding(p)?, self.for_storage(p, value)?));
             }
-            self.locals.extend(bindings);
+            for (symbol, value) in bindings {
+                self.store(symbol, value)?;
+            }
             return Some(());
         }
+        let indexed = if place.kind == NodeKind::IndexAccess && kind == NodeKind::Assignment {
+            let view = self.view(self.child(place, 0)?, depth)?;
+            let i = self.index(self.child(place, 1)?, depth)?;
+            if i >= view.len {
+                return None;
+            }
+            Some((view, i))
+        } else {
+            None
+        };
+        self.write_at = Some(&rhs.id);
         let value = self.value(rhs, depth)?;
+        if place.kind == NodeKind::PatternWildcard {
+            return Some(());
+        }
         let value = self.for_storage(place, value)?;
+        if let Some((view, i)) = indexed {
+            return self.set(view, i, value);
+        }
         if place.kind == NodeKind::FieldAccess
             && kind == NodeKind::Assignment
             && place.children.len() == 1
@@ -58,8 +110,7 @@ impl<'a> Walk<'_, '_, 'a> {
                 .local(place)
                 .filter(|s| self.locals.contains_key(s))?
         };
-        self.locals.insert(symbol, value);
-        Some(())
+        self.store(symbol, value)
     }
 
     pub(super) fn record(&mut self, node: &'a Node, depth: usize) -> Option<Scalar> {

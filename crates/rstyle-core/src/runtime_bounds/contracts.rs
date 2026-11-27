@@ -135,6 +135,22 @@ pub struct ScalarProfile {
     pub byte_length: String,
     pub byte_constants: String,
     pub exact_integer_types: Vec<String>,
+    pub slice_expression: String,
+    pub slice_bounds: String,
+    pub capacity: String,
+    pub make: String,
+    pub append: String,
+    pub copy: String,
+    pub clear: String,
+    pub delete: String,
+    pub close: String,
+    pub send: String,
+    pub receive: String,
+    pub channel_types: String,
+    pub spread_arguments: String,
+    pub nil: String,
+    pub minimum: String,
+    pub maximum: String,
 }
 
 /// Contracts by namespaced operation key.

@@ -3,6 +3,10 @@
 //! give. Frontends emit the flow and the accesses; all of this is derived, never emitted.
 
 mod iteration_storage;
+mod range_items;
+mod type_switch;
+pub(crate) use range_items::attach as attach_range_items;
+pub(crate) use type_switch::attach as attach_type_switches;
 
 use super::model::{
     AccessMode, CfgEdge, ClosureFlow, Coverage, Declarations, Exit, Function, NodeKind, Origin,
@@ -217,6 +221,11 @@ impl<'f> Flow<'f> {
             entry,
             exits,
         })
+    }
+
+    /// Source IDs reached by this flow, including immediate children of the entry.
+    fn reached(&self) -> HashSet<&'f str> {
+        self.order().into_iter().map(|v| self.id(v)).collect()
     }
 
     pub fn id(&self, vertex: Vertex) -> &'f str {
@@ -639,6 +648,15 @@ pub struct ExecutionEdge {
 /// A function's derived flow facts, in terms of the node IDs of its document.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Derived {
+    /// Types and finite items offered by range iteration.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub range_items: BTreeMap<String, range_items::RangeItems>,
+    /// Reachable operations with no successor because execution permanently blocks.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub permanent_blocks: BTreeMap<String, String>,
+    /// Ordered concrete type-case matches for local static call sites.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub type_switches: Vec<type_switch::TypeSwitch>,
     /// Address-taking and closure sites with a known loop binding lifetime.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub iteration_storage: Vec<iteration_storage::IterationStorage>,
@@ -670,6 +688,9 @@ impl Derived {
         Self {
             standing: Standing::Unknown,
             iteration_storage: Vec::new(),
+            type_switches: Vec::new(),
+            permanent_blocks: BTreeMap::new(),
+            range_items: BTreeMap::new(),
             reasons: vec![reason],
             assumptions: Vec::new(),
             dominators: BTreeMap::new(),
@@ -679,6 +700,26 @@ impl Derived {
             execution: Vec::new(),
             loops: BTreeMap::new(),
             closures: BTreeMap::new(),
+        }
+    }
+}
+
+/// Apply a unit-level query to each separately executed flow, restricted to
+/// statements reachable from its own entry.
+fn each_reached<'f>(
+    function: &'f Function,
+    derived: &mut Derived,
+    mut apply: impl FnMut(HashSet<&'f str>, &mut Derived),
+) {
+    if let Some(flow) = Flow::of(function) {
+        apply(flow.reached(), derived);
+    }
+    for closure in &function.cfg.closures {
+        if let (Some(flow), Some(own)) = (
+            Flow::of_closure(closure),
+            derived.closures.get_mut(&closure.node),
+        ) {
+            apply(flow.reached(), own);
         }
     }
 }
@@ -895,7 +936,10 @@ fn derived_of(
         control,
         execution: execution_edges(flow, &dominators),
         iteration_storage: iteration_storage::derive(function, flow, &dominators),
+        type_switches: Vec::new(),
         loops: loops(flow),
+        permanent_blocks: permanent_blocks(function, flow),
+        range_items: BTreeMap::new(),
         closures: BTreeMap::new(),
     }
 }
@@ -1004,6 +1048,27 @@ fn execution_edges(flow: &Flow<'_>, dominators: &Tree) -> Vec<ExecutionEdge> {
                 source: flow.id(source).to_owned(),
                 target: flow.id(vertex).to_owned(),
             })
+        })
+        .collect()
+}
+
+fn permanent_blocks(function: &Function, flow: &Flow<'_>) -> BTreeMap<String, String> {
+    let Some(facts) = function
+        .extensions
+        .as_ref()
+        .and_then(|ext| ext.get("go:permanent-blocks"))
+        .and_then(|rows| rows.as_object())
+    else {
+        return BTreeMap::new();
+    };
+    facts
+        .iter()
+        .filter_map(|(id, why)| {
+            let node = flow.vertex(id)?;
+            let reason = why.as_str()?;
+            (flow.forward.successors[node].is_empty()
+                && matches!(reason, "nil_channel" | "no_enabled_select_case"))
+            .then(|| (id.clone(), reason.to_owned()))
         })
         .collect()
 }

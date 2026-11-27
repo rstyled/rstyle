@@ -191,7 +191,10 @@ impl<'a> Collector<'_, '_, 'a> {
     /// Each of the last three evaluates the source itself.
     fn counted(&self, head: &'a Node) -> Result<Option<Counted<'a>>, String> {
         if head.kind == NodeKind::Call {
-            return self.range_call(head);
+            let range = self.range_call(head)?;
+            if range.is_some() || !self.exact.contains_key(head.id.as_str()) {
+                return Ok(range);
+            }
         }
         let Some(ty) = self.facts.ty(head) else {
             return Ok(None);

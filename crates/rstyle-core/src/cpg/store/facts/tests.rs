@@ -6,6 +6,7 @@ const ALL: Demand = Demand {
     graphs: true,
     bounds: true,
     flow: true,
+    values: false,
     defects: true,
 };
 
@@ -20,7 +21,7 @@ fn document(value: &Value) -> Document {
 fn keys(value: &Value) -> Vec<Option<String>> {
     let document = document(value);
     let unit = document.unit.as_ref().unwrap();
-    Keys::new(&document, unit, "scope").each(unit.functions.as_deref().unwrap())
+    Keys::new(&document, unit, "scope", ALL).each(unit.functions.as_deref().unwrap())
 }
 
 fn texts(records: &[Record]) -> Vec<String> {
@@ -374,7 +375,7 @@ fn a_file_with_no_text_is_read_as_having_none() {
     let value = example();
     let document = document(&value);
     let unit = document.unit.as_ref().unwrap();
-    let keys = Keys::new(&document, unit, "scope");
+    let keys = Keys::new(&document, unit, "scope", ALL);
     assert!(
         keys.window("file:lib", None, (0, 1))
             .contains("has no content")
@@ -408,7 +409,7 @@ fn functions_that_share_an_identity_are_never_kept() {
     let document = layout::bundle(vec![unnamed]).unwrap();
     let unit = document.unit.as_ref().unwrap();
     let function = &unit.functions.as_deref().unwrap()[0];
-    assert_eq!(Keys::new(&document, unit, "scope").key(function), None);
+    assert_eq!(Keys::new(&document, unit, "scope", ALL).key(function), None);
 }
 
 #[test]
@@ -689,4 +690,50 @@ fn a_run_s_facts_manifest_names_only_what_it_read_or_wrote() {
             assert_eq!(&kept, entry, "{map}/{key}");
         }
     }
+}
+
+#[test]
+fn changes_to_a_local_callee_invalidate_callers_for_value_sensitive_demands() {
+    let before: Value =
+        serde_json::from_str(include_str!("../../testdata/callables-go.cpg.json")).unwrap();
+    let mut after = before.clone();
+    let functions = after["unit"]["functions"].as_array_mut().unwrap();
+    let callee = functions.iter_mut().find(|f| f["name"] == "count").unwrap();
+    let literal = callee["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|n| n["kind"] == "literal")
+        .unwrap();
+    literal["value"]["value"] = json!("2");
+    let key = |input: &Value, demand: Demand| {
+        let document = document(input);
+        let unit = document.unit.as_ref().unwrap();
+        let caller = unit
+            .functions
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find(|f| f.name == "Immediate")
+            .unwrap();
+        Keys::new(&document, unit, "scope", demand)
+            .key(caller)
+            .unwrap()
+    };
+    for demand in [
+        Demand {
+            values: true,
+            ..Default::default()
+        },
+        Demand {
+            bounds: true,
+            ..Default::default()
+        },
+    ] {
+        assert_ne!(key(&before, demand), key(&after, demand));
+    }
+    assert_eq!(
+        key(&before, Demand::default()),
+        key(&after, Demand::default())
+    );
 }

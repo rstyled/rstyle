@@ -186,6 +186,8 @@ enum CpgCommand {
     Patterns(CpgPatternsArgs),
     /// Derive each function's dominators, post-dominators and dependence graph.
     Flow(CpgFlowArgs),
+    /// Report exact primitive values established at individual CPG expression nodes.
+    Values(CpgFlowArgs),
     /// Run the selected analyses over a run's documents in one pass.
     Analyze(CpgAnalyzeArgs),
     /// Keep a run's documents in a local store, one pack per unit, and name the run.
@@ -496,6 +498,7 @@ fn cpg_command(cli: &Cli, command: CpgCommand) -> Result<(String, u8), String> {
         CpgCommand::Check(input) => cpg::check(&input, cli.config.as_deref(), cli.format),
         CpgCommand::Patterns(args) => cpg::patterns(cli, &args),
         CpgCommand::Flow(args) => cpg::flow(&args, cli.format),
+        CpgCommand::Values(args) => cpg::values(&args, cli.format),
         CpgCommand::Analyze(args) => cpg::analyze(cli, &args),
         CpgCommand::Pack(args) => cpg::pack::pack(&args),
         CpgCommand::Unpack(args) => cpg::pack::unpack(&args),

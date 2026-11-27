@@ -43,15 +43,16 @@ fn uses_storage(node: &Node, symbol: &str, accesses: &HashMap<&str, &str>) -> bo
     }
 }
 
-pub(super) fn derive(function: &Function, flow: &Flow<'_>, dom: &Tree) -> Vec<IterationStorage> {
-    let Some(facts) = function
+fn bindings(function: &Function) -> Option<BTreeMap<&str, LoopBindings<'_>>> {
+    let facts = function
         .extensions
         .as_ref()
-        .and_then(|e| e.get("go:iteration-bindings"))
-    else {
-        return Vec::new();
-    };
-    let Ok(facts) = BTreeMap::<&str, LoopBindings<'_>>::deserialize(facts) else {
+        .and_then(|e| e.get("go:iteration-bindings"))?;
+    BTreeMap::deserialize(facts).ok()
+}
+
+pub(super) fn derive(function: &Function, flow: &Flow<'_>, dom: &Tree) -> Vec<IterationStorage> {
+    let Some(facts) = bindings(function) else {
         return Vec::new();
     };
     let accesses = function

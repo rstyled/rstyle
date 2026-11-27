@@ -16,10 +16,19 @@ pub struct Tables<'a> {
     /// The unit's language, the namespace of its contracts.
     language: &'a str,
     extensions: Option<&'a serde_json::Map<String, serde_json::Value>>,
+    functions: BTreeMap<&'a str, Option<&'a Function>>,
 }
 
 impl<'a> Tables<'a> {
     pub fn new(unit: &'a Unit) -> Result<Self, String> {
+        let mut functions = BTreeMap::new();
+        for function in unit.functions.as_deref().unwrap_or_default() {
+            // More than one body for a definition (e.g. specialization) is ambiguous.
+            functions
+                .entry(function.definition.as_str())
+                .and_modify(|slot| *slot = None)
+                .or_insert(Some(function));
+        }
         Ok(Self {
             definitions: index("definition", &unit.definitions, |d| &d.id)?,
             types: index("type", &unit.types, |t| &t.id)?,
@@ -27,12 +36,18 @@ impl<'a> Tables<'a> {
             wording: Wording::of(&unit.language.name),
             language: &unit.language.name,
             extensions: unit.extensions.as_ref(),
+            functions,
         })
     }
 
     /// The unit's language, such as `cxx`, which keys its contracts.
     pub fn language(&self) -> &'a str {
         self.language
+    }
+
+    /// The unique body of a resolved definition in this unit.
+    pub fn function(&self, id: &str) -> Option<&'a Function> {
+        self.functions.get(id).copied().flatten()
     }
 
     /// A registered, namespaced unit fact, if this producer emitted it.

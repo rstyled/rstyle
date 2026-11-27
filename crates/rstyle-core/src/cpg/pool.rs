@@ -301,6 +301,7 @@ mod tests {
             graphs: true,
             bounds: true,
             flow: true,
+            values: false,
             defects: false,
         };
         pooled_records(

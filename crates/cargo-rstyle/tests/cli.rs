@@ -116,6 +116,7 @@ fn saved_facts(report: &Value) -> Vec<Value> {
         graphs: true,
         bounds: false,
         flow: false,
+        values: false,
         defects: false,
     };
     rstyle_core::cpg::run_records(found, demand)

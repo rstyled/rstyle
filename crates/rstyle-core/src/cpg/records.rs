@@ -26,6 +26,8 @@ pub const UNMEASURED: &str = "Existing compiler collector has no original functi
 pub struct Demand {
     pub graphs: bool,
     pub bounds: bool,
+    /// Exact primitive values established at individual expression nodes.
+    pub values: bool,
     /// Dominators, post-dominators and the dependence graph the control flow gives.
     pub flow: bool,
     /// What the defect rules find in each function.
@@ -101,6 +103,8 @@ pub struct Record {
     pub measured: Measured,
     pub graph: Option<Pdg>,
     pub bounds: Option<Input>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exact_values: Option<BTreeMap<String, super::bounds::ExactValue>>,
     pub flow: Option<Derived>,
     /// With flow: where the error it returns can come from, when it returns one.
     pub failures: Option<Vec<super::failures::Failure>>,
@@ -272,12 +276,29 @@ pub(super) fn read_some(
                 (
                     facts,
                     bounds,
-                    flow_of(document, function, demand, tables.wording()),
+                    flow_of(document, function, demand, &tables),
                     defects_of(document, function, demand, (&tables, &sources)),
                 ),
                 (&tables, &sources),
             )
             .map(|record| Record {
+                exact_values: demand.values.then(|| {
+                    super::tree::Body::new(function)
+                        .map(|body| {
+                            let facts = super::bounds::facts::Facts {
+                                body: &body,
+                                tables: &tables,
+                                sources: &sources,
+                                pointer_bits: unit.target.pointer_width as u8,
+                                destructors_are_calls: false,
+                            };
+                            super::bounds::exact_values(
+                                &facts,
+                                super::arithmetic(&unit.semantics.integer_overflow),
+                            )
+                        })
+                        .unwrap_or_default()
+                }),
                 test: sources.marks(located(function)).test,
                 syntax_gap: super::flow::syntax_gap(&document.coverage, function),
                 ..with_graph_facts(record, function, demand, &tables)
@@ -392,11 +413,14 @@ fn flow_of(
     document: &Document,
     function: &Function,
     demand: Demand,
-    wording: Wording,
+    tables: &Tables<'_>,
 ) -> Option<Derived> {
-    demand
-        .flow
-        .then(|| super::flow::derive(&document.coverage, function, wording))
+    demand.flow.then(|| {
+        let mut derived = super::flow::derive(&document.coverage, function, tables.wording());
+        super::flow::attach_type_switches(tables, function, &mut derived);
+        super::flow::attach_range_items(tables, function, &mut derived);
+        derived
+    })
 }
 
 fn record(
@@ -437,6 +461,7 @@ fn record(
         flow,
         failures,
         defects,
+        exact_values: None,
         test: false,
         syntax_gap: None,
         wording: tables.wording(),

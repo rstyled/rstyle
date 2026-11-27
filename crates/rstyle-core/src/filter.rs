@@ -122,6 +122,7 @@ impl Filter {
             graphs: self.core(Analysis::Patterns),
             bounds: self.core(Analysis::Bounds),
             flow: self.core(Analysis::Flow),
+            values: false,
             defects: self.core(Analysis::Defects),
         }
     }

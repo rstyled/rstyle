@@ -37,6 +37,19 @@ pub(super) fn apply(
 ) -> Option<Scalar> {
     use Scalar::*;
     match (a, b) {
+        (Channel(a), Some(Channel(b))) if op == "eq" || op == "ne" => {
+            Some(Bool((a == b) == (op == "eq")))
+        }
+        (Channel(slot), Some(Nil)) | (Nil, Some(Channel(slot))) if op == "eq" || op == "ne" => {
+            Some(Bool(slot.is_none() == (op == "eq")))
+        }
+        (Map(slot), Some(Nil)) | (Nil, Some(Map(slot))) if op == "eq" || op == "ne" => {
+            Some(Bool(slot.is_none() == (op == "eq")))
+        }
+        (Nil, Some(Nil)) if op == "eq" || op == "ne" => Some(Bool(op == "eq")),
+        (Slice(v), Some(Nil)) | (Nil, Some(Slice(v))) if op == "eq" || op == "ne" => {
+            Some(Bool((v == super::storage::View::nil()) == (op == "eq")))
+        }
         (Int(a), None) => Some(Int(match op {
             "neg" => a.checked_neg()?,
             "bit_not" if width.is_some_and(|t| !t.signed) => narrow(!a, width?),

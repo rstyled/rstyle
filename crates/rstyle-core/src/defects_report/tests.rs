@@ -8,6 +8,7 @@ const DEMAND: Demand = Demand {
     graphs: false,
     bounds: false,
     flow: false,
+    values: false,
     defects: true,
 };
 

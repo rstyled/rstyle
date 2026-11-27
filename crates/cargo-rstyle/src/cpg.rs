@@ -57,6 +57,7 @@ pub fn patterns(cli: &Cli, args: &CpgPatternsArgs) -> Result<(String, u8), Strin
         graphs: true,
         bounds: args.complexity,
         flow: false,
+        values: false,
         defects: false,
     };
     let received = match input::read(&args.input, demand, Order::Canonical) {
@@ -108,6 +109,45 @@ pub fn flow(args: &CpgFlowArgs, format: Format) -> Result<(String, u8), String> 
     let output = match format {
         Format::Text => receipt::text(flow_text(&functions.functions), &received.receipt),
         Format::Json => receipt::json(&functions, &received.receipt)?,
+    };
+    Ok((output, 0))
+}
+
+/// A node absent from the result has no exact primitive value established.
+pub fn values(args: &CpgFlowArgs, format: Format) -> Result<(String, u8), String> {
+    let demand = Demand {
+        values: true,
+        ..Demand::default()
+    };
+    let received = match input::read(&args.input, demand, Order::Canonical) {
+        Ok(received) => received,
+        Err(error) => return error.output(format),
+    };
+    let functions = received.records.iter().filter(|r| {
+        args.function
+            .as_ref()
+            .is_none_or(|pat| r.name.contains(pat))
+    });
+    let output = match format {
+        Format::Text => {
+            let lines = functions
+                .flat_map(|r| {
+                    r.exact_values
+                        .iter()
+                        .flatten()
+                        .map(|(node, value)| format!("{}  {}  {:?}", r.name, node, value))
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            receipt::text(lines, &received.receipt)
+        }
+        Format::Json => {
+            let rows = functions.map(|r| json!({"compilation":r.compilation,"function":r.function,"root":r.root,"name":r.name,"known":r.exact_values})).collect::<Vec<_>>();
+            receipt::json(
+                &json!({"schema":"rstyle.exact-values/1","functions":rows}),
+                &received.receipt,
+            )?
+        }
     };
     Ok((output, 0))
 }

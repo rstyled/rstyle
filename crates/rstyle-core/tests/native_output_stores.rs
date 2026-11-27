@@ -173,6 +173,7 @@ fn allocation_and_length_calls_keep_their_costs_and_argument_positions() {
         bounds: true,
         graphs: false,
         flow: false,
+        values: false,
         defects: false,
     };
     let records = rstyle_core::cpg::run_records(vec![quote()], demand).unwrap();

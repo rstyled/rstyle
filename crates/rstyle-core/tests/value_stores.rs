@@ -188,6 +188,7 @@ fn a_store_still_evaluates_a_call_that_builds_the_value() {
         bounds: true,
         graphs: false,
         flow: false,
+        values: false,
         defects: false,
     };
     let records = rstyle_core::cpg::run_records(vec![store.0], demand).unwrap();

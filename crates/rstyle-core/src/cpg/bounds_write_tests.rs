@@ -11,6 +11,7 @@ const DEMAND: Demand = Demand {
     graphs: false,
     bounds: true,
     flow: false,
+    values: false,
     defects: false,
 };
 

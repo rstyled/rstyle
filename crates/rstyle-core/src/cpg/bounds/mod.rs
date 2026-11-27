@@ -32,6 +32,32 @@ pub use canonical::canonical_bounds;
 use facts::Facts;
 use std::collections::BTreeMap;
 
+/// A primitive value established at the point an expression evaluates. Integers are
+/// decimal strings so consumers can read all target widths losslessly.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+pub enum ExactValue {
+    Integer(String),
+    Boolean(bool),
+    Bytes(Vec<u8>),
+}
+
+/// Facts keyed by expression node. An omitted expression has no established primitive value.
+pub fn exact_values(facts: &Facts<'_, '_>, arithmetic: Arithmetic) -> BTreeMap<String, ExactValue> {
+    scalars::known(facts, arithmetic)
+        .into_iter()
+        .filter_map(|(node, value)| {
+            let value = match value {
+                scalars::Scalar::Int(i) => ExactValue::Integer(i.to_string()),
+                scalars::Scalar::Bool(b) => ExactValue::Boolean(b),
+                scalars::Scalar::Text(bytes) => ExactValue::Bytes(bytes),
+                _ => return None,
+            };
+            Some((node.to_owned(), value))
+        })
+        .collect()
+}
+
 /// The runtime-bound program of one function.
 pub fn lower(facts: &Facts<'_, '_>, arithmetic: Arithmetic) -> Result<Input, String> {
     Collector::new(facts, arithmetic).collect()

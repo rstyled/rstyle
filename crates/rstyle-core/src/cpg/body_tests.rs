@@ -35,6 +35,7 @@ const DEMAND: Demand = Demand {
     graphs: true,
     bounds: false,
     flow: false,
+    values: false,
     defects: false,
 };
 

@@ -3,7 +3,7 @@
 //!
 //! A function's key is the sha256 of:
 //! - the facts' schema, the rstyle build that derived them and what the run asks of each function;
-//! - the document's own fields and its unit's, but its functions;
+//! - the document's own fields and its unit's; for analyses that evaluate local calls, also the unit's function bodies;
 //! - the document's tables: its definitions but where each is written, its types, and what its
 //!   files table says of each file but its text;
 //! - the function as it serializes, offsets included, so a function that moved derives again;
@@ -132,10 +132,14 @@ impl FunctionFacts {
         let Demand {
             graphs,
             bounds,
+            values,
             flow,
             defects,
         } = demand;
-        let asked = format!("graphs={graphs} bounds={bounds} flow={flow} defects={defects}");
+        let mut asked = format!("graphs={graphs} bounds={bounds} flow={flow} defects={defects}");
+        if values {
+            asked.push_str(" values=true");
+        }
         FunctionFacts {
             root: root.to_path_buf(),
             objects: Objects::new(&root.join("objects")),
@@ -174,7 +178,7 @@ impl FunctionFacts {
     ) -> Result<Vec<Record>, String> {
         let unit = document.unit.as_ref().ok_or("The document has no unit")?;
         let functions = unit.functions.as_deref().unwrap_or_default();
-        let keys = Keys::new(document, unit, &self.scope).each(functions);
+        let keys = Keys::new(document, unit, &self.scope, self.demand).each(functions);
         let index = self.index(&unit.id);
         let (found, spoiled) = self.found(&index, &keys, Wording::of(&unit.language.name));
         let wanted = |at: usize| self.verify || found[at].is_none();
@@ -610,7 +614,7 @@ struct Keys<'a> {
 }
 
 impl<'a> Keys<'a> {
-    fn new(document: &'a Document, unit: &'a Unit, scope: &str) -> Self {
+    fn new(document: &'a Document, unit: &'a Unit, scope: &str, demand: Demand) -> Self {
         let definitions: HashMap<&str, &Definition> = unit
             .definitions
             .iter()
@@ -635,6 +639,17 @@ impl<'a> Keys<'a> {
             unit.files.iter().map(Said::of).collect::<Vec<_>>(),
         );
         shared.write(&tables).expect("a unit's tables serialize");
+        // Exact value propagation can read the body of a statically resolved local callee.
+        // Fingerprint those inputs once per unit for demands that consume the result.
+        if (demand.bounds || demand.values)
+            && crate::runtime_bounds::contracts::Contracts::embedded()
+                .scalar(&unit.language.name)
+                .is_some()
+        {
+            shared
+                .write(&functions)
+                .expect("the unit's functions serialize");
+        }
         Keys {
             shared: shared.0.finalize().into(),
             definitions,

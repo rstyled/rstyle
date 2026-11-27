@@ -420,6 +420,7 @@ pub(crate) fn derived(out: &Path) -> Vec<rstyle_core::facts::FnFacts> {
         graphs: true,
         bounds: false,
         flow: false,
+        values: false,
         defects: false,
     };
     rstyle_core::cpg::run_records(documents, demand)
