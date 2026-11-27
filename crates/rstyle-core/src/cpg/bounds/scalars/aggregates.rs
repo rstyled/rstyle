@@ -94,7 +94,11 @@ impl<'a> Walk<'_, '_, 'a> {
         } else {
             None
         };
-        self.write_at = Some(&rhs.id);
+        self.write_at = matches!(
+            place.kind,
+            NodeKind::PatternBinding | NodeKind::PatternWildcard | NodeKind::Identifier
+        )
+        .then_some(&rhs.id);
         let value = self.value(rhs, depth)?;
         if place.kind == NodeKind::PatternWildcard {
             return Some(());

@@ -429,8 +429,13 @@ fn flow_of(
         super::flow::attach_go_frames(tables, function, &mut derived);
         super::flow::attach_output(tables, function, &mut derived);
         super::flow::attach_call_returns(tables, function, &mut derived);
+        super::flow::attach_package_readiness(tables, function, &mut derived);
         super::flow::attach_panic_paths(tables, function, &mut derived);
+        super::flow::attach_aggregate_equality(tables, function, &mut derived);
+        super::flow::attach_generic_equality(tables, function, &mut derived);
+        super::flow::attach_channels(tables, function, &mut derived);
         super::flow::attach_select_cases(function, &mut derived);
+        super::flow::attach_evaluation_order(tables, function, &mut derived);
         derived
     })
 }

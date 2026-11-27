@@ -14,6 +14,15 @@ pub(in crate::cpg::bounds) struct View {
 }
 
 impl View {
+    pub(super) fn relocated(self, slot: usize) -> Self {
+        Self {
+            slot: Some(slot),
+            ..self
+        }
+    }
+    pub(super) fn slot(self) -> Option<usize> {
+        self.slot
+    }
     pub(super) fn array_address(self, n: usize) -> Option<Scalar> {
         if n > self.len {
             return None;
@@ -71,6 +80,7 @@ impl<'a> Walk<'_, '_, 'a> {
             TypeKind::Integer => Scalar::Int(0),
             TypeKind::Bool => Scalar::Bool(false),
             TypeKind::Interface => Scalar::Interface(None),
+            TypeKind::Function => Scalar::NilFunction,
             TypeKind::Float if matches!(ty.bits, Some(32 | 64)) => Scalar::Real(0.),
             TypeKind::Opaque if self.complex_width(ty).is_some() => Scalar::Complex(0., 0.),
             TypeKind::String => Scalar::Text(Vec::new()),
@@ -100,7 +110,7 @@ impl<'a> Walk<'_, '_, 'a> {
         })
     }
 
-    fn allocate(&mut self, items: Arc<[Scalar]>) -> Option<usize> {
+    pub(super) fn allocate(&mut self, items: Arc<[Scalar]>) -> Option<usize> {
         if items.len() > MAX_ITEMS || self.buffers.len() > MAX_ITEMS {
             return None;
         }
@@ -437,17 +447,37 @@ impl<'a> Walk<'_, '_, 'a> {
 
     fn extreme(&mut self, node: &'a Node, op: &str, depth: usize) -> Option<Scalar> {
         let mut best = self.value(self.child(node, 1)?, depth)?;
+        let minimum = op == self.profile.minimum;
         for id in &node.children[2..] {
             let next = self.value(self.facts.body.node(id).ok()?, depth)?;
             let order = match (&best, &next) {
                 (Scalar::Int(a), Scalar::Int(b)) => a.cmp(b),
+                (Scalar::Real(a), Scalar::Real(b)) => {
+                    if a.is_nan() {
+                        continue;
+                    }
+                    if b.is_nan() {
+                        best = next;
+                        continue;
+                    }
+                    // IEEE total order distinguishes -0 from +0 and orders the infinities.
+                    a.total_cmp(b)
+                }
                 (Scalar::Text(a), Scalar::Text(b)) => a.cmp(b),
+                (Scalar::StringView(_), _) | (_, Scalar::StringView(_)) => {
+                    let Scalar::Text(a) = self.read_string(best.clone())? else {
+                        return None;
+                    };
+                    let Scalar::Text(b) = self.read_string(next.clone())? else {
+                        return None;
+                    };
+                    a.cmp(&b)
+                }
                 _ => return None,
             };
-            if (op == self.profile.minimum && order.is_gt())
-                || (op == self.profile.maximum && order.is_lt())
-            {
-                best = next
+            // Equal strings retain the backing identity of the first operand.
+            if (minimum && order.is_gt()) || (!minimum && order.is_lt()) {
+                best = next;
             }
         }
         Some(best)

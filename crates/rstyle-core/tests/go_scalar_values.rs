@@ -26,9 +26,9 @@ fn result(json: Value) -> std::collections::BTreeMap<String, Option<ExactValue>>
                 .iter()
                 .filter(|node| node.kind == NodeKind::Return)
                 .max_by_key(|node| node.span.as_ref().map(|span| span.start))
-                .unwrap();
+                .and_then(|node| node.children.first());
             let known = record.exact_values.unwrap();
-            (record.name, known.get(&last.children[0]).cloned())
+            (record.name, last.and_then(|id| known.get(id).cloned()))
         })
         .collect()
 }
@@ -186,4 +186,180 @@ fn layout_and_operation_controls_change_the_affected_memory_result() {
     assert_eq!(values["field"], Some(ExactValue::Boolean(false)));
     assert_eq!(values["window"], None);
     assert_eq!(values["shifted"], Some(ExactValue::Integer("3".into())));
+}
+
+#[test]
+fn instantiated_widths_variadic_storage_and_multi_value_arguments_reach_the_caller() {
+    let values = result(
+        serde_json::from_str(include_str!("../src/cpg/testdata/frames-go.cpg.json")).unwrap(),
+    );
+    for (name, n) in [
+        ("narrow", 73),
+        ("wide", 329),
+        ("packet", 67),
+        ("shared", 27),
+        ("multi", 68),
+        ("multiVar", 68),
+        ("clean", 44),
+    ] {
+        assert_eq!(
+            values[name],
+            Some(ExactValue::Integer(n.to_string())),
+            "{name}"
+        );
+    }
+    for (name, b) in [
+        ("emptyPack", true),
+        ("emptySpread", false),
+        ("nilFn", true),
+        ("boxedNilFn", false),
+        ("literalFn", false),
+    ] {
+        assert_eq!(values[name], Some(ExactValue::Boolean(b)), "{name}");
+    }
+    assert_eq!(values["dirty"], Some(ExactValue::Integer("19".into())));
+}
+
+#[test]
+fn sequenced_pointer_calls_preserve_aliases_and_loop_posts_follow_the_body() {
+    let values = result(
+        serde_json::from_str(include_str!(
+            "../src/cpg/testdata/pointer-frames-go.cpg.json"
+        ))
+        .unwrap(),
+    );
+    for (name, n) in [
+        ("captured", 48),
+        ("expression", 29),
+        ("copy", 92),
+        ("aliases", 772),
+        ("independent", 557),
+        ("post", 12),
+        ("none", 7),
+    ] {
+        assert_eq!(
+            values[name],
+            Some(ExactValue::Integer(n.to_string())),
+            "{name}"
+        );
+    }
+    // Go does not require the unrelated read to follow the call in this expression.
+    assert_eq!(values["uncertain"], None);
+    assert_eq!(values["forever"], None);
+}
+
+fn numeric_records() -> Value {
+    serde_json::from_str(include_str!(
+        "../src/cpg/testdata/go-numeric-records.cpg.json"
+    ))
+    .unwrap()
+}
+
+#[test]
+fn ordered_extrema_reflection_and_operand_evaluation_match_native_go() {
+    let values = result(numeric_records());
+    for (name, n) in [
+        ("tags", 2),
+        ("promoted", 35),
+        ("quotient", 62),
+        ("skip", 3),
+        ("evaluate", 30),
+    ] {
+        assert_eq!(
+            values[name],
+            Some(ExactValue::Integer(n.to_string())),
+            "{name}"
+        );
+    }
+    for name in ["first", "sign", "nan"] {
+        assert_eq!(values[name], Some(ExactValue::Boolean(true)), "{name}");
+    }
+}
+
+#[test]
+fn only_certified_tag_and_constant_site_facts_produce_their_values() {
+    let mut doc = numeric_records();
+    let tags = doc["unit"]["extensions"]["go:field-tags"]
+        .as_object_mut()
+        .unwrap();
+    let tag = tags
+        .values_mut()
+        .find(|v| v["0"] == "6b3a22616222")
+        .unwrap();
+    tag["0"] = serde_json::json!("6b3a2261626322");
+    let functions = doc["unit"]["functions"].as_array_mut().unwrap();
+    let f = functions.iter_mut().find(|f| f["name"] == "skip").unwrap();
+    f["values"] = serde_json::json!([]);
+    let values = result(doc);
+    assert_eq!(values["tags"], Some(ExactValue::Integer("3".into())));
+    assert_eq!(values["skip"], None);
+    assert_eq!(values["evaluate"], Some(ExactValue::Integer("30".into())));
+}
+
+#[test]
+fn closure_activations_and_sequenced_mutations_preserve_shared_storage() {
+    let values = result(
+        serde_json::from_str(include_str!(
+            "../src/cpg/testdata/closure-frames-go.cpg.json"
+        ))
+        .unwrap(),
+    );
+    for (name, n) in [
+        ("copies", 34),
+        ("separate", 38),
+        ("late", 7),
+        ("named", 43),
+        ("fresh", 39),
+        ("resetSlice", 200),
+        ("resetMap", 0),
+        ("sequencedSlice", 19),
+    ] {
+        assert_eq!(
+            values[name],
+            Some(ExactValue::Integer(n.to_string())),
+            "{name}"
+        );
+    }
+    assert_eq!(values["unordered"], None);
+    assert_eq!(values["unorderedSlice"], None);
+}
+
+#[test]
+fn receiver_and_method_widths_are_independent_and_zero_size_keys_stay_unknown() {
+    let doc: Value = serde_json::from_str(include_str!(
+        "../src/cpg/testdata/method-instances-go.cpg.json"
+    ))
+    .unwrap();
+    let values = result(doc.clone());
+    for (name, n) in [("wideReceiver", 256), ("wideMethod", 512), ("keyValue", 7)] {
+        assert_eq!(
+            values[name],
+            Some(ExactValue::Integer(n.to_string())),
+            "{name}"
+        );
+    }
+    assert_eq!(values["zeroKey"], None);
+    let mut changed = doc;
+    let u = changed["unit"].as_object_mut().unwrap();
+    let wrong = u["types"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["spelling"] == "uint8")
+        .unwrap()["id"]
+        .clone();
+    let f = u["functions"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|f| f["name"] == "wideMethod")
+        .unwrap();
+    let call = f["refs"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|r| r["dispatch"] == "static")
+        .unwrap();
+    call["instance_arguments"][0] = wrong;
+    assert_eq!(result(changed)["wideMethod"], None);
 }

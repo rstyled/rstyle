@@ -11,7 +11,14 @@ pub(super) enum Key {
     Array(Vec<Key>),
     Dynamic(String, Box<Key>),
     NilInterface,
+    HeapPointer(Option<usize>),
     Record(Vec<(String, Key)>),
+}
+
+pub(super) fn transferable_items(items: &BTreeMap<Key, Scalar>) -> bool {
+    items.iter().all(|(key, value)| {
+        !matches!(key, Key::HeapPointer(Some(_))) && super::frames::primitive(value)
+    })
 }
 
 type Items = BTreeMap<Key, Scalar>;
@@ -54,6 +61,9 @@ impl<'a> Walk<'_, '_, 'a> {
             .facts
             .type_of(self.facts.ty(map)?.key_type.as_deref()?)?;
         let v = self.value(node, depth)?;
+        if declared.kind == TypeKind::Reference {
+            return self.pointer_key(declared, v);
+        }
         if declared.kind != TypeKind::Interface {
             return Key::of(v);
         }
@@ -81,6 +91,75 @@ impl<'a> Walk<'_, '_, 'a> {
             identity.to_owned(),
             Box::new(Key::of(pair.1)?),
         ))
+    }
+
+    fn pointer_key(&self, ty: &crate::cpg::model::Type, value: Scalar) -> Option<Key> {
+        match value {
+            Scalar::Nil | Scalar::Pointer(None) => Some(Key::HeapPointer(None)),
+            Scalar::Pointer(Some(super::pointers::Address::Heap(i))) => {
+                let layout = self
+                    .facts
+                    .tables
+                    .extension(&self.profile.address_layouts)?
+                    .get(ty.target.as_deref()?)?;
+                // Go permits distinct zero-size objects to compare equal.
+                (layout.get("size")?.as_u64()? > 0).then_some(Key::HeapPointer(Some(i)))
+            }
+            _ => None,
+        }
+    }
+
+    // The loop can consume the only key deterministically if its body assigns
+    // only locals from side-effect-free reads. A newly inserted key could add
+    // an optional iteration; leave a mutating body and multi-key order unknown.
+    pub(super) fn singleton_range(
+        &mut self,
+        node: &'a Node,
+        slot: Option<usize>,
+        depth: usize,
+    ) -> Option<()> {
+        let Some(slot) = slot else { return Some(()) };
+        let items = self.maps.get(slot)?;
+        if items.is_empty() {
+            return Some(());
+        }
+        if items.len() != 1 {
+            return None;
+        }
+        let key = match items.first_key_value()?.0 {
+            Key::HeapPointer(p) => Scalar::Pointer(p.map(super::pointers::Address::Heap)),
+            Key::Int(n) => Scalar::Int(*n),
+            Key::Bool(b) => Scalar::Bool(*b),
+            Key::Bytes(bytes) => Scalar::Text(bytes.clone()),
+            _ => return None,
+        };
+        let bind = self.child(node, 0)?;
+        let body = self.child(node, 2)?;
+        if !self.map_read_only(body, depth + 1)? {
+            return None;
+        }
+        self.store(self.binding(bind)?, self.for_storage(bind, key)?)?;
+        self.statement(body, depth + 1)
+    }
+
+    fn map_read_only(&mut self, n: &Node, depth: usize) -> Option<bool> {
+        self.enter(n, depth)?;
+        match n.kind {
+            NodeKind::Assignment
+                if n.children.len() == 2 && self.facts.local(self.child(n, 0)?).is_some() => {}
+            NodeKind::Block
+            | NodeKind::ExpressionStatement
+            | NodeKind::FieldAccess
+            | NodeKind::Identifier
+            | NodeKind::Literal => (),
+            _ => return Some(false),
+        }
+        for id in &n.children {
+            if !self.map_read_only(self.facts.body.node(id).ok()?, depth + 1)? {
+                return Some(false);
+            }
+        }
+        Some(true)
     }
 
     fn map(&mut self, items: Items) -> Option<Scalar> {

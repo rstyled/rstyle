@@ -56,9 +56,20 @@ send = "go:send"
 receive = "go:receive"
 channel_types = "go:channel-types"
 spread_arguments = "go:spread-arguments"
+counted_loop_header = "for.header"
+named_results = "go:named-results"
 nil = "go:nil"
 minimum = "go:min"
 maximum = "go:max"
+
+[scalar.reflect]
+type_for = "go:reflect.TypeFor"
+type_field = "go:reflect.Type.Field"
+tag_get = "go:reflect.StructTag.Get"
+type_object = "go:reflect.Type"
+struct_field = "go:reflect.StructField"
+struct_tag = "go:reflect.StructTag"
+tags = "go:field-tags"
 
 [[allocation]]
 basis = "The built-in allocator creates a fresh native slice header and backing storage with exactly the requested length; replacing an element invokes no setter and leaves the header's length unchanged. The type operand is static; length evaluation and allocation costs remain separate."

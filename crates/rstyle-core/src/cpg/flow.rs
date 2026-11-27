@@ -2,10 +2,21 @@
 //! post-dominators, reaching definitions, control dependence and the dependence graph they
 //! give. Frontends emit the flow and the accesses; all of this is derived, never emitted.
 
+mod package_init;
+pub(crate) use package_init::attach as attach_package_readiness;
 mod call_returns;
 pub(crate) use call_returns::attach as attach_call_returns;
 mod output;
 pub(crate) use output::attach as attach_output;
+mod aggregate_equality;
+pub(crate) use aggregate_equality::attach as attach_aggregate_equality;
+mod generic_equality;
+pub(crate) use generic_equality::attach as attach_generic_equality;
+mod channel_buffers;
+mod channels;
+pub(crate) use channels::attach as attach_channels;
+mod evaluation_order;
+pub(crate) use evaluation_order::attach as attach_evaluation_order;
 mod go_frames;
 pub(crate) use go_frames::attach as attach_go_frames;
 mod iterator_calls;
@@ -661,6 +672,8 @@ pub struct ExecutionEdge {
 /// A function's derived flow facts, in terms of the node IDs of its document.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Derived {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package_readiness: Option<package_init::Readiness>,
     /// Reachable returns at the program boundary and their effect on pending goroutines.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub program_return_exits: BTreeMap<String, String>,
@@ -673,6 +686,19 @@ pub struct Derived {
     /// Ordinary calls of a function containing a direct recover, which returns nil in this invocation.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub ordinary_recovers: BTreeMap<String, Vec<String>>,
+    /// Language-guaranteed ordering of events within a Go operand expression.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub evaluation_orders: BTreeMap<String, evaluation_order::EvaluationOrder>,
+    /// Go channel operations and their possible completion conditions.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub communications: BTreeMap<String, channels::Communication>,
+    /// Go channel length and capacity observations.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub channel_observations: BTreeMap<String, channels::Observation>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub generic_comparisons: BTreeMap<String, generic_equality::Comparison>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub aggregate_comparisons: BTreeMap<String, aggregate_equality::Comparison>,
     /// Eligible communication alternatives and ordered receive destinations.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub select_cases: BTreeMap<String, selects::Selection>,
@@ -742,12 +768,18 @@ impl Derived {
             panic_paths: BTreeMap::new(),
             program_return_exits: BTreeMap::new(),
             goroutine_panics: BTreeMap::new(),
+            evaluation_orders: BTreeMap::new(),
+            aggregate_comparisons: BTreeMap::new(),
+            generic_comparisons: BTreeMap::new(),
+            channel_observations: BTreeMap::new(),
+            communications: BTreeMap::new(),
             select_cases: BTreeMap::new(),
             range_callbacks: BTreeMap::new(),
             result_slots: Vec::new(),
             scheduled_calls: BTreeMap::new(),
             output: BTreeMap::new(),
             call_returns: BTreeMap::new(),
+            package_readiness: None,
             return_sources: BTreeMap::new(),
             reasons: vec![reason],
             assumptions: Vec::new(),
@@ -1005,12 +1037,18 @@ fn derived_of(
         panic_paths: BTreeMap::new(),
         program_return_exits: BTreeMap::new(),
         goroutine_panics: BTreeMap::new(),
+        evaluation_orders: BTreeMap::new(),
+        aggregate_comparisons: BTreeMap::new(),
+        generic_comparisons: BTreeMap::new(),
+        channel_observations: BTreeMap::new(),
+        communications: BTreeMap::new(),
         select_cases: BTreeMap::new(),
         range_callbacks: BTreeMap::new(),
         result_slots: Vec::new(),
         scheduled_calls: BTreeMap::new(),
         output: BTreeMap::new(),
         call_returns: BTreeMap::new(),
+        package_readiness: None,
         return_sources: BTreeMap::new(),
         closures: BTreeMap::new(),
     }
@@ -1139,7 +1177,10 @@ fn permanent_blocks(function: &Function, flow: &Flow<'_>) -> BTreeMap<String, St
             let node = flow.vertex(id)?;
             let reason = why.as_str()?;
             (flow.forward.successors[node].is_empty()
-                && matches!(reason, "nil_channel" | "no_enabled_select_case"))
+                && matches!(
+                    reason,
+                    "nil_channel" | "isolated_channel" | "no_enabled_select_case"
+                ))
             .then(|| (id.clone(), reason.to_owned()))
         })
         .collect()

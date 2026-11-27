@@ -111,6 +111,28 @@ fn binary(op: &str, (a, b): (f64, f64), bits: u32, rounded: bool) -> Option<f64>
     exact.then_some(out)
 }
 
+/// Smith's division used by Go's runtime. An exactness check on *each*
+/// intermediate also covers a narrower complex type evaluated at wider precision.
+fn complex_quotient((a, b): (f64, f64), (c, d): (f64, f64), bits: u32) -> Option<Scalar> {
+    let part = |op, x, y| binary(op, (x, y), bits, false);
+    let (n, m, den) = if c.abs() >= d.abs() {
+        let r = part("div", d, c)?;
+        (
+            part("add", a, part("mul", b, r)?)?,
+            part("sub", b, part("mul", a, r)?)?,
+            part("add", c, part("mul", r, d)?)?,
+        )
+    } else {
+        let r = part("div", c, d)?;
+        (
+            part("add", part("mul", a, r)?, b)?,
+            part("sub", part("mul", b, r)?, a)?,
+            part("add", d, part("mul", r, c)?)?,
+        )
+    };
+    Some(Scalar::Complex(part("div", n, den)?, part("div", m, den)?))
+}
+
 fn integer(v: f64, ty: Integer) -> Option<i128> {
     let v = v.trunc();
     let edge = 2f64.powi(i32::from(ty.bits) - i32::from(ty.signed));
@@ -250,15 +272,7 @@ impl Walk<'_, '_, '_> {
                         part("sub", part("mul", a, c)?, part("mul", b, d)?)?,
                         part("add", part("mul", a, d)?, part("mul", b, c)?)?,
                     ),
-                    "div"
-                        if b.to_bits() == 0
-                            && d.to_bits() == 0
-                            && (0.0..1e12).contains(&a)
-                            && !a.is_sign_negative()
-                            && (1e-12..1e12).contains(&c) =>
-                    {
-                        Complex(part("div", a, c)?, 0.)
-                    }
+                    "div" => complex_quotient((a, b), (c, d), bits)?,
                     _ => return None,
                 })
             }

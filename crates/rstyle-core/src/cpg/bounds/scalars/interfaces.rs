@@ -91,6 +91,11 @@ impl<'a> Walk<'_, '_, 'a> {
         if value == Scalar::Nil {
             return Some(Scalar::Interface(None));
         }
+        if matches!(value, Scalar::ReflectedType(_)) {
+            return (self.standard_type(target, &self.profile.reflect.type_object)
+                && self.standard_type(self.facts.ty(source)?, &self.profile.reflect.type_object))
+            .then_some(value);
+        }
         let boxed = match value {
             v @ Scalar::Interface(None) => return Some(v),
             Scalar::Interface(Some(pair)) => pair,
@@ -172,11 +177,7 @@ impl<'a> Walk<'_, '_, 'a> {
             (Bool(a), Bool(b)) => a == b,
             (Text(a), Text(b)) => a == b,
             (Channel(a), Channel(b)) => a == b,
-            (Pointer(a), Pointer(b)) if a == b || a.is_none() || b.is_none() => a == b,
-            (
-                Pointer(Some(super::pointers::Address::Local(a))),
-                Pointer(Some(super::pointers::Address::Local(b))),
-            ) if primitive(self.facts.type_of(ty.target.as_deref()?)?).is_some() => a == b,
+            (Pointer(a), Pointer(b)) => self.pointer_identity((a, b), ty)?,
             (Sequence(a), Sequence(b)) if ty.fixed == Some(true) && a.len() == b.len() => {
                 let elem = self.facts.type_of(ty.element.as_deref()?)?;
                 for (x, y) in a.iter().zip(b.iter()) {
@@ -207,6 +208,26 @@ impl<'a> Walk<'_, '_, 'a> {
             }
             _ => return None,
         })
+    }
+
+    fn pointer_identity(
+        &self,
+        (a, b): (
+            &Option<super::pointers::Address>,
+            &Option<super::pointers::Address>,
+        ),
+        ty: &Type,
+    ) -> Option<bool> {
+        use super::pointers::Address;
+        if a == b || a.is_none() || b.is_none() {
+            return Some(a == b);
+        }
+        primitive(self.facts.type_of(ty.target.as_deref()?)?)?;
+        match (a.as_ref()?, b.as_ref()?) {
+            (Address::Local(x), Address::Local(y)) => Some(x == y),
+            (Address::Cell(s, i), Address::Cell(t, j)) if s == t => Some(i == j),
+            _ => None,
+        }
     }
 
     pub(super) fn equality(

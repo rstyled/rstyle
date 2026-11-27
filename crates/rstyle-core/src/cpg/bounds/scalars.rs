@@ -8,13 +8,18 @@ mod address_words;
 mod aggregates;
 mod calls;
 mod channels;
+mod closures;
 mod constants;
 mod conversions;
+mod counted;
 mod floats;
+mod frames;
 mod interfaces;
 mod maps;
+mod method_instances;
 mod operations;
 mod pointers;
+mod reflection;
 mod storage;
 mod unsafe_memory;
 
@@ -32,6 +37,9 @@ pub(super) enum Scalar {
     Real(f64),
     Complex(f64, f64),
     Text(Vec<u8>),
+    Tuple(Vec<Scalar>),
+    ClosureValue(closures::Closure),
+    NilFunction,
     StringView(storage::View),
     RawPointer(Option<pointers::Address>, Option<String>),
     AddressWord(address_words::Word),
@@ -40,6 +48,7 @@ pub(super) enum Scalar {
     Map(Option<usize>),
     Channel(Option<usize>),
     Pointer(Option<pointers::Address>),
+    ReflectedType(String),
     Callable(String),
     BoundMethod(String, Box<Scalar>),
     Interface(Option<Box<(String, Scalar)>>),
@@ -78,6 +87,9 @@ struct Walk<'b, 'f, 'a> {
     channels: Vec<channels::Channel>,
     heap: Vec<Scalar>,
     array_slots: BTreeMap<&'a str, usize>,
+    environments: Vec<closures::Environment>,
+    named_return: Option<&'a str>,
+    inside_literal: bool,
     write_at: Option<&'a str>,
     round_at: Option<&'a str>,
 }
@@ -112,6 +124,9 @@ impl<'b, 'f, 'a> Walk<'b, 'f, 'a> {
             channels: Vec::new(),
             heap: Vec::new(),
             array_slots: BTreeMap::new(),
+            environments: Vec::new(),
+            named_return: None,
+            inside_literal: false,
             write_at: None,
             round_at: None,
         }
@@ -140,6 +155,11 @@ impl<'a> Walk<'_, '_, 'a> {
     fn for_storage(&self, place: &Node, value: Scalar) -> Option<Scalar> {
         let ty = self.facts.ty(place)?;
         match (&value, ty.kind) {
+            (Scalar::ReflectedType(_), TypeKind::Interface)
+                if self.standard_type(ty, &self.profile.reflect.type_object) =>
+            {
+                Some(value)
+            }
             (Scalar::AddressWord(_), TypeKind::Integer) if self.uintptr(ty) => Some(value),
             (Scalar::Int(n), TypeKind::Integer)
                 if operations::narrow(*n, self.facts.integer(Some(ty))?) == *n =>
@@ -155,7 +175,10 @@ impl<'a> Walk<'_, '_, 'a> {
                 Some(value)
             }
             (Scalar::Nil, TypeKind::Map) => Some(Scalar::Map(None)),
-            (v @ Scalar::Interface(_), TypeKind::Interface) => Some(v.clone()),
+            (Scalar::Nil, TypeKind::Function) => Some(Scalar::NilFunction),
+            (Scalar::ClosureValue(_) | Scalar::NilFunction, TypeKind::Function)
+            | (Scalar::Tuple(_), TypeKind::Tuple)
+            | (Scalar::Interface(_), TypeKind::Interface) => Some(value),
             (Scalar::Map(_), TypeKind::Map)
             | (Scalar::Pointer(_), TypeKind::Reference)
             | (Scalar::Callable(_) | Scalar::BoundMethod(_, _), TypeKind::Function) => Some(value),
@@ -203,13 +226,16 @@ impl<'a> Walk<'_, '_, 'a> {
                 _,
             ) => self.assignment_statement(node, depth),
             (NodeKind::If, 2 | 3) => self.branch(node, depth),
+            (NodeKind::While, 2) => self.counted_loop(node, depth),
             (NodeKind::For, 3) => {
                 let operand = self.child(node, 1)?;
+                self.write_at = Some(&operand.id);
                 let source = self.value(operand, depth + 1)?;
-                let Scalar::Channel(Some(slot)) = source else {
-                    return None;
-                };
-                self.channel_range(node, slot, depth + 1)
+                match source {
+                    Scalar::Channel(Some(slot)) => self.channel_range(node, slot, depth + 1),
+                    Scalar::Map(slot) => self.singleton_range(node, slot, depth + 1),
+                    _ => None,
+                }
             }
             (NodeKind::Call, _) => {
                 self.write_at = Some(&node.id);
@@ -228,10 +254,29 @@ impl<'a> Walk<'_, '_, 'a> {
             {
                 self.receive(node, depth + 1).map(|_| ())
             }
-            (NodeKind::Return, 1) => {
-                self.write_at = Some(&self.child(node, 0)?.id);
-                self.returned = self.value(self.child(node, 0)?, depth + 1);
+            (NodeKind::Return, 0 | 1) => {
+                self.returned = self.return_value(node, depth);
                 None
+            }
+            _ => None,
+        }
+    }
+
+    fn return_value(&mut self, node: &'a Node, depth: usize) -> Option<Scalar> {
+        if let Some(id) = node.children.first() {
+            self.write_at = Some(id);
+            return self.value(self.child(node, 0)?, depth + 1);
+        }
+        match self.named_return {
+            Some(symbol) => self.local_value(symbol),
+            None if !self.inside_literal
+                && self
+                    .facts
+                    .type_of(&self.facts.body.function.signature.result)?
+                    .kind
+                    == TypeKind::Unit =>
+            {
+                Some(Scalar::Nil)
             }
             _ => None,
         }
@@ -312,6 +357,10 @@ impl<'a> Walk<'_, '_, 'a> {
                 if node.extension.as_deref() == Some(self.profile.slice_expression.as_str()) =>
             {
                 self.slice(node, depth + 1)?
+            }
+            (NodeKind::Tuple, _) => self.tuple(node, depth + 1)?,
+            (NodeKind::Closure, _) if self.facts.ty(node)?.kind == TypeKind::Function => {
+                self.closure_value(node)
             }
             (NodeKind::RecordConstruction, _) => self.record(node, depth + 1)?,
             (NodeKind::FieldAccess, 1) if self.facts.reference(node).is_none() => {
@@ -416,8 +465,8 @@ impl<'a> Walk<'_, '_, 'a> {
     }
     fn compound(&mut self, node: &'a Node, depth: usize) -> Option<()> {
         let place = self.child(node, 0)?;
-        let symbol = self.facts.local(place)?;
-        let before = self.locals.get(symbol)?.clone();
+        let addr = self.address(place, depth + 1)?;
+        let before = self.pointed(&addr)?;
         let rhs = self.value(self.child(node, 1)?, depth + 1)?;
         let ty = self.facts.integer(self.facts.ty(place))?;
         let Scalar::Int(v) = operations::apply(
@@ -429,9 +478,7 @@ impl<'a> Walk<'_, '_, 'a> {
         else {
             return None;
         };
-        self.locals
-            .insert(symbol, Scalar::Int(operations::narrow(v, ty)));
-        Some(())
+        self.write_address(&addr, Scalar::Int(operations::narrow(v, ty)))
     }
 
     fn branch(&mut self, node: &'a Node, depth: usize) -> Option<()> {
@@ -476,6 +523,13 @@ impl<'a> Walk<'_, '_, 'a> {
         depth: usize,
     ) -> Option<Scalar> {
         let op = node.operator.as_deref()?;
+        if let (Scalar::ReflectedType(a), Some(Scalar::ReflectedType(b))) = (&first, &second)
+            && matches!(op, "eq" | "ne")
+        {
+            return Some(Scalar::Bool(
+                self.same_reflected_type(a, b)? == (op == "eq"),
+            ));
+        }
         if matches!(first, Scalar::AddressWord(_)) || matches!(second, Some(Scalar::AddressWord(_)))
         {
             return self.word_operation(op, first, second?);

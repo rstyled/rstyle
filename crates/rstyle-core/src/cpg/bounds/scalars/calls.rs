@@ -1,8 +1,7 @@
 //! Pure resolved calls with known arguments. Share the remaining work budget down the
 //! call chain. No expression in a callee can write its caller's state.
-use super::{DefinitionKind, Facts, Node, NodeKind, RefStatus, Scalar, Walk};
-use crate::cpg::model::{Dispatch, Function, Signature, TypeKind};
-use crate::cpg::tree::Body;
+use super::{DefinitionKind, Node, NodeKind, RefStatus, Scalar, Walk};
+use crate::cpg::model::{Definition, Dispatch, Function, Ref, TypeKind};
 
 impl<'a> Walk<'_, '_, 'a> {
     pub(super) fn call(&mut self, node: &'a Node, depth: usize) -> Option<Scalar> {
@@ -20,7 +19,29 @@ impl<'a> Walk<'_, '_, 'a> {
             return None;
         }
         let (_, def) = self.facts.resolved(node)?;
+        self.resolved_call(node, (reference, def), depth)
+    }
+    fn resolved_call(
+        &mut self,
+        node: &'a Node,
+        (reference, def): (&'a Ref, &'a Definition),
+        depth: usize,
+    ) -> Option<Scalar> {
         let callee = self.child(node, 0)?;
+        if def.kind == DefinitionKind::Method
+            && reference.dispatch == Some(Dispatch::Static)
+            && callee.extension.as_deref() == Some(&self.profile.method_value)
+        {
+            return self.explicit_method(node, callee, depth);
+        }
+        if def.standard
+            && def
+                .operation
+                .as_deref()
+                .is_some_and(|op| self.reflection_operation(op))
+        {
+            return self.reflection_call(node, def, depth);
+        }
         if def.kind == DefinitionKind::Method
             && matches!(
                 reference.dispatch,
@@ -75,19 +96,24 @@ impl<'a> Walk<'_, '_, 'a> {
     }
 
     fn standard_call(&mut self, node: &'a Node, op: &str, depth: usize) -> Option<Scalar> {
-        // Go does not evaluate the operand of a compile-time layout query.
-        if self
+        // A native constant fact for one of these resolved standard operations
+        // establishes that the operand is not evaluated, even if its selector
+        // would dereference a nil array pointer when evaluated at run time.
+        let ty = self.facts.ty(node)?;
+        let extent = (op == self.profile.byte_length || op == self.profile.capacity)
+            && self.facts.integer(Some(ty)).is_some_and(|n| n.signed);
+        let layout = self
             .profile
             .constant_layout_queries
             .iter()
             .any(|name| name == op)
+            && self.uintptr(ty);
+        if (extent || layout)
             && node.children.len() == 2
-            && self.uintptr(self.facts.ty(node)?)
+            && let Some(fact) = self.constants.get(node.id.as_str())
+            && fact.ty == node.ty
+            && fact.value.kind == "integer"
         {
-            let fact = self.constants.get(node.id.as_str())?;
-            if fact.ty != node.ty || fact.value.kind != "integer" {
-                return None;
-            }
             return self.literal(node, &fact.value);
         }
         if op == self.profile.complex_value
@@ -111,8 +137,11 @@ impl<'a> Walk<'_, '_, 'a> {
     }
     fn indirect_call(&mut self, node: &'a Node, depth: usize) -> Option<Scalar> {
         let callee = self.child(node, 0)?;
-        self.facts.local(callee)?;
+        if self.facts.local(callee).is_none() && callee.kind != NodeKind::Closure {
+            return None;
+        }
         match self.value(callee, depth + 1)? {
+            Scalar::ClosureValue(c) => self.invoke_literal(node, &c, depth),
             Scalar::Callable(id) => self.direct(node, self.facts.tables.function(&id)?, depth),
             Scalar::BoundMethod(id, r) => {
                 self.invoke_method((node, 1), (self.facts.tables.function(&id)?, *r), depth)
@@ -121,52 +150,34 @@ impl<'a> Walk<'_, '_, 'a> {
         }
     }
     fn direct(&mut self, node: &'a Node, func: &'a Function, depth: usize) -> Option<Scalar> {
-        let signature = &func.signature;
-        if !signature.generics.is_empty()
-            || !signature.modifiers.is_empty()
-            || signature.parameters.len() + 1 + usize::from(signature.receiver.is_some())
-                != node.children.len()
-        {
+        let instantiated;
+        let func = if func.signature.generics.is_empty() {
+            func
+        } else {
+            instantiated = self.instantiate(func, self.facts.reference(node)?)?;
+            &instantiated
+        };
+        if !self.result_matches(node, &func.signature.result)? {
             return None;
         }
-        let inputs = self.arguments(node, signature, depth)?;
-        self.invoke(func, inputs, depth)
+        let inputs = self.run_arguments(node, &func.signature, depth)?;
+        self.invoke_frame(func, inputs, (depth, self.write_at == Some(&node.id)))
+    }
+    fn result_matches(&self, node: &Node, result: &str) -> Option<bool> {
+        let ty = self.facts.ty(node)?;
+        if ty.id == result {
+            return Some(true);
+        }
+        let declared = self.facts.type_of(result)?;
+        // Named result variables can give the call and declaration distinct tuple IDs.
+        // A tuple has no independent Go type identity beyond its ordered elements.
+        Some(
+            ty.kind == TypeKind::Tuple
+                && declared.kind == TypeKind::Tuple
+                && ty.items.as_ref()? == declared.items.as_ref()?,
+        )
     }
 
-    fn invoke(
-        &mut self,
-        func: &'a Function,
-        inputs: Vec<(&'a str, Scalar)>,
-        depth: usize,
-    ) -> Option<Scalar> {
-        if func.nodes.len() > 128
-            || depth >= 30
-            || !func.signature.modifiers.is_empty()
-            || !func.signature.generics.is_empty()
-        {
-            return None;
-        }
-        // Indexing another body also consumes work, even when it immediately stops.
-        self.remaining = self.remaining.checked_sub(func.nodes.len())?;
-        let body = Body::new(func).ok()?;
-        let facts = Facts {
-            body: &body,
-            tables: self.facts.tables,
-            sources: self.facts.sources,
-            pointer_bits: self.facts.pointer_bits,
-            destructors_are_calls: self.facts.destructors_are_calls,
-        };
-        let mut child = Walk::new(&facts, self.profile, self.remaining);
-        child.locals.extend(inputs);
-        child.statement(body.root().ok()?, depth + 1);
-        self.remaining = child.remaining;
-        child.returned.filter(|value| {
-            matches!(
-                value,
-                Scalar::Int(_) | Scalar::Text(_) | Scalar::Bool(_) | Scalar::Real(_)
-            )
-        })
-    }
     fn method_receiver(
         &mut self,
         (expr, def): (&'a Node, &'a crate::cpg::model::Definition),
@@ -201,19 +212,35 @@ impl<'a> Walk<'_, '_, 'a> {
         }
         let func = self.facts.tables.function(&target.id)?;
         let receiver = func.signature.receiver.as_ref()?;
-        if let Scalar::Pointer(Some(addr)) = &value
-            && ty.kind == TypeKind::Reference
-            && ty.target.as_ref() == Some(&receiver.ty)
-        {
-            value = self.pointed(addr)?;
-            ty = self.facts.type_of(&receiver.ty)?;
+        let value = self.receiver_value((expr, ty), (&receiver.ty, value), depth)?;
+        Some((func, value))
+    }
+
+    pub(super) fn receiver_value(
+        &mut self,
+        (expr, ty): (&'a Node, &crate::cpg::model::Type),
+        (expected, value): (&str, Scalar),
+        depth: usize,
+    ) -> Option<Scalar> {
+        if expected == ty.id && self.transferable(&value) {
+            return Some(value);
         }
-        (receiver.ty == ty.id
-            && matches!(
-                value,
-                Scalar::Int(_) | Scalar::Real(_) | Scalar::Bool(_) | Scalar::Text(_)
-            ))
-        .then_some((func, value))
+        if ty.target.as_deref() == Some(expected) && ty.kind == TypeKind::Reference {
+            let Scalar::Pointer(Some(addr)) = value else {
+                return None;
+            };
+            let v = self.pointed(&addr)?;
+            return self.transferable(&v).then_some(v);
+        }
+        let dst = self.facts.type_of(expected)?;
+        if expr.kind == NodeKind::Identifier
+            && dst.kind == TypeKind::Reference
+            && dst.target.as_deref() == Some(&ty.id)
+        {
+            let address = self.address(expr, depth + 1)?;
+            return Some(Scalar::Pointer(Some(address)));
+        }
+        None
     }
 
     pub(super) fn method_value(&mut self, node: &'a Node, depth: usize) -> Option<Scalar> {
@@ -228,10 +255,10 @@ impl<'a> Walk<'_, '_, 'a> {
         ))
     }
 
-    fn invoke_method(
+    pub(super) fn invoke_method(
         &mut self,
         (node, offset): (&'a Node, usize),
-        (func, receiver): (&'a Function, Scalar),
+        (func, receiver): (&Function, Scalar),
         depth: usize,
     ) -> Option<Scalar> {
         let sig = &func.signature;
@@ -255,38 +282,6 @@ impl<'a> Walk<'_, '_, 'a> {
             }
             args.push((&p.symbol, v));
         }
-        self.invoke(func, args, depth)
-    }
-
-    fn arguments(
-        &mut self,
-        node: &'a Node,
-        signature: &'a Signature,
-        depth: usize,
-    ) -> Option<Vec<(&'a str, Scalar)>> {
-        if signature
-            .parameters
-            .iter()
-            .enumerate()
-            .any(|(i, p)| p.position != i)
-        {
-            return None;
-        }
-        let receiver = signature.receiver.iter().map(|p| (&p.symbol, &p.ty));
-        let parameters = signature.parameters.iter().map(|p| (&p.symbol, &p.ty));
-        let mut args = Vec::new();
-        for ((symbol, ty), id) in receiver.chain(parameters).zip(&node.children[1..]) {
-            let arg = self.facts.body.node(id).ok()?;
-            if arg.ty.as_ref() != Some(ty)
-                || !matches!(
-                    self.facts.ty(arg)?.kind,
-                    TypeKind::Integer | TypeKind::Bool | TypeKind::String | TypeKind::Float
-                )
-            {
-                return None;
-            }
-            args.push((symbol.as_str(), self.value(arg, depth + 1)?));
-        }
-        Some(args)
+        self.invoke_frame(func, args, (depth, self.write_at == Some(&node.id)))
     }
 }

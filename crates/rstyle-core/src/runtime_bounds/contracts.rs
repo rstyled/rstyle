@@ -147,6 +147,7 @@ pub struct ScalarProfile {
     pub unsafe_string_data: String,
     pub arbitrary_pointee: String,
     pub address_layouts: String,
+    pub reflect: ReflectionProfile,
     pub constant_layout_queries: Vec<String>,
     pub uintptr: String,
     pub real_component: String,
@@ -173,9 +174,24 @@ pub struct ScalarProfile {
     pub receive: String,
     pub channel_types: String,
     pub spread_arguments: String,
+    pub counted_loop_header: String,
+    pub named_results: String,
     pub nil: String,
     pub minimum: String,
     pub maximum: String,
+}
+
+/// Standard reflection definitions and the frontend's raw per-field tag table.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReflectionProfile {
+    pub type_for: String,
+    pub type_field: String,
+    pub tag_get: String,
+    pub type_object: String,
+    pub struct_field: String,
+    pub struct_tag: String,
+    pub tags: String,
 }
 
 /// Contracts by namespaced operation key.

@@ -61,6 +61,14 @@ impl<'a> Walk<'_, '_, 'a> {
         if let Some(v) = self.convert_numeric(&value, to) {
             return Some(v);
         }
+        if from.kind == to.kind
+            && matches!(
+                to.kind,
+                TypeKind::Reference | TypeKind::Record | TypeKind::Sequence
+            )
+        {
+            return self.preserve_aggregate(value, (from, to));
+        }
         match (value, to.kind) {
             (v @ Scalar::Int(_), TypeKind::Integer) if self.facts.integer(Some(to)).is_some() => {
                 Some(v)
@@ -75,13 +83,50 @@ impl<'a> Walk<'_, '_, 'a> {
                 self.text_slice(bytes, to)
             }
             (Scalar::Slice(view), TypeKind::String) => self.slice_text(view, from),
-            (Scalar::Slice(view), TypeKind::Sequence)
-                if to.fixed == Some(true) && from.element == to.element =>
-            {
-                self.slice_array(view, usize::try_from(to.length?).ok()?)
-            }
             _ => None,
         }
+    }
+    fn preserve_aggregate(
+        &self,
+        value: Scalar,
+        (from, to): (&crate::cpg::model::Type, &crate::cpg::model::Type),
+    ) -> Option<Scalar> {
+        let (a, b) = match &value {
+            Scalar::Pointer(_) => {
+                let a = self.facts.type_of(from.target.as_deref()?)?;
+                let b = self.facts.type_of(to.target.as_deref()?)?;
+                if a.id == b.id {
+                    return Some(value);
+                }
+                (a, b)
+            }
+            Scalar::Record(_) => (from, to),
+            Scalar::Slice(view) if from.element == to.element && from.fixed == Some(false) => {
+                if to.fixed == Some(false) {
+                    return Some(value);
+                }
+                return self.slice_array(*view, usize::try_from(to.length?).ok()?);
+            }
+            Scalar::Sequence(_)
+                if from.element == to.element
+                    && from.fixed == Some(true)
+                    && from.length == to.length =>
+            {
+                return Some(value);
+            }
+            _ => return None,
+        };
+        if a.kind != TypeKind::Record || b.kind != TypeKind::Record {
+            return None;
+        }
+        let (xs, ys) = (a.fields.as_deref()?, b.fields.as_deref()?);
+        // Tags affect type identity, but do not occupy storage.
+        (xs.len() == ys.len()
+            && xs
+                .iter()
+                .zip(ys)
+                .all(|(x, y)| x.name == y.name && x.ty == y.ty && x.embedded == y.embedded))
+        .then_some(value)
     }
     fn slice_array(&self, view: super::storage::View, length: usize) -> Option<Scalar> {
         if length > view.len {

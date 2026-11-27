@@ -27,6 +27,21 @@ fn compare(order: Ordering, op: &str) -> Option<Scalar> {
     }))
 }
 
+fn nil_comparison(val: &Scalar, op: &str) -> Option<Scalar> {
+    if op != "eq" && op != "ne" {
+        return None;
+    }
+    let nil = match val {
+        Scalar::Nil | Scalar::NilFunction => true,
+        Scalar::Pointer(v) => v.is_none(),
+        Scalar::Map(v) | Scalar::Channel(v) => v.is_none(),
+        Scalar::Slice(view) => *view == super::storage::View::nil(),
+        Scalar::Callable(_) | Scalar::BoundMethod(_, _) | Scalar::ClosureValue(_) => false,
+        _ => return None,
+    };
+    Some(Scalar::Bool(nil == (op == "eq")))
+}
+
 pub(super) fn apply(
     profile: &ScalarProfile,
     op: &str,
@@ -40,22 +55,10 @@ pub(super) fn apply(
         {
             Some(Bool((a == b) == (op == "eq")))
         }
-        (Pointer(addr), Some(Nil)) | (Nil, Some(Pointer(addr))) if op == "eq" || op == "ne" => {
-            Some(Bool(addr.is_none() == (op == "eq")))
-        }
         (Channel(a), Some(Channel(b))) if op == "eq" || op == "ne" => {
             Some(Bool((a == b) == (op == "eq")))
         }
-        (Channel(slot), Some(Nil)) | (Nil, Some(Channel(slot))) if op == "eq" || op == "ne" => {
-            Some(Bool(slot.is_none() == (op == "eq")))
-        }
-        (Map(slot), Some(Nil)) | (Nil, Some(Map(slot))) if op == "eq" || op == "ne" => {
-            Some(Bool(slot.is_none() == (op == "eq")))
-        }
-        (Nil, Some(Nil)) if op == "eq" || op == "ne" => Some(Bool(op == "eq")),
-        (Slice(v), Some(Nil)) | (Nil, Some(Slice(v))) if op == "eq" || op == "ne" => {
-            Some(Bool((v == super::storage::View::nil()) == (op == "eq")))
-        }
+        (v, Some(Nil)) | (Nil, Some(v)) => nil_comparison(&v, op),
         (Int(a), None) => Some(Int(match op {
             "neg" => a.checked_neg()?,
             "bit_not" if width.is_some_and(|t| !t.signed) => narrow(!a, width?),
