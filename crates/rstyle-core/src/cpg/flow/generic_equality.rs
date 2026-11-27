@@ -36,9 +36,23 @@ fn parameter<'a>(callee: &Body<'a>, node: &Node) -> Option<&'a crate::cpg::model
         .find(|p| p.symbol == sym)
 }
 
-fn dynamic_result(t: &Type) -> Option<&'static str> {
-    match t.kind {
-        TypeKind::Sequence if t.fixed == Some(false) => Some("runtime_panic"),
+fn dynamic_result(x: &Type, y: &Type) -> Option<&'static str> {
+    if x.id != y.id {
+        // A defined slice or map and its unnamed underlying type can be assigned
+        // to each other. Boxing preserves their different dynamic identities.
+        // Different row IDs alone do not prove inequality (e.g. []byte and []uint8).
+        let container = |t: &Type| {
+            t.kind == TypeKind::Map || (t.kind == TypeKind::Sequence && t.fixed == Some(false))
+        };
+        return (container(x)
+            && container(y)
+            && x.normalized.is_none()
+            && y.normalized.is_none()
+            && (x.kind != y.kind || x.definition != y.definition))
+            .then_some("comparison_completes");
+    }
+    match x.kind {
+        TypeKind::Sequence if x.fixed == Some(false) => Some("runtime_panic"),
         TypeKind::Map | TypeKind::Function => Some("runtime_panic"),
         TypeKind::Integer
         | TypeKind::Bool
@@ -94,7 +108,7 @@ fn compare<'a>(
         .as_ref()?
         .get(formal.index? as usize)?;
     // For interface instances, equal dynamic types determine whether equality can panic.
-    if tables.ty(inst).ok()?.kind != TypeKind::Interface || x.id != y.id {
+    if tables.ty(inst).ok()?.kind != TypeKind::Interface {
         return None;
     }
     Some(Comparison {
@@ -102,7 +116,7 @@ fn compare<'a>(
         instance: inst.clone(),
         operands: values,
         dynamic_types: vec![x.id.clone(), y.id.clone()],
-        outcome: dynamic_result(x)?.into(),
+        outcome: dynamic_result(x, y)?.into(),
     })
 }
 
@@ -132,4 +146,28 @@ pub(crate) fn attach(tables: &Tables<'_>, f: &Function, derived: &mut Derived) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn boxed_slice_comparison_requires_proven_dynamic_identity() {
+        let plain: Type = serde_json::from_value(json!({
+            "id":"s", "kind":"sequence", "fixed":false, "element":"u8", "spelling":"[]uint8"
+        }))
+        .unwrap();
+        let mut named = plain.clone();
+        named.id = "list".into();
+        named.definition = Some("decl_List".into());
+        assert_eq!(dynamic_result(&named, &plain), Some("comparison_completes"));
+        assert_eq!(dynamic_result(&plain, &named), Some("comparison_completes"));
+        assert_eq!(dynamic_result(&named, &named), Some("runtime_panic"));
+        let mut alias = plain.clone();
+        alias.id = "other".into();
+        alias.spelling = "[]byte".into();
+        assert_eq!(dynamic_result(&plain, &alias), None);
+    }
 }
