@@ -1,5 +1,4 @@
-//! Pure resolved calls with known arguments. Share the remaining work budget down the
-//! call chain. No expression in a callee can write its caller's state.
+//! Resolved call dispatch with a shared work budget for nested activations.
 use super::{DefinitionKind, Node, NodeKind, RefStatus, Scalar, Walk};
 use crate::cpg::model::{Definition, Dispatch, Function, Ref, TypeKind};
 

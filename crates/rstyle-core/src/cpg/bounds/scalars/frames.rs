@@ -1,5 +1,5 @@
-//! Monomorphic, read-only Go call frames. A slice argument keeps its backing storage,
-//! including when forwarded as the return value. A fresh variadic pack gets a new buffer.
+//! Checked call frames preserve scalar activation values and aliases across Go calls.
+//! Caller-visible writes require a call site whose ordering is known.
 use super::{Node, Scalar, TypeKind, Walk, pointers::Address};
 use crate::cpg::model::{Function, Ref, Signature};
 

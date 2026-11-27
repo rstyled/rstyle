@@ -322,6 +322,8 @@ fn closure_activations_and_sequenced_mutations_preserve_shared_storage() {
     }
     assert_eq!(values["unordered"], None);
     assert_eq!(values["unorderedSlice"], None);
+    // A saved pointer method can carry a different range variable from each iteration.
+    assert_eq!(values["escapedIterations"], None);
 }
 
 #[test]

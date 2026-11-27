@@ -117,7 +117,11 @@ impl<'a> Walk<'_, '_, 'a> {
         self.enter(node, depth)?;
         // Each declared iteration variable has fresh addressable storage.
         // Stop before its address or a closure could retain a prior instance.
-        if matches!(node.kind, NodeKind::Reference | NodeKind::Closure) {
+        if matches!(node.kind, NodeKind::Reference | NodeKind::Closure)
+            || node.extension.as_deref().is_some_and(|key| {
+                key == self.profile.method_value || key == self.profile.slice_expression
+            })
+        {
             return Some(false);
         }
         for id in &node.children {
